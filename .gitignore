@@ -1,0 +1,10 @@
+#Folders
+**/__pycache__
+molmag_ac_gui.egg-info/*
+dist/*
+build/*
+ac_gui_venv/*
+
+#Files
+.pypirc
+*.docx
