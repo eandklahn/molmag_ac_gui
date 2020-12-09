@@ -6,8 +6,8 @@ Run the GUI with
 ```
 python -m molmag_ac_gui
 ```
-to use the GUI for fitting relaxation times. Your own file with data of can be loaded and fitted in the "Analysis"-tab
-if the file is formatted as
+to use the GUI for fitting relaxation times. Your own file with data of (T, tau) can be loaded and fitted in the "Analysis"-tab
+when the file is formatted as
 
 ```
 T1 tau1
