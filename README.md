@@ -1,4 +1,4 @@
-#Molmag AC GUI
+# Molmag AC GUI
 
 Import `process_ac` to use in scripts with your own data.
 
