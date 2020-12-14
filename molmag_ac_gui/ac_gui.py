@@ -907,6 +907,7 @@ line 10: INFO,f,<mass>mg""")
         if finished_value:
             
             plot_type = sim_dialog.plot_type_list
+            print(finished_value, plot_type)
             if len(plot_type)<1:
                 pass
             else:
@@ -964,9 +965,12 @@ line 10: INFO,f,<mass>mg""")
             
             finished_value = sim_dialog.exec_()
             
+            print(finished_value, sim_dialog.plot_type_list, sim_dialog.plot_parameters)
+            
             if finished_value:
                 # Reading new parameters of simulation
                 new_plot_type = sim_dialog.plot_type_list
+                
                 
                 if len(new_plot_type)<1:
                     pass
@@ -1357,6 +1361,10 @@ class SimulationDialog(QDialog):
         
         self.layout = QVBoxLayout()
         
+        # Abstracting the validator for the QLineEdits
+        self.validator = QDoubleValidator()
+        self.validator.setNotation(QDoubleValidator.ScientificNotation)
+        
         if fitted_parameters is not None:
             self.use_fit_cb = QCheckBox('Use fitted parameters')
             self.use_fit_cb.stateChanged.connect(self.fit_take_control)
@@ -1421,37 +1429,37 @@ class SimulationDialog(QDialog):
         
         self.tqt_val = QLineEdit()
         self.lineedit_inputs['tQT'] = self.tqt_val
-        self.tqt_val.setValidator(QDoubleValidator())
+        self.tqt_val.setValidator(self.validator)
         self.tqt_val.setText(str(self.plot_parameters['tQT']))
-        self.tqt_val.editingFinished.connect(self.param_values_changed)
+        #self.tqt_val.editingFinished.connect(self.param_values_changed)
         self.sim_vals_layout.addRow('t_QT', self.tqt_val)
         
         self.cr_val = QLineEdit()
         self.lineedit_inputs['Cr'] = self.cr_val
-        self.cr_val.setValidator(QDoubleValidator())
+        self.cr_val.setValidator(self.validator)
         self.cr_val.setText(str(self.plot_parameters['Cr']))
-        self.cr_val.editingFinished.connect(self.param_values_changed)
+        #self.cr_val.editingFinished.connect(self.param_values_changed)
         self.sim_vals_layout.addRow('C_R', self.cr_val)
         
         self.n_val = QLineEdit()
         self.lineedit_inputs['n'] = self.n_val
-        self.n_val.setValidator(QDoubleValidator())
+        self.n_val.setValidator(self.validator)
         self.n_val.setText(str(self.plot_parameters['n']))
-        self.n_val.editingFinished.connect(self.param_values_changed)
+        #self.n_val.editingFinished.connect(self.param_values_changed)
         self.sim_vals_layout.addRow('n', self.n_val)
         
         self.t0_val = QLineEdit()
         self.lineedit_inputs['t0'] = self.t0_val
-        self.t0_val.setValidator(QDoubleValidator())
+        self.t0_val.setValidator(self.validator)
         self.t0_val.setText(str(self.plot_parameters['t0']))
-        self.t0_val.editingFinished.connect(self.param_values_changed)
+        #self.t0_val.editingFinished.connect(self.param_values_changed)
         self.sim_vals_layout.addRow('t0', self.t0_val)
         
         self.Ueff_val = QLineEdit()
         self.lineedit_inputs['Ueff'] = self.Ueff_val
-        self.Ueff_val.setValidator(QDoubleValidator())
+        self.Ueff_val.setValidator(self.validator)
         self.Ueff_val.setText(str(self.plot_parameters['Ueff']))
-        self.Ueff_val.editingFinished.connect(self.param_values_changed)
+        #self.Ueff_val.editingFinished.connect(self.param_values_changed)
         self.sim_vals_layout.addRow('U_eff', self.Ueff_val)
         
         self.layout.addLayout(self.sim_vals_layout)
@@ -1465,7 +1473,7 @@ class SimulationDialog(QDialog):
         self.button_layout.addWidget(self.cancel_btn)
         
         self.accept_btn = QPushButton('Ok')
-        self.accept_btn.clicked.connect(self.accept)
+        self.accept_btn.clicked.connect(self.replace_and_accept)
         self.button_layout.addWidget(self.accept_btn)
         
         self.layout.addLayout(self.button_layout)
@@ -1500,6 +1508,8 @@ class SimulationDialog(QDialog):
         self.plot_parameters['t0'] = float(self.t0_val.text())
         self.plot_parameters['Ueff'] = float(self.Ueff_val.text())
         
+        print(self.plot_parameters, 'here')
+        
     def plot_type_changed(self):
         
         self.plot_type_list = []
@@ -1515,6 +1525,11 @@ class SimulationDialog(QDialog):
             assert self.min_and_max_temps[0]<=self.min_and_max_temps[1]
         except AssertionError:
             pass
+            
+    def replace_and_accept(self):
+        
+        self.param_values_changed()
+        self.accept()
 
 class PlottingWindow(QWidget):
 
