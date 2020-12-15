@@ -695,7 +695,8 @@ def _QT(T, tQT):
 def _R(T, Cr, n):
     """
     Basic function for calculating relaxation time due to
-    the Raman mechanism
+    the Raman mechanism. For canonical definition, see fx.
+    DOI: 10.1039/c9cc02421b
     
     Input
     T: temperature for the calculation
