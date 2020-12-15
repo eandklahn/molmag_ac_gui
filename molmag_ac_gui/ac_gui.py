@@ -6,10 +6,11 @@ import pandas as pd
 import time
 from subprocess import Popen, PIPE
 import re
+import os
 # OWN ONES
 from molmag_ac_gui.process_ac import *
 # EXTERNAL
-import scipy.constants as scicon
+import scipy.constants as sc
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
@@ -25,6 +26,8 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton, QL
 if int(QtCore.qVersion().split('.')[0])>=5:
     from matplotlib.backends.backend_qt5agg import (FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
 #print('PyQt version is {}'.format(QtCore.qVersion()))
+
+kB = sc.Boltzmann
 
 class ACGui(QMainWindow):
 
@@ -57,13 +60,13 @@ class ACGui(QMainWindow):
         
         """ Constructing the data analysis tab ---------------------------------------------------------------------------------- """
         # Data containers for analysis
-        self.data_file_origin = None
+        self.data_file_name = None
+        self.data_file_dir = os.getcwd()
         self.data_T = None
         self.data_tau = None
         
         self.data_used_pointer = None
         self.data_not_used_pointer = None
-        self.plot_of_fit_pointer = None
         
         self.used_T = None
         self.not_used_T = None
@@ -74,7 +77,8 @@ class ACGui(QMainWindow):
         self.fitted_parameters = None
         self.used_indices = None
         
-        self.simulation_items = []
+        #commented out on 15/12/2020. remove if no adverse effects are found in two months.
+        #self.simulation_items = []
         
         # Data containers for treatment
         
@@ -907,7 +911,7 @@ line 10: INFO,f,<mass>mg""")
         if finished_value:
             
             plot_type = sim_dialog.plot_type_list
-            print(finished_value, plot_type)
+
             if len(plot_type)<1:
                 pass
             else:
@@ -964,8 +968,6 @@ line 10: INFO,f,<mass>mg""")
                                           min_and_max_temps=old_T_vals)
             
             finished_value = sim_dialog.exec_()
-            
-            print(finished_value, sim_dialog.plot_type_list, sim_dialog.plot_parameters)
             
             if finished_value:
                 # Reading new parameters of simulation
@@ -1042,17 +1044,18 @@ line 10: INFO,f,<mass>mg""")
                 self.startUp = False
                 return 0
         else:
-            starting_directory = os.getcwd()
+            starting_directory = self.data_file_dir
             filename_info = QFileDialog().getOpenFileName(self, 'Open file', starting_directory)
             filename = filename_info[0]
         
         if filename == '':
             pass
         else:
-            self.data_file_origin = filename
+            self.data_file_name = filename
+            self.data_file_dir = os.path.dirname(filename)
         
         try:
-            D = np.loadtxt(self.data_file_origin, skiprows=1)
+            D = np.loadtxt(self.data_file_name, skiprows=1)
         except (ValueError, OSError) as error:
             error_type = error.__class__.__name__
             if error_type == 'ValueError':
@@ -1084,7 +1087,7 @@ line 10: INFO,f,<mass>mg""")
             quantities.append(key)
         
         Ueff = params[quantities.index('Ueff')]
-        params[quantities.index('Ueff')] = Ueff*scicon.Boltzmann
+        params[quantities.index('Ueff')] = Ueff*sc.Boltzmann
         
         p_fit_script_type = {'params': params,
                              'quantities': quantities,
@@ -1123,6 +1126,9 @@ line 10: INFO,f,<mass>mg""")
         """Reimplemented from fitRelaxation"""
         
         guess = getParameterGuesses(self.used_T, self.used_tau)
+        guess_dialog = GuessDialog(guess=guess)
+        guess_dialog.exec_()
+        guess = guess_dialog.return_guess
         perform_this_fit = self.read_fit_type_cbs()
         
         f = getFittingFunction(fitType=perform_this_fit)
@@ -1154,7 +1160,6 @@ line 10: INFO,f,<mass>mg""")
             assert Tmin != Tmax
             assert perform_this_fit != ''
             
-            #fig3, p_fit = fitRelaxation(self.data_file_origin, (Tmin, Tmax), fitType=perform_this_fit)
             p_fit = self.fit_relaxation()
             self.fitted_parameters = p_fit
         
@@ -1325,7 +1330,7 @@ class ParamDialog(QDialog):
             idx = param_dict['quantities'].index(val)
             
             current_label = QLabel()
-            if val == 'Ueff': multiplier = scicon.Boltzmann
+            if val == 'Ueff': multiplier = sc.Boltzmann
             current_label.setText('{}: {:6.3e} +/- {:6.3e}'.format(val,
                                                                    param_dict['params'][idx]/multiplier,
                                                                    param_dict['sigmas'][idx]/multiplier))
@@ -1379,7 +1384,7 @@ class SimulationDialog(QDialog):
                     param = None
                 finally:
                     if quant=='Ueff':
-                        param/=scicon.Boltzmann
+                        param/=sc.Boltzmann
                     self.fitted_parameters[quant] = param
             
         # Controls to play with temperature
@@ -1508,8 +1513,6 @@ class SimulationDialog(QDialog):
         self.plot_parameters['t0'] = float(self.t0_val.text())
         self.plot_parameters['Ueff'] = float(self.Ueff_val.text())
         
-        print(self.plot_parameters, 'here')
-        
     def plot_type_changed(self):
         
         self.plot_type_list = []
@@ -1621,7 +1624,44 @@ class AboutDialog(QDialog):
         
         self.setLayout(self.layout)
         self.show()
-          
+
+class GuessDialog(QDialog):
+
+    def __init__(self,
+                 parent=None,
+                 guess=None):
+        super(GuessDialog, self).__init__()
+        
+        self.layout = QFormLayout()
+        self.validator = QDoubleValidator()
+        
+        self.values = []
+        
+        for pair in guess.items():
+            lbl = QLabel(pair[0])
+            text = QLineEdit()
+            text.setValidator(self.validator)
+            if pair[0]=='Ueff':
+                text.setText(str(pair[1]/kB))
+            else:
+                text.setText(str(pair[1]))
+            self.layout.addRow(lbl, text)
+            self.values.append((lbl, text))
+        
+        self.setLayout(self.layout)
+        
+        accept_btn = QPushButton('Ok')
+        accept_btn.clicked.connect(self.on_close)
+        self.layout.addRow(accept_btn)
+        
+        self.show()
+        
+    def on_close(self):
+        
+        self.return_guess = {v[0].text(): float(v[1].text()) for v in self.values}
+        self.return_guess['Ueff'] = self.return_guess['Ueff']*kB
+        self.accept()
+    
 if __name__ == '__main__':
     
     myappid = 'AC Processing v1.0'

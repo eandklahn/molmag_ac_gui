@@ -706,7 +706,7 @@ def _R(T, Cr, n):
     tau: relaxation time due to the Raman mechanism
     """
     
-    tau = Cr*T**-n
+    tau = Cr**-1*T**-n
 
     return tau
     
