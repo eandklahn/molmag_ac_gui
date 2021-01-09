@@ -50,6 +50,8 @@ def calcTcolor(T, Tmin, Tmax):
         p = (T-Tmin)/(T18-Tmin)
         B = 0.5+0.5*p
     
+    print('Here is the value of ', p)
+    
     return (R,G,B)
     
 def numOfFreqRead(Temps):

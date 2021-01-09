@@ -90,6 +90,7 @@ class ACGui(QMainWindow):
         self.num_meas_temps = 0
         self.temp_subsets = []
         self.meas_temps = []
+        self.Tmin, self.Tmax = 0,0
         self.Xd_capsule = -1.8*10**-8 # unit: emu/Oe
         self.Xd_film = 6.47*10**-10 # unit: emu/(Oe*mg)
         self.data_names = {'freq': 'Frequency (Hz)',
@@ -728,8 +729,8 @@ line 10: INFO,f,<mass>mg""")
                                                         self.raw_data_fit['Tau'].iloc[row],
                                                         self.raw_data_fit['Alpha'].iloc[row]),
                                                     c=calcTcolor(self.meas_temps[row],
-                                                                self.meas_temps[0],
-                                                                self.meas_temps[-1]))
+                                                                self.Tmin,
+                                                                self.Tmax))
                 self.treat_fit_plot.ax.set_xscale('log')
                 self.treat_fit_plot.ax.set_xlabel(x_name)
                 self.treat_fit_plot.ax.set_ylabel(y_name)
@@ -758,8 +759,8 @@ line 10: INFO,f,<mass>mg""")
                                                         self.raw_data_fit['Tau'].iloc[row],
                                                         self.raw_data_fit['Alpha'].iloc[row]),
                                                     c=calcTcolor(self.meas_temps[row],
-                                                                self.meas_temps[0],
-                                                                self.meas_temps[-1]))
+                                                                self.Tmin,
+                                                                self.Tmax))
                 self.treat_fit_plot.ax.set_xlabel(x_name)
                 self.treat_fit_plot.ax.set_ylabel(y_name)
             
@@ -839,14 +840,14 @@ line 10: INFO,f,<mass>mg""")
             self.cleanup_loaded_ppms()
             self.update_data_names()
             self.num_meas_freqs = len(set(self.raw_df[self.data_names['freq']]))
-            #print('freqs', self.num_meas_freqs)
-            #print(set(self.raw_df[self.data_names['freq']]))
+            # num_meas_temps is not performing correctly
             self.num_meas_temps = int(self.raw_df.shape[0]/self.num_meas_freqs)
-            #print('temps', self.num_meas_temps)
             self.raw_df_origin = filename
+            # update_temp_subsets is not performing correctly
             self.update_temp_subsets()
             self.update_meas_temps()
             self.update_analysis_combos()
+            
     
     def update_meas_temps(self):
         
@@ -854,34 +855,45 @@ line 10: INFO,f,<mass>mg""")
         for sub in self.temp_subsets:
             meas_temps.append(sub['Temperature (K)'].mean())
         self.meas_temps = np.array(meas_temps)
-    
+        self.Tmin = self.meas_temps.min()
+        self.Tmax = self.meas_temps.max()
+        
+    def update_temp_subsets(self):
+        
+        idx_list = []
+        
+        idx=0
+        last_time = 0
+        while idx<self.raw_df.shape[0]:
+            time = self.raw_df['Time Stamp (sec)'].iloc[idx]
+            if time-last_time>70:
+                idx_list.append(idx)
+            last_time=time
+            idx += 1
+            
+        print(idx_list)
+        #self.temp_subsets = []
+        #nms = self.num_meas_freqs
+        #for n in range(self.num_meas_temps):
+        #    self.temp_subsets.append(self.raw_df.iloc[n*nms:n*nms+nms])
+            
     def cleanup_loaded_ppms(self):
         
         rows_to_remove = []
         # Removing instrument comment lines (for ACMS version 1.0.8, build 33)
-        for i, val in enumerate(self.raw_df['Comment']):
-            if not pd.isnull(val):
-                rows_to_remove.append(i-1)
-                rows_to_remove.append(i)
-        self.raw_df.drop(rows_to_remove, inplace=True)
+        
+        # Drop columns where all values are NaN
+        self.raw_df.dropna(axis=1, how='all', inplace=True)
+        # Drop "Comment" column
+        self.raw_df.drop('Comment', axis=1, inplace=True)
+        # Drop all rows where there is a NaN value
+        self.raw_df.dropna(axis=0, inplace=True)
         
         # Make sure that the rows are named continuously
         old_indices = self.raw_df.index.values
         new_indices = list(range(len(old_indices)))
         self.raw_df.rename(index=dict(zip(old_indices, new_indices)),
                            inplace=True)
-        
-        # Removing NaN-columns
-        for h in self.raw_df.columns:
-            if pd.isnull(self.raw_df[h]).all():
-                self.raw_df.drop(h, axis=1, inplace=True)
-    
-    def update_temp_subsets(self):
-        
-        self.temp_subsets = []
-        nms = self.num_meas_freqs
-        for n in range(self.num_meas_temps):
-            self.temp_subsets.append(self.raw_df.iloc[n*nms:n*nms+nms])
        
     def update_analysis_combos(self):
     
