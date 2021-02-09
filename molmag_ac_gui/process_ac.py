@@ -988,6 +988,7 @@ def addPartialModel(fig, Tmin, Tmax, p_fit, plotType='O'):
     
     T_space = np.linspace(Tmin, Tmax, 101)
     line, = ax.plot(1/T_space, np.ones(T_space.shape)*f(T_space, *p), label=plotType)
+    
     #ax.legend(fontsize=globalTextSize)
     
     return line

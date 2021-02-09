@@ -611,9 +611,6 @@ class ACGui(QMainWindow):
             sample = sample.split(',')
             film = film.split(',')
             
-            print(sample)
-            print(film)
-            
             assert sample[0] == 'INFO' and (sample[1] == 's' or sample[1] == 'sample')
             assert film[0] == 'INFO' and (film[1] == 'f' or film[1] == 'film')
         except AssertionError:
@@ -631,9 +628,6 @@ line 10: INFO,f,<mass>mg""")
             self.film_mass_inp.setText(str(film))
     
     def calculate_Xp_and_Xpp(self):
-        
-        #print(self.data_names['VERSION'])
-        #print(self.data_names['BUILD'])
         
         if self.raw_df is None:
             # Don't do the calculation, if there is nothing to calculate on
@@ -840,10 +834,7 @@ line 10: INFO,f,<mass>mg""")
             self.cleanup_loaded_ppms()
             self.update_data_names()
             self.num_meas_freqs = len(set(self.raw_df[self.data_names['freq']]))
-            # num_meas_temps is not performing correctly
-            self.num_meas_temps = int(self.raw_df.shape[0]/self.num_meas_freqs)
             self.raw_df_origin = filename
-            # update_temp_subsets is not performing correctly
             self.update_temp_subsets()
             self.update_meas_temps()
             self.update_analysis_combos()
@@ -854,28 +845,31 @@ line 10: INFO,f,<mass>mg""")
         meas_temps = []
         for sub in self.temp_subsets:
             meas_temps.append(sub['Temperature (K)'].mean())
+        
         self.meas_temps = np.array(meas_temps)
+        self.num_meas_temps = len(self.meas_temps)
         self.Tmin = self.meas_temps.min()
         self.Tmax = self.meas_temps.max()
         
     def update_temp_subsets(self):
         
-        idx_list = []
+        self.temp_subsets = []
+        idx_list = [-1]
+        # Splits based on where the frequency "restarts"
+        # Assumes that the frequency is always increasing within a measurement
+        i=0
+        old_val = 0
+        while i<self.raw_df.shape[0]:
+            new_val = self.raw_df[self.data_names['freq']].iloc[i]
+            if new_val<old_val:
+                idx_list.append(i)
+            else:
+                pass
+            old_val = new_val
+            i+=1
         
-        idx=0
-        last_time = 0
-        while idx<self.raw_df.shape[0]:
-            time = self.raw_df['Time Stamp (sec)'].iloc[idx]
-            if time-last_time>70:
-                idx_list.append(idx)
-            last_time=time
-            idx += 1
-            
-        print(idx_list)
-        #self.temp_subsets = []
-        #nms = self.num_meas_freqs
-        #for n in range(self.num_meas_temps):
-        #    self.temp_subsets.append(self.raw_df.iloc[n*nms:n*nms+nms])
+        for n in range(len(idx_list)-1):
+            self.temp_subsets.append(self.raw_df.iloc[idx_list[n]+1:idx_list[n+1]])
             
     def cleanup_loaded_ppms(self):
         
@@ -885,7 +879,8 @@ line 10: INFO,f,<mass>mg""")
         # Drop columns where all values are NaN
         self.raw_df.dropna(axis=1, how='all', inplace=True)
         # Drop "Comment" column
-        self.raw_df.drop('Comment', axis=1, inplace=True)
+        if 'Comment' in self.raw_df.columns:
+            self.raw_df.drop(['Comment'], axis='columns', inplace=True)
         # Drop all rows where there is a NaN value
         self.raw_df.dropna(axis=0, inplace=True)
         
@@ -1085,8 +1080,9 @@ line 10: INFO,f,<mass>mg""")
     
     def set_new_t_tau(self, T, tau):
         
-        self.data_T = T
-        self.data_tau = tau
+        sort_indices = T.argsort()
+        self.data_T = T[sort_indices]
+        self.data_tau = tau[sort_indices]
     
     def prepare_sim_dict_for_plotting(self, p_fit_gui_struct):
 
@@ -1140,7 +1136,10 @@ line 10: INFO,f,<mass>mg""")
         guess = getParameterGuesses(self.used_T, self.used_tau)
         guess_dialog = GuessDialog(guess=guess)
         guess_dialog.exec_()
-        guess = guess_dialog.return_guess
+        try:
+            guess = guess_dialog.return_guess
+        except AttributeError:
+            guess = guess
         perform_this_fit = self.read_fit_type_cbs()
         
         f = getFittingFunction(fitType=perform_this_fit)
