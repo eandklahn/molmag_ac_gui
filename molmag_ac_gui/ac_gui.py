@@ -62,8 +62,11 @@ class ACGui(QMainWindow):
         
         """ Constructing the data analysis tab ---------------------------------------------------------------------------------- """
         # Data containers for analysis
+        self.last_loaded_file = os.getcwd()
+        
         self.data_file_name = None
         self.data_file_dir = os.getcwd()
+        
         self.data_T = None
         self.data_tau = None
         self.data_dtau = None
@@ -97,11 +100,8 @@ class ACGui(QMainWindow):
         self.Tmin, self.Tmax = 0,0
         self.Xd_capsule = -1.8*10**-8 # unit: emu/Oe
         self.Xd_film = 6.47*10**-10 # unit: emu/(Oe*mg)
-        self.data_names = {'freq': 'Frequency (Hz)',
-                           'amplitude': 'Amplitude (Oe)',
-                           'mag_field': 'Magnetic Field (Oe)',
-                           'Xp': "X' (emu/(Oe*mol))",
-                           'Xpp': "X'' (emu/(Oe*mol))"}
+        self.data_names = None
+        self.reset_data_name_defaults()
         
         self.raw_data_fit = None
         
@@ -427,6 +427,7 @@ class ACGui(QMainWindow):
             self.set_new_t_tau(D)
             self.read_indices_for_used_temps()
             self.plot_t_tau_on_axes()
+            self.ana_plot.reset_axes()
         except TypeError:
             print('When the fitted data does not yet exist')
         
@@ -641,8 +642,10 @@ class ACGui(QMainWindow):
     def load_sample_film_mass(self):
     
         starting_directory = os.getcwd()
-        filename_info = QFileDialog().getOpenFileName(self, 'Open file', starting_directory)
+        filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.last_loaded_file)
         filename = filename_info[0]
+        
+        self.last_loaded_file = os.path.split(filename)[0]
         
         if filename == '':
             return 0
@@ -844,10 +847,11 @@ line 10: INFO,f,<mass>mg""")
                                 'BUILD': BUILD})
                 
     def load_ppms_data(self):
-    
-        starting_directory = os.getcwd()
-        filename_info = QFileDialog().getOpenFileName(self, 'Open file', starting_directory)
+        
+        filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.last_loaded_file)
         filename = filename_info[0]
+        
+        self.last_loaded_file = os.path.split(filename)[0]
         
         header_start = 0
         header_lines = []
@@ -856,6 +860,10 @@ line 10: INFO,f,<mass>mg""")
             pass
         else:
             self.ppms_data_file = filename
+            self.raw_df = None
+            self.raw_df_origin = None
+            self.treat_raw_fit_list.clear()
+            self.reset_data_name_defaults()
         try:
             with open(self.ppms_data_file, 'r') as f:
                 f_content = f.readlines()
@@ -880,10 +888,20 @@ line 10: INFO,f,<mass>mg""")
             self.raw_df_origin = filename
             self.update_temp_subsets()
             self.update_meas_temps()
-            print(self.temp_subsets[-1])
+            
+            # Clearing axes of "old" drawings and setting front widget to 
+            self.treat_raw_plot.ax.clear()
+            self.treat_raw_plot.canvas.draw()
+            
+            self.treat_fit_plot.ax.clear()
+            self.treat_fit_plot.canvas.draw()
+            
+            combo_idx = self.analysis_plot_type_combo.findText('Raw data')
+            self.analysis_plot_type_combo.setCurrentIndex(combo_idx)
+            
+            # Updating analysis combos, which will automatically draw the new data
             self.update_analysis_combos()
             
-    
     def update_meas_temps(self):
         
         meas_temps = []
@@ -912,10 +930,17 @@ line 10: INFO,f,<mass>mg""")
             old_val = new_val
             i+=1
         idx_list.append(self.raw_df.shape[0])
-        print(idx_list)
         for n in range(len(idx_list)-1):
             self.temp_subsets.append(self.raw_df.iloc[idx_list[n]+1:idx_list[n+1]])
-            
+    
+    def reset_data_name_defaults(self):
+        
+        self.data_names = {'freq': 'Frequency (Hz)',
+                   'amplitude': 'Amplitude (Oe)',
+                   'mag_field': 'Magnetic Field (Oe)',
+                   'Xp': "X' (emu/(Oe*mol))",
+                   'Xpp': "X'' (emu/(Oe*mol))"}
+    
     def cleanup_loaded_ppms(self):
         
         rows_to_remove = []
@@ -1127,8 +1152,10 @@ line 10: INFO,f,<mass>mg""")
                 return 0
         else:
             starting_directory = self.data_file_dir
-            filename_info = QFileDialog().getOpenFileName(self, 'Open file', starting_directory)
+            filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.last_loaded_file)
             filename = filename_info[0]
+            
+            self.last_loaded_file = os.path.split(filename)[0]
         
         if filename == '':
             pass
@@ -1154,6 +1181,7 @@ line 10: INFO,f,<mass>mg""")
             self.set_new_t_tau(D)
             self.read_indices_for_used_temps()
             self.plot_t_tau_on_axes()
+            self.ana_plot.reset_axes()
     
     def set_new_t_tau(self, D):
         """
@@ -1173,7 +1201,7 @@ line 10: INFO,f,<mass>mg""")
         if D.shape[1]>2:
             dtau = D[:,2]
             self.data_dtau = dtau[sort_indices]
-    
+            
     def prepare_sim_dict_for_plotting(self, p_fit_gui_struct):
 
         params = []
@@ -1649,13 +1677,6 @@ class FitResultPlotStatus(QDialog):
         
         self.layout = QVBoxLayout()
         
-        self.lbl_lo = QHBoxLayout()
-        self.raw_lbl = QLabel('Raw')
-        self.fit_lbl = QLabel('Fit')
-        self.lbl_lo.addWidget(self.raw_lbl)
-        self.lbl_lo.addWidget(self.fit_lbl)
-        self.layout.addLayout(self.lbl_lo)
-        
         self.scroll = QScrollArea(self)
         self.scroll.setWidgetResizable(True)
         self.layout.addWidget(self.scroll)
@@ -1677,8 +1698,8 @@ class FitResultPlotStatus(QDialog):
             item_raw_bool = item_data['raw']
             item_txt = item_data['temp']
             
-            raw_checked = QCheckBox()
-            fit_checked = QCheckBox()
+            raw_checked = QCheckBox('R')
+            fit_checked = QCheckBox('F')
             temp = QLabel('{:5.2f}K'.format(item_data['temp']))
             
             item_lo.addWidget(temp)
