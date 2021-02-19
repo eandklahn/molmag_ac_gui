@@ -22,7 +22,7 @@ from PyQt5.QtGui import QIcon, QFont, QDoubleValidator
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton, QLabel, QAction, QComboBox, QStackedWidget,
                              QDoubleSpinBox, QFormLayout, QCheckBox, QVBoxLayout, QMessageBox, QSplitter, QGridLayout,
                              QHBoxLayout, QFileDialog, QDialog, QLineEdit, QListWidget, QListWidgetItem, QTabWidget,
-                             QScrollArea)
+                             QScrollArea, QStatusBar)
 if int(QtCore.qVersion().split('.')[0])>=5:
     from matplotlib.backends.backend_qt5agg import (FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
 #print('PyQt version is {}'.format(QtCore.qVersion()))
@@ -57,6 +57,8 @@ class ACGui(QMainWindow):
         """ Setting up the main tab widget """
         self.all_the_tabs = QTabWidget()
         self.setCentralWidget(self.all_the_tabs)
+        self.statusBar = QStatusBar()
+        self.setStatusBar(self.statusBar)
         
         """ Constructing the data analysis tab ---------------------------------------------------------------------------------- """
         # Data containers for analysis
@@ -64,7 +66,9 @@ class ACGui(QMainWindow):
         self.data_file_dir = os.getcwd()
         self.data_T = None
         self.data_tau = None
+        self.data_dtau = None
         
+        self.plotted_data_pointers = None
         self.data_used_pointer = None
         self.data_not_used_pointer = None
         
@@ -74,11 +78,11 @@ class ACGui(QMainWindow):
         self.used_tau = None
         self.not_used_tau = None
         
+        self.used_dtau = None
+        self.not_used_dtau = None
+        
         self.fitted_parameters = None
         self.used_indices = None
-        
-        #commented out on 15/12/2020. remove if no adverse effects are found in two months.
-        #self.simulation_items = []
         
         # Data containers for treatment
         
@@ -417,8 +421,10 @@ class ACGui(QMainWindow):
     def copy_fit_to_analysis(self):
     
         try:
-            self.set_new_t_tau(np.array(self.meas_temps),
-                               np.array(self.raw_data_fit['Tau']))
+            D = np.array(list(zip(self.meas_temps,
+                                  self.raw_data_fit['Tau'],
+                                  self.raw_data_fit['dTau'])))
+            self.set_new_t_tau(D)
             self.read_indices_for_used_temps()
             self.plot_t_tau_on_axes()
         except TypeError:
@@ -505,7 +511,26 @@ class ACGui(QMainWindow):
             newitem.setData(32, plotting_dict)
             self.treat_raw_fit_list.addItem(newitem)
     
+    def Reta_Chilton_tau_err(self, tau, tau_err, alpha):
+        
+        dtau = []
+        for idx in range(len(tau)):
+            t = tau[idx]
+            te = tau_err[idx]
+            a = alpha[idx]
+            
+            dtau1 = np.abs(np.log10(t**-1)-np.log10((t*np.exp((1.82*np.sqrt(a))/(1-a)))**-1))
+            dtau2 = np.abs(np.log10(t**-1)-np.log10((t*np.exp((-1.82*np.sqrt(a))/(1-a)))**-1))
+            dtau3 = np.abs(np.log10(t**-1)-np.log10((t+te)**-1))
+            dtau4 = np.abs(np.log10(t**-1)-np.log10((t-te)**-1))
+            
+            dtau.append(max([dtau1, dtau2, dtau3, dtau4]))
+        
+        return dtau
+    
     def fit_Xp_Xpp_standalone(self):
+        
+        self.statusBar.showMessage('Running fit...')
         
         #### Defining the objective function for lmfit ####
         def objective(params, v, data):
@@ -522,7 +547,7 @@ class ACGui(QMainWindow):
             return np.concatenate([Xp_resid, Xpp_resid])
         ########
         
-        T, Xs, Xt, tau, alpha, resid = [],[],[],[],[],[]
+        T, Xs, Xt, tau, alpha, resid, tau_fit_err = [],[],[],[],[],[],[]
         if self.data_names['Xp'] in self.raw_df.columns:
             for t_idx in range(self.num_meas_temps):
                 v = np.array(self.temp_subsets[t_idx][self.data_names['freq']])
@@ -539,24 +564,34 @@ class ACGui(QMainWindow):
                 fit_params.add('alpha', value=0.1, min=0, max=np.inf)
                 
                 out = minimize(objective, fit_params, args=(v, data))
+                if 'Could not estimate error-bars.' in out.message:
+                    tau_err = 0
+                else:
+                    tau_idx = out.var_names.index('tau')
+                    tau_err = np.sqrt(out.covar[tau_idx, tau_idx])
                 T.append(self.meas_temps[t_idx])
                 Xs.append(out.params['Xs'].value)
                 Xt.append(out.params['Xt'].value)
                 tau.append(out.params['tau'].value)
                 alpha.append(out.params['alpha'].value)
                 resid.append(out.residual.sum())
+                tau_fit_err.append(tau_err)
         fit_result = pd.DataFrame(data={'Temp': T,
                                         'ChiS': Xs,
                                         'ChiT': Xt,
                                         'Tau': tau,
                                         'Alpha': alpha,
-                                        'Residual': resid})    
+                                        'Residual': resid,
+                                        'Tau_Err': tau_fit_err,
+                                        'dTau': self.Reta_Chilton_tau_err(tau, tau_fit_err, alpha)})
         
         self.raw_data_fit = fit_result
         self.update_treat_raw_fit_list()
         self.plot_from_itemlist()
         set_idx = self.analysis_plot_type_combo.findText('Fitted')
-        self.analysis_plot_type_combo.setCurrentIndex(set_idx)    
+        self.analysis_plot_type_combo.setCurrentIndex(set_idx)
+        
+        self.statusBar.showMessage("Fit of X' and X'' complete")
         
     def fit_Xp_Xpp_w_ccfit(self):
         """
@@ -583,7 +618,7 @@ class ACGui(QMainWindow):
     def save_fit_to_file(self):
         
         name = QFileDialog.getSaveFileName(self, 'Save File')
-        print(name)
+        filename = name[0]
         if self.raw_data_fit is None:
             msg = QMessageBox()
             msg.setText('There is nothing to save')
@@ -593,7 +628,15 @@ class ACGui(QMainWindow):
             pass
             print('No file selected')
         else:
-            self.raw_data_fit.to_csv(name[0]+'.txt', sep=';')
+            df_to_save = self.raw_data_fit.copy()
+            df_to_save = df_to_save.reindex(columns=['Temp', 'Tau', 'dTau', 'Alpha','ChiS', 'ChiT', 'Residual', 'Tau_Err'])
+            
+            name, ext = os.path.splitext(filename)
+            if ext == '':
+                ext = '.dat'
+            df_to_save.to_csv(name+'{}'.format(ext),
+                              sep=';',
+                              index=False)
     
     def load_sample_film_mass(self):
     
@@ -837,6 +880,7 @@ line 10: INFO,f,<mass>mg""")
             self.raw_df_origin = filename
             self.update_temp_subsets()
             self.update_meas_temps()
+            print(self.temp_subsets[-1])
             self.update_analysis_combos()
             
     
@@ -867,7 +911,8 @@ line 10: INFO,f,<mass>mg""")
                 pass
             old_val = new_val
             i+=1
-        
+        idx_list.append(self.raw_df.shape[0])
+        print(idx_list)
         for n in range(len(idx_list)-1):
             self.temp_subsets.append(self.raw_df.iloc[idx_list[n]+1:idx_list[n+1]])
             
@@ -1030,17 +1075,47 @@ line 10: INFO,f,<mass>mg""")
         
     def plot_t_tau_on_axes(self):
         
-        if self.data_used_pointer is not None:
-            self.ana_plot.ax.lines.remove(self.data_used_pointer)
-        if self.data_not_used_pointer is not None:
-            self.ana_plot.ax.lines.remove(self.data_not_used_pointer)
+        if self.plotted_data_pointers is not None:
+            for line in self.plotted_data_pointers:
+                line.remove()
+        self.plotted_data_pointers = []
         
-        self.data_used_pointer, = self.ana_plot.ax.plot(1/self.used_T, np.log(self.used_tau), 'bo')
-        self.data_not_used_pointer, = self.ana_plot.ax.plot(1/self.not_used_T, np.log(self.not_used_tau), 'ro')
-        
+        if self.data_dtau is None:
+            used, = self.ana_plot.ax.plot(1/self.used_T, np.log(self.used_tau), 'bo')
+            not_used, = self.ana_plot.ax.plot(1/self.not_used_T, np.log(self.not_used_tau), 'ro')
+            self.plotted_data_pointers.append(used)
+            self.plotted_data_pointers.append(not_used)
+        else:
+            err_used_point, caplines1, barlinecols1 = self.ana_plot.ax.errorbar(1/self.used_T, np.log(self.used_tau), yerr=self.used_dtau, fmt='bo', ecolor='b')
+            err_not_used_point, caplines2, barlinecols2 = self.ana_plot.ax.errorbar(1/self.not_used_T, np.log(self.not_used_tau), yerr=self.not_used_dtau, fmt='ro', ecolor='r')
+
+            self.plotted_data_pointers.append(err_used_point)
+            self.plotted_data_pointers.append(err_not_used_point)
+            for e in [caplines1, caplines2, barlinecols1, barlinecols2]:
+                for line in e:
+                    self.plotted_data_pointers.append(line)
+
         self.ana_plot.canvas.draw()
     
+    def reset_analysis_containers(self):
+        self.data_file_name = None
+        self.data_T = None
+        self.data_tau = None
+        self.data_dtau = None
+        
+        self.used_T = None
+        self.not_used_T = None
+        self.used_tau = None
+        self.not_used_tau = None
+        self.used_dtau = None
+        self.not_used_dtau = None
+        
+        self.fitted_parameters = None
+        self.used_indices = None
+        
     def load_t_tau_data(self):
+        
+        self.reset_analysis_containers()
         
         if self.startUp:
             try:
@@ -1062,7 +1137,9 @@ line 10: INFO,f,<mass>mg""")
             self.data_file_dir = os.path.dirname(filename)
         
         try:
-            D = np.loadtxt(self.data_file_name, skiprows=1)
+            D = np.loadtxt(self.data_file_name,
+                           skiprows=1,
+                           delimiter=';')
         except (ValueError, OSError) as error:
             error_type = error.__class__.__name__
             if error_type == 'ValueError':
@@ -1074,15 +1151,28 @@ line 10: INFO,f,<mass>mg""")
             elif error_type == 'OSError':
                 pass
         else:
-            self.set_new_t_tau(D[:,0], D[:,1])
+            self.set_new_t_tau(D)
             self.read_indices_for_used_temps()
             self.plot_t_tau_on_axes()
     
-    def set_new_t_tau(self, T, tau):
+    def set_new_t_tau(self, D):
+        """
+        Uses the array D to set new values for T, tau, and alpha
+        Assumes that the first column is temperatures, second column is tau-values
+        and third column is error on tau.
+        """
+        
+        T = D[:,0]
+        tau = D[:,1]
         
         sort_indices = T.argsort()
         self.data_T = T[sort_indices]
         self.data_tau = tau[sort_indices]
+        self.data_dtau = None
+        
+        if D.shape[1]>2:
+            dtau = D[:,2]
+            self.data_dtau = dtau[sort_indices]
     
     def prepare_sim_dict_for_plotting(self, p_fit_gui_struct):
 
@@ -1127,6 +1217,10 @@ line 10: INFO,f,<mass>mg""")
             self.not_used_T = np.delete(self.data_T, self.used_indices)
             self.not_used_tau = np.delete(self.data_tau, self.used_indices)
             
+            if self.data_dtau is not None:
+                self.used_dtau = self.data_dtau[self.used_indices]
+                self.not_used_dtau = np.delete(self.data_dtau, self.used_indices)
+            
         except (AttributeError, TypeError):
             print('No data have been selected yet!')
     
@@ -1145,8 +1239,10 @@ line 10: INFO,f,<mass>mg""")
         f = getFittingFunction(fitType=perform_this_fit)
         p0 = getStartParams(guess, fitType=perform_this_fit)
         
-        popt, pcov = curve_fit(f, self.used_T, np.log(self.used_tau), p0)
-        
+        if self.used_dtau is None:
+            popt, pcov = curve_fit(f, self.used_T, np.log(self.used_tau), p0)
+        else:
+            popt, pcov = curve_fit(f, self.used_T, np.log(self.used_tau), p0, sigma=self.used_dtau)
         p_fit = readPopt(popt, pcov, fitType=perform_this_fit)
         
         return p_fit
@@ -1196,160 +1292,133 @@ line 10: INFO,f,<mass>mg""")
             msg.setDetailedText(msg_details)
             msg.exec_()
 
-class FitResultPlotStatus(QDialog):
-
-    def __init__(self, list_input=None):
-    
-        super(FitResultPlotStatus, self).__init__()
-        
-        self.layout = QVBoxLayout()
-        
-        self.lbl_lo = QHBoxLayout()
-        self.raw_lbl = QLabel('Raw')
-        self.fit_lbl = QLabel('Fit')
-        self.lbl_lo.addWidget(self.raw_lbl)
-        self.lbl_lo.addWidget(self.fit_lbl)
-        self.layout.addLayout(self.lbl_lo)
-        
-        self.scroll = QScrollArea(self)
-        self.scroll.setWidgetResizable(True)
-        self.layout.addWidget(self.scroll)
-        
-        self.content = QWidget(self.scroll)
-        self.cont_lo = QVBoxLayout(self.content)
-        self.content.setLayout(self.cont_lo)
-        self.scroll.setWidget(self.content)
-        
-        self.checked_items = []
-        
-        num_of_temps = list_input.count()
-        for idx in range(num_of_temps):
-            item = list_input.item(idx)
-            item_lo = QHBoxLayout()
-            item_data = item.data(32)
-            
-            item_fit_bool = item_data['fit']
-            item_raw_bool = item_data['raw']
-            item_txt = item_data['temp']
-            
-            raw_checked = QCheckBox()
-            fit_checked = QCheckBox()
-            temp = QLabel('{:5.2f}K'.format(item_data['temp']))
-            
-            item_lo.addWidget(temp)
-            item_lo.addWidget(raw_checked)
-            item_lo.addWidget(fit_checked)
-            
-            self.checked_items.append([raw_checked, fit_checked])
-            
-            raw_checked.setChecked(item_raw_bool)
-            fit_checked.setChecked(item_fit_bool)
-            
-            self.cont_lo.addLayout(item_lo)
-        
-        self.state_btn_lo = QHBoxLayout()
-        
-        self.check_all_btn = QPushButton('Check all')
-        self.check_all_btn.clicked.connect(self.check_all_function)
-        
-        self.uncheck_all_btn = QPushButton('Uncheck all')
-        self.uncheck_all_btn.clicked.connect(self.uncheck_all_function)
-        
-        self.state_btn_lo.addWidget(self.uncheck_all_btn)
-        self.state_btn_lo.addWidget(self.check_all_btn)
-        
-        self.layout.addLayout(self.state_btn_lo)
-        
-        self.judge_btn_lo = QHBoxLayout()
-        
-        self.states_reject_btn = QPushButton('Cancel')
-        self.states_reject_btn.clicked.connect(self.reject)
-        self.judge_btn_lo.addWidget(self.states_reject_btn)
-        
-        self.states_accept_btn = QPushButton('Ok')
-        self.states_accept_btn.clicked.connect(self.accept)
-        self.judge_btn_lo.addWidget(self.states_accept_btn)
-        
-        self.layout.addLayout(self.judge_btn_lo)
-        
-        self.setLayout(self.layout)
-        self.show()
-        
-    def check_all_function(self):
-    
-        for sublist in self.checked_items:
-            sublist[0].setChecked(True)
-            sublist[1].setChecked(True)
-        
-    def uncheck_all_function(self):
-    
-        for sublist in self.checked_items:
-            sublist[0].setChecked(False)
-            sublist[1].setChecked(False)
-        
-class FitResultPlotStatus2(QDialog):
-    # Old class that implemented a dialog to change one list item at a time
-    
-    def __init__(self, plotting_dict=None):
-    
-        super(FitResultPlotStatus, self).__init__()
-        
-        self.setWindowTitle('Update plot status')
-        self.layout = QGridLayout()
-        
-        self.raw_lbl = QLabel('Raw')
-        
-        self.raw_cb = QCheckBox()
-        self.raw_cb.setChecked(plotting_dict['raw'])
-        
-        self.fit_lbl = QLabel('Fitted')
-        
-        self.fit_cb = QCheckBox()
-        self.fit_cb.setChecked(plotting_dict['fit'])
-        
-        self.cancel_btn = QPushButton('Cancel')
-        self.cancel_btn.clicked.connect(self.reject)
-        
-        self.ok_btn = QPushButton('Ok')
-        self.ok_btn.clicked.connect(self.accept)
-        
-        self.layout.addWidget(self.raw_lbl,0,0)
-        self.layout.addWidget(self.raw_cb,1,0)
-        self.layout.addWidget(self.cancel_btn,2,0)
-        self.layout.addWidget(self.fit_lbl,0,1)
-        self.layout.addWidget(self.fit_cb,1,1)
-        self.layout.addWidget(self.ok_btn,2,1)
-        
-        self.setLayout(self.layout)
-        
-        self.show()
-        
-class ParamDialog(QDialog):
+class GuessDialog(QDialog):
 
     def __init__(self,
                  parent=None,
-                 param_dict=None):
-                 
-        super(ParamDialog, self).__init__()
+                 guess=None):
+        super(GuessDialog, self).__init__()
         
-        self.setWindowTitle('Fitted parameters')
-        self.dialog_layout = QVBoxLayout()
-        self.param_labels = {}
+        self.layout = QFormLayout()
+        self.validator = QDoubleValidator()
         
-        for val in param_dict['quantities']:
-            multiplier = 1
-            idx = param_dict['quantities'].index(val)
-            
-            current_label = QLabel()
-            if val == 'Ueff': multiplier = sc.Boltzmann
-            current_label.setText('{}: {:6.3e} +/- {:6.3e}'.format(val,
-                                                                   param_dict['params'][idx]/multiplier,
-                                                                   param_dict['sigmas'][idx]/multiplier))
-                                                                   
-            self.dialog_layout.addWidget(current_label)
+        self.values = []
         
-        self.setLayout(self.dialog_layout)
+        for pair in guess.items():
+            lbl = QLabel(pair[0])
+            text = QLineEdit()
+            text.setValidator(self.validator)
+            if pair[0]=='Ueff':
+                text.setText(str(pair[1]/kB))
+            else:
+                text.setText(str(pair[1]))
+            self.layout.addRow(lbl, text)
+            self.values.append((lbl, text))
+        
+        self.setLayout(self.layout)
+        
+        accept_btn = QPushButton('Ok')
+        accept_btn.clicked.connect(self.on_close)
+        self.layout.addRow(accept_btn)
+        
         self.show()
+        
+    def on_close(self):
+        
+        self.return_guess = {v[0].text(): float(v[1].text()) for v in self.values}
+        self.return_guess['Ueff'] = self.return_guess['Ueff']*kB
+        self.accept()
+        
+class AboutDialog(QDialog):
+    
+    def __init__(self, info):
+    
+        super(AboutDialog, self).__init__()
+        
+        self.layout = QVBoxLayout()
+        
+        self.setWindowTitle('About')
+        
+        self.author_lbl = QLabel('Written by {}'.format(info['author']))
+        self.layout.addWidget(self.author_lbl)
+        
+        self.web_lbl = QLabel('<a href={}>Molecular magnetism at AU</a>'.format(info['webpage']))
+        self.web_lbl.setOpenExternalLinks(True)
+        self.layout.addWidget(self.web_lbl)
+        
+        self.pers_lbl = QLabel('Personal <a href={}>webpage</a>'.format(info['personal']))
+        self.pers_lbl.setOpenExternalLinks(True)
+        self.layout.addWidget(self.pers_lbl)
+        
+        self.setLayout(self.layout)
+        self.show()
+
+class PlottingWindow(QWidget):
+
+    def __init__(self):
+    
+        super(PlottingWindow, self).__init__()
+        
+        self.layout = QVBoxLayout()
+        
+        self.fig = Figure()
+        self.canvas = FigureCanvas(self.fig)
+        self.tools = NavigationToolbar(self.canvas, self)
+        self.ax = self.fig.add_subplot(111)
+        self.fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95)
+        
+        self.layout.addWidget(self.canvas)
+        
+        self.tool_lo = QHBoxLayout()
+        self.tool_lo.addWidget(self.tools)
+        self.tool_lo.addStretch()
+        
+        self.reset_axes_btn = QPushButton('Reset axes')
+        self.reset_axes_btn.clicked.connect(self.reset_axes)
+        self.tool_lo.addWidget(self.reset_axes_btn)
+        self.layout.addLayout(self.tool_lo)
+        
+        self.setLayout(self.layout)
+        
+    def reset_axes(self):
+       
+       s = 0
+       if len(self.ax.lines)<1: pass
+       else:
+           while True:
+               start = self.ax.lines[s]
+               if len(start.get_xdata())<1:
+                   s += 1
+               else:
+                   break
+           
+           x = start.get_xdata()
+           y = start.get_ydata()
+           
+           new_x = [x.min(), x.max()]
+           new_y = [y.min(), y.max()]
+           
+           for i in range(s, len(self.ax.lines)):
+               x = self.ax.lines[i].get_xdata()
+               y = self.ax.lines[i].get_ydata()
+               
+               if len(x)>1 and len(y)>1:
+                   if x.min()<new_x[0]: new_x[0] = x.min()
+                   if x.max()>new_x[1]: new_x[1] = x.max()
+                   if y.min()<new_y[0]: new_y[0] = y.min()
+                   if y.max()>new_y[1]: new_y[1] = y.max()
+           
+           if new_x[0] == new_x[1]:
+               new_x[0] -= 0.5
+               new_x[1] += 0.5
+           if new_y[0] == new_y[1]:
+               new_y[0] -= 0.5
+               new_y[1] += 0.5
+               
+           self.ax.set_xlim(new_x[0]-0.05*(new_x[1]-new_x[0]),new_x[1]+0.05*(new_x[1]-new_x[0]))
+           self.ax.set_ylim(new_y[0]-0.05*(new_y[1]-new_y[0]),new_y[1]+0.05*(new_y[1]-new_y[0]))
+           
+           self.canvas.draw()
 
 class SimulationDialog(QDialog):
 
@@ -1545,133 +1614,123 @@ class SimulationDialog(QDialog):
         self.param_values_changed()
         self.accept()
 
-class PlottingWindow(QWidget):
-
-    def __init__(self):
-    
-        super(PlottingWindow, self).__init__()
-        
-        self.layout = QVBoxLayout()
-        
-        self.fig = Figure()
-        self.canvas = FigureCanvas(self.fig)
-        self.tools = NavigationToolbar(self.canvas, self)
-        self.ax = self.fig.add_subplot(111)
-        self.fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95)
-        
-        self.layout.addWidget(self.canvas)
-        
-        self.tool_lo = QHBoxLayout()
-        self.tool_lo.addWidget(self.tools)
-        self.tool_lo.addStretch()
-        
-        self.reset_axes_btn = QPushButton('Reset axes')
-        self.reset_axes_btn.clicked.connect(self.reset_axes)
-        self.tool_lo.addWidget(self.reset_axes_btn)
-        self.layout.addLayout(self.tool_lo)
-        
-        self.setLayout(self.layout)
-        
-    def reset_axes(self):
-       
-       s = 0
-       if len(self.ax.lines)<1: pass
-       else:
-           while True:
-               start = self.ax.lines[s]
-               if len(start.get_xdata())<1:
-                   s += 1
-               else:
-                   break
-           
-           x = start.get_xdata()
-           y = start.get_ydata()
-           
-           new_x = [x.min(), x.max()]
-           new_y = [y.min(), y.max()]
-           
-           for i in range(s, len(self.ax.lines)):
-               x = self.ax.lines[i].get_xdata()
-               y = self.ax.lines[i].get_ydata()
-               
-               if len(x)>1 and len(y)>1:
-                   if x.min()<new_x[0]: new_x[0] = x.min()
-                   if x.max()>new_x[1]: new_x[1] = x.max()
-                   if y.min()<new_y[0]: new_y[0] = y.min()
-                   if y.max()>new_y[1]: new_y[1] = y.max()
-           
-           if new_x[0] == new_x[1]:
-               new_x[0] -= 0.5
-               new_x[1] += 0.5
-           if new_y[0] == new_y[1]:
-               new_y[0] -= 0.5
-               new_y[1] += 0.5
-               
-           self.ax.set_xlim(new_x[0]-0.05*(new_x[1]-new_x[0]),new_x[1]+0.05*(new_x[1]-new_x[0]))
-           self.ax.set_ylim(new_y[0]-0.05*(new_y[1]-new_y[0]),new_y[1]+0.05*(new_y[1]-new_y[0]))
-           
-           self.canvas.draw()
-
-class AboutDialog(QDialog):
-    
-    def __init__(self, info):
-    
-        super(AboutDialog, self).__init__()
-        
-        self.layout = QVBoxLayout()
-        
-        self.setWindowTitle('About')
-        
-        self.author_lbl = QLabel('Written by {}'.format(info['author']))
-        self.layout.addWidget(self.author_lbl)
-        
-        self.web_lbl = QLabel('<a href={}>Molecular magnetism at AU</a>'.format(info['webpage']))
-        self.web_lbl.setOpenExternalLinks(True)
-        self.layout.addWidget(self.web_lbl)
-        
-        self.pers_lbl = QLabel('Personal <a href={}>webpage</a>'.format(info['personal']))
-        self.pers_lbl.setOpenExternalLinks(True)
-        self.layout.addWidget(self.pers_lbl)
-        
-        self.setLayout(self.layout)
-        self.show()
-
-class GuessDialog(QDialog):
+class ParamDialog(QDialog):
 
     def __init__(self,
                  parent=None,
-                 guess=None):
-        super(GuessDialog, self).__init__()
+                 param_dict=None):
+                 
+        super(ParamDialog, self).__init__()
         
-        self.layout = QFormLayout()
-        self.validator = QDoubleValidator()
+        self.setWindowTitle('Fitted parameters')
+        self.dialog_layout = QVBoxLayout()
+        self.param_labels = {}
         
-        self.values = []
+        for val in param_dict['quantities']:
+            multiplier = 1
+            idx = param_dict['quantities'].index(val)
+            
+            current_label = QLabel()
+            if val == 'Ueff': multiplier = sc.Boltzmann
+            current_label.setText('{}: {:6.3e} +/- {:6.3e}'.format(val,
+                                                                   param_dict['params'][idx]/multiplier,
+                                                                   param_dict['sigmas'][idx]/multiplier))
+                                                                   
+            self.dialog_layout.addWidget(current_label)
         
-        for pair in guess.items():
-            lbl = QLabel(pair[0])
-            text = QLineEdit()
-            text.setValidator(self.validator)
-            if pair[0]=='Ueff':
-                text.setText(str(pair[1]/kB))
-            else:
-                text.setText(str(pair[1]))
-            self.layout.addRow(lbl, text)
-            self.values.append((lbl, text))
+        self.setLayout(self.dialog_layout)
+        self.show()
+
+class FitResultPlotStatus(QDialog):
+
+    def __init__(self, list_input=None):
+    
+        super(FitResultPlotStatus, self).__init__()
+        
+        self.layout = QVBoxLayout()
+        
+        self.lbl_lo = QHBoxLayout()
+        self.raw_lbl = QLabel('Raw')
+        self.fit_lbl = QLabel('Fit')
+        self.lbl_lo.addWidget(self.raw_lbl)
+        self.lbl_lo.addWidget(self.fit_lbl)
+        self.layout.addLayout(self.lbl_lo)
+        
+        self.scroll = QScrollArea(self)
+        self.scroll.setWidgetResizable(True)
+        self.layout.addWidget(self.scroll)
+        
+        self.content = QWidget(self.scroll)
+        self.cont_lo = QVBoxLayout(self.content)
+        self.content.setLayout(self.cont_lo)
+        self.scroll.setWidget(self.content)
+        
+        self.checked_items = []
+        
+        num_of_temps = list_input.count()
+        for idx in range(num_of_temps):
+            item = list_input.item(idx)
+            item_lo = QHBoxLayout()
+            item_data = item.data(32)
+            
+            item_fit_bool = item_data['fit']
+            item_raw_bool = item_data['raw']
+            item_txt = item_data['temp']
+            
+            raw_checked = QCheckBox()
+            fit_checked = QCheckBox()
+            temp = QLabel('{:5.2f}K'.format(item_data['temp']))
+            
+            item_lo.addWidget(temp)
+            item_lo.addWidget(raw_checked)
+            item_lo.addWidget(fit_checked)
+            
+            self.checked_items.append([raw_checked, fit_checked])
+            
+            raw_checked.setChecked(item_raw_bool)
+            fit_checked.setChecked(item_fit_bool)
+            
+            self.cont_lo.addLayout(item_lo)
+        
+        self.state_btn_lo = QHBoxLayout()
+        
+        self.check_all_btn = QPushButton('Check all')
+        self.check_all_btn.clicked.connect(self.check_all_function)
+        
+        self.uncheck_all_btn = QPushButton('Uncheck all')
+        self.uncheck_all_btn.clicked.connect(self.uncheck_all_function)
+        
+        self.state_btn_lo.addWidget(self.uncheck_all_btn)
+        self.state_btn_lo.addWidget(self.check_all_btn)
+        
+        self.layout.addLayout(self.state_btn_lo)
+        
+        self.judge_btn_lo = QHBoxLayout()
+        
+        self.states_reject_btn = QPushButton('Cancel')
+        self.states_reject_btn.clicked.connect(self.reject)
+        self.judge_btn_lo.addWidget(self.states_reject_btn)
+        
+        self.states_accept_btn = QPushButton('Ok')
+        self.states_accept_btn.clicked.connect(self.accept)
+        self.judge_btn_lo.addWidget(self.states_accept_btn)
+        
+        self.layout.addLayout(self.judge_btn_lo)
         
         self.setLayout(self.layout)
-        
-        accept_btn = QPushButton('Ok')
-        accept_btn.clicked.connect(self.on_close)
-        self.layout.addRow(accept_btn)
-        
         self.show()
         
-    def on_close(self):
+    def check_all_function(self):
+    
+        for sublist in self.checked_items:
+            sublist[0].setChecked(True)
+            sublist[1].setChecked(True)
         
-        self.return_guess = {v[0].text(): float(v[1].text()) for v in self.values}
-        self.return_guess['Ueff'] = self.return_guess['Ueff']*kB
-        self.accept()
+    def uncheck_all_function(self):
+    
+        for sublist in self.checked_items:
+            sublist[0].setChecked(False)
+            sublist[1].setChecked(False)
     
 if __name__ == '__main__':
     
