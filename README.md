@@ -10,9 +10,10 @@ to use the GUI for fitting relaxation times. Your own file with data of (T, tau)
 when the file is formatted as
 
 ```
-T1 tau1
-T2 tau2
-T3 tau3
+Temp;Tau #header is mandatory, but content is optional
+T1;tau1(;dtau1)
+T2;tau2(;dtau2)
+T3;tau3(;dtau3)
 
 ...
 ```
