@@ -167,7 +167,7 @@ def getParameterGuesses(T, tau):
     # Calculating guesses for Raman parameters
     n_guess = (np.log(tau1) - np.log(tau2))/(np.log(T2) - np.log(T1))
     
-    Cr_guess = tau1*T1**n_guess
+    Cr_guess = (tau1**(-1))*(T1**(-n_guess))
     
     # Extracting guess for QT parameter
     tQT_guess = tau[0]
@@ -212,7 +212,7 @@ def _R(T, Cr, n):
     tau: relaxation time due to the Raman mechanism
     """
     
-    tau = Cr**-1*T**-n
+    tau = (Cr**(-1))*(T**(-n))
 
     return tau
     
@@ -422,13 +422,3 @@ def addPartialModel(fig, Tmin, Tmax, p_fit, plotType='O'):
     line, = ax.plot(1/T_space, np.ones(T_space.shape)*f(T_space, *p), label=plotType)
     
     return line
-
-
-
-
-
-
-
-
-
-

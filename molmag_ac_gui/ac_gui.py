@@ -8,7 +8,8 @@ from subprocess import Popen, PIPE
 import re
 import os
 # OWN ONES
-from molmag_ac_gui.process_ac import *
+#HER LIGGER FEJLEN
+from process_ac import *
 # EXTERNAL
 import scipy.constants as sc
 from scipy.optimize import minimize
@@ -1556,35 +1557,30 @@ class SimulationDialog(QDialog):
         self.lineedit_inputs['tQT'] = self.tqt_val
         self.tqt_val.setValidator(self.validator)
         self.tqt_val.setText(str(self.plot_parameters['tQT']))
-        #self.tqt_val.editingFinished.connect(self.param_values_changed)
         self.sim_vals_layout.addRow('t_QT', self.tqt_val)
         
         self.cr_val = QLineEdit()
         self.lineedit_inputs['Cr'] = self.cr_val
         self.cr_val.setValidator(self.validator)
         self.cr_val.setText(str(self.plot_parameters['Cr']))
-        #self.cr_val.editingFinished.connect(self.param_values_changed)
         self.sim_vals_layout.addRow('C_R', self.cr_val)
         
         self.n_val = QLineEdit()
         self.lineedit_inputs['n'] = self.n_val
         self.n_val.setValidator(self.validator)
         self.n_val.setText(str(self.plot_parameters['n']))
-        #self.n_val.editingFinished.connect(self.param_values_changed)
         self.sim_vals_layout.addRow('n', self.n_val)
         
         self.t0_val = QLineEdit()
         self.lineedit_inputs['t0'] = self.t0_val
         self.t0_val.setValidator(self.validator)
         self.t0_val.setText(str(self.plot_parameters['t0']))
-        #self.t0_val.editingFinished.connect(self.param_values_changed)
         self.sim_vals_layout.addRow('t0', self.t0_val)
         
         self.Ueff_val = QLineEdit()
         self.lineedit_inputs['Ueff'] = self.Ueff_val
         self.Ueff_val.setValidator(self.validator)
         self.Ueff_val.setText(str(self.plot_parameters['Ueff']))
-        #self.Ueff_val.editingFinished.connect(self.param_values_changed)
         self.sim_vals_layout.addRow('U_eff', self.Ueff_val)
         
         self.layout.addLayout(self.sim_vals_layout)
