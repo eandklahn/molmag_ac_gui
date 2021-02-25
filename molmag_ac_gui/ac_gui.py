@@ -433,7 +433,7 @@ class ACGui(QMainWindow):
         
     
     def get_ccfit_starting_params(self):
-        """Reimplementation of CCFITStartingGuesses from process_ac"""
+        """Reimplementation of CCFITStartingGuesses that used to be in process_ac"""
         
         lowest_t_idx = self.meas_temps.argmin()
         
@@ -1266,7 +1266,6 @@ line 10: INFO,f,<mass>mg""")
             print('No data have been selected yet!')
     
     def fit_relaxation(self):
-        """Reimplemented from fitRelaxation"""
         
         guess = getParameterGuesses(self.used_T, self.used_tau)
         guess_dialog = GuessDialog(guess=guess)
