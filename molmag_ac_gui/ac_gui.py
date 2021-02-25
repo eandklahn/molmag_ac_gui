@@ -631,13 +631,15 @@ class ACGui(QMainWindow):
         else:
             df_to_save = self.raw_data_fit.copy()
             df_to_save = df_to_save.reindex(columns=['Temp', 'Tau', 'dTau', 'Alpha','ChiS', 'ChiT', 'Residual', 'Tau_Err'])
+            df_to_save.sort_values('Temp', inplace=True)
             
             name, ext = os.path.splitext(filename)
             if ext == '':
                 ext = '.dat'
             df_to_save.to_csv(name+'{}'.format(ext),
                               sep=';',
-                              index=False)
+                              index=False,
+                              float_format='%20.10e')
     
     def load_sample_film_mass(self):
     
@@ -760,7 +762,10 @@ line 10: INFO,f,<mass>mg""")
                     if itemdict['raw']:
                         self.treat_fit_plot.ax.plot(self.temp_subsets[row][x_name],
                                                     self.temp_subsets[row][y_name],
-                                                    'ko')
+                                                    marker='o',
+                                                    mec='k',
+                                                    mfc='none',
+                                                    linestyle='None')
                     if itemdict['fit']:
                         self.treat_fit_plot.ax.plot(self.temp_subsets[row][x_name],
                                                     Xpp_(self.temp_subsets[row][self.data_names['freq']],
@@ -786,7 +791,10 @@ line 10: INFO,f,<mass>mg""")
                     if itemdict['raw']:
                         self.treat_fit_plot.ax.plot(self.temp_subsets[row][x_name],
                                                 self.temp_subsets[row][y_name],
-                                                'ko')
+                                                marker='o',
+                                                mec='k',
+                                                mfc='none',
+                                                linestyle='None')
                     if itemdict['fit']:
                         self.treat_fit_plot.ax.plot(Xp_(self.temp_subsets[row][self.data_names['freq']],
                                                         self.raw_data_fit['ChiS'].iloc[row],
@@ -818,8 +826,13 @@ line 10: INFO,f,<mass>mg""")
         
         self.treat_raw_plot.ax.plot(self.raw_df[x_label],
                                     self.raw_df[y_label],
-                                    'ko-',
-                                    linewidth=2)
+                                    marker='o',
+                                    mfc='none',
+                                    mec='k',
+                                    linestyle='-',
+                                    c='k',
+                                    linewidth=2,
+                                    )
         self.treat_raw_plot.ax.set_xlabel(x_label)
         self.treat_raw_plot.ax.set_ylabel(y_label)
         
