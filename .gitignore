@@ -8,3 +8,5 @@ ac_gui_venv/*
 #Files
 .pypirc
 *.docx
+*.pdf
+*.tmp

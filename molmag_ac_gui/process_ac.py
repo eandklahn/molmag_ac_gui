@@ -1,14 +1,18 @@
-import numpy as np
+#std packages
 import os
 from subprocess import Popen, PIPE
+
+#third-party packages
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+
 import scipy.constants as sc
 from scipy.optimize import curve_fit
 
-globalPointMarker = 'o'
-globalMarkerSize = 5
-globalTextSize = 20
+"""
+HELPER FUNCTIONS FOR PROCESSING AC-DATA
+"""
 
 def calcTcolor(T, Tmin, Tmax):
     """
@@ -49,8 +53,6 @@ def calcTcolor(T, Tmin, Tmax):
     else:
         p = (T-Tmin)/(T18-Tmin)
         B = 0.5+0.5*p
-    
-    print('Here is the value of ', p)
     
     return (R,G,B)  
     
@@ -132,6 +134,7 @@ def Xpp_dataset(params, v):
     
 def getParameterGuesses(T, tau):
     """
+    DOCUMENTED
     Calculates guesses for optimal fitting parameters to begin the fit
     
     Input
@@ -149,15 +152,14 @@ def getParameterGuesses(T, tau):
     T2, tau2 = T[-2], tau[-2]
     
     # Calculating guesses for Orbach parameters
-    Ueff_guess = (np.log(tau2) - np.log(tau1))/(1/T2-1/T1)*kB
+    Ueff_guess = kB*np.log(tau2/tau1)/(1/T2-1/T1)
     
     t0_guess = tau1*np.exp(-Ueff_guess/(kB*T1))
     
     # Obtaining points for Raman parameter guessing
     l = len(T)
-    index1, index2 = 0,0
     if l/2 % 1 == 0:
-        index1, index2 = int(l/2), int(l/2+1)
+        index1, index2 = int(l/2-1), int(l/2)
     else:
         index1, index2 = int(l/2-0.5), int(l/2+0.5)
     

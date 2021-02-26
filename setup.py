@@ -17,10 +17,11 @@ setup_args = dict(
     author='Emil A. Klahn',
     author_email='emil.klahn@gmail.com',
     keywords=['Magnetism', 'Molecular magnetism', 'Magnetic relaxation'],
-    url='https://eandklahn.github.io',
+    url='http://www.eklahn.com',
     download_url='https://pypi.org/project/molmag-ac-gui'
 )
 
+#Not best practice to do this, I've added the issue on Github
 install_requires = [
     'asteval==0.9.21',
     'cycler==0.10.0',

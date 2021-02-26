@@ -1,21 +1,21 @@
-# PYTHON
+#std packages
 import ctypes
 import sys
-import numpy as np
-import pandas as pd
-import time
-from subprocess import Popen, PIPE
 import re
 import os
-# OWN ONES
-#HER LIGGER FEJLEN
-from process_ac import *
-# EXTERNAL
-import scipy.constants as sc
-from scipy.optimize import minimize
+import time
+from subprocess import Popen, PIPE
+
+#third-party packages
+import numpy as np
+import pandas as pd
+
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.qt_compat import QtCore, QtWidgets
+
+import scipy.constants as sc
+from scipy.optimize import minimize
 from lmfit import Parameters, minimize
 
 from PyQt5.QtWinExtras import QWinTaskbarButton
@@ -24,11 +24,20 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton, QL
                              QDoubleSpinBox, QFormLayout, QCheckBox, QVBoxLayout, QMessageBox, QSplitter, QGridLayout,
                              QHBoxLayout, QFileDialog, QDialog, QLineEdit, QListWidget, QListWidgetItem, QTabWidget,
                              QScrollArea, QStatusBar)
+
+#local imports
+from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset, getParameterGuesses,
+                         getStartParams, getFittingFunction, readPopt, addPartialModel)
+
+#set constants
+kB = sc.Boltzmann
+
 if int(QtCore.qVersion().split('.')[0])>=5:
     from matplotlib.backends.backend_qt5agg import (FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
-#print('PyQt version is {}'.format(QtCore.qVersion()))
 
-kB = sc.Boltzmann
+"""
+MAIN GUI WINDOW
+"""
 
 class ACGui(QMainWindow):
 
@@ -644,7 +653,6 @@ class ACGui(QMainWindow):
     
     def load_sample_film_mass(self):
     
-        starting_directory = os.getcwd()
         filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.last_loaded_file)
         filename = filename_info[0]
         
@@ -1154,8 +1162,6 @@ line 10: INFO,f,<mass>mg""")
         
     def load_t_tau_data(self):
         
-        self.reset_analysis_containers()
-        
         if self.startUp:
             try:
                 filename = sys.argv[1]
@@ -1165,7 +1171,6 @@ line 10: INFO,f,<mass>mg""")
                 self.startUp = False
                 return 0
         else:
-            starting_directory = self.data_file_dir
             filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.last_loaded_file)
             filename = filename_info[0]
             
@@ -1174,6 +1179,7 @@ line 10: INFO,f,<mass>mg""")
         if filename == '':
             pass
         else:
+            self.reset_analysis_containers()
             self.data_file_name = filename
             self.data_file_dir = os.path.dirname(filename)
         
@@ -1182,7 +1188,7 @@ line 10: INFO,f,<mass>mg""")
                            skiprows=1,
                            delimiter=';')
         except (ValueError, OSError) as error:
-            error_type = error.__class__.__name__
+            sys.stdout.flush()
             if error_type == 'ValueError':
                 msg = QMessageBox()
                 msg.setWindowTitle('ValueError')
@@ -1286,6 +1292,8 @@ line 10: INFO,f,<mass>mg""")
             popt, pcov = curve_fit(f, self.used_T, np.log(self.used_tau), p0, sigma=self.used_dtau)
         p_fit = readPopt(popt, pcov, fitType=perform_this_fit)
         
+        print(p_fit)
+        
         return p_fit
         
     def set_new_temp_ranges(self):
@@ -1341,6 +1349,7 @@ class GuessDialog(QDialog):
         super(GuessDialog, self).__init__()
         
         self.layout = QFormLayout()
+        self.setWindowTitle('Guess parameters')
         self.validator = QDoubleValidator()
         
         self.values = []

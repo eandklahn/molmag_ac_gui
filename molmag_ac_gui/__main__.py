@@ -1,7 +1,12 @@
+#std packages
 import ctypes
 import sys
+
+#third-party packages
 from PyQt5.QtWidgets import QApplication
-from molmag_ac_gui.ac_gui import *
+
+#local imports
+from molmag_ac_gui.ac_gui import ACGui
 
 if __name__ == '__main__':
     
