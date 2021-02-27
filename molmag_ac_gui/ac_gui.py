@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib import cm
 #import matplotlib.pyplot as plt
 #from matplotlib.figure import Figure
 #from matplotlib.backends.qt_compat import QtCore, QtWidgets
@@ -111,16 +112,8 @@ class ACGui(QMainWindow):
         self.meas_temps = []
         self.Tmin, self.Tmax = 0,0
         
-        self.temp_colormap = LinearSegmentedColormap.from_list('temp_colormap', [(0,   (0, 0, 0.5)),
-                                                                                 (1/8, (0, 0.0, 1)),
-                                                                                 (2/8, (0, 0.5, 1)),
-                                                                                 (3/8, (0.0, 1, 1.0)),
-                                                                                 (4/8, (0.5, 1, 0.5)),
-                                                                                 (5/8, (1, 1.0, 0)),
-                                                                                 (6/8, (1, 0.5, 0)),
-                                                                                 (7/8, (1.0, 0, 0)),
-                                                                                 (8/8, (0.5, 0, 0))])
-
+        self.temp_colormap = self.gui_default_colormap()
+        
         self.Xd_capsule = -1.8*10**-8 # unit: emu/Oe
         self.Xd_film = 6.47*10**-10 # unit: emu/(Oe*mg)
         self.data_names = None
@@ -841,7 +834,7 @@ line 10: INFO,f,<mass>mg""")
                                     mec='k',
                                     linestyle='-',
                                     c='k',
-                                    linewidth=2,
+                                    linewidth=1,
                                     )
         self.treat_raw_plot.ax.set_xlabel(x_label)
         self.treat_raw_plot.ax.set_ylabel(y_label)
@@ -1157,6 +1150,20 @@ line 10: INFO,f,<mass>mg""")
         
         self.fitted_parameters = None
         self.used_indices = None
+        
+    def gui_default_colormap(self):
+        
+        colormap = LinearSegmentedColormap.from_list('temp_colormap', [(0,   (0, 0, 0.5)),
+                                                                       (1/8, (0, 0.0, 1)),
+                                                                       (2/8, (0, 0.5, 1)),
+                                                                       (3/8, (0.0, 1, 1.0)),
+                                                                       (4/8, (0.5, 1, 0.5)),
+                                                                       (5/8, (1, 1.0, 0)),
+                                                                       (6/8, (1, 0.5, 0)),
+                                                                       (7/8, (1.0, 0, 0)),
+                                                                       (8/8, (0.5, 0, 0))])
+        
+        return colormap
         
     def load_t_tau_data(self):
         
