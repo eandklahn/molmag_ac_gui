@@ -14,48 +14,28 @@ from scipy.optimize import curve_fit
 HELPER FUNCTIONS FOR PROCESSING AC-DATA
 """
 
-def calcTcolor(T, Tmin, Tmax):
+def tau_err_RC(tau, tau_fit_err, alpha, n_sigma=1):
     """
-    Calculates the color that the corresponding line should be plotted with based on the
-    idea that the coldest temperature should be completely blue RGB=(0,0,255) and the warmest
-    temperature should be completely red RGB=(255,0,0)
+    Calculates the error in tau from the alpha-values as
+    defined by Reta and Chilton (RC) in https://doi.org/10.1039/C9CP04301B
+    """
     
-    Input
-    T: temperature of the curve that is being plotted
-    D: dictionary containing all temperatures
+    
+    dtau = []
+    for idx in range(len(tau)):
+        t = tau[idx]
+        te = tau_fit_err[idx]
+        a = alpha[idx]
+        
+        dtau1 = np.abs(np.log10(t**-1)-np.log10((t*np.exp((n_sigma*1.82*np.sqrt(a))/(1-a)))**-1))
+        dtau2 = np.abs(np.log10(t**-1)-np.log10((t*np.exp((-n_sigma*1.82*np.sqrt(a))/(1-a)))**-1))
+        dtau3 = np.abs(np.log10(t**-1)-np.log10((t+te)**-1))
+        dtau4 = np.abs(np.log10(t**-1)-np.log10((t-te)**-1))
+        
+        dtau.append(max([dtau1, dtau2, dtau3, dtau4]))
+    
+    return dtau
 
-    Output
-    RGB: a tuple containing (R,G,B)-values for the color to be used
-    """
-    
-    T18 = Tmin + 1/8*(Tmax-Tmin)
-    T38 = Tmin + 3/8*(Tmax-Tmin)
-    T58 = Tmin + 5/8*(Tmax-Tmin)
-    T78 = Tmin + 7/8*(Tmax-Tmin)
-    
-    R, B, G = 0, 0, 0
-    if T >= T78:
-        p = (T-T78)/(Tmax-T78)
-        R = 1-0.5*p
-    elif T >= T58:
-        p = (T-T58)/(T78-T58)
-        R = 1
-        G = 1-p
-    elif T >= T38:
-        p = (T-T38)/(T58-T38)
-        R = p
-        G = 1
-        B = 1-p
-    elif T >= T18:
-        p = (T-T18)/(T38-T18)
-        G = p
-        B = 1
-    else:
-        p = (T-Tmin)/(T18-Tmin)
-        B = 0.5+0.5*p
-    
-    return (R,G,B)  
-    
 def Xp_(v, Xs, Xt, tau, alpha):
     """
     Calculates the function X' [chi prime] as specified in Molecular Nanomagnets eq. 3.27
