@@ -34,6 +34,8 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton, QL
 from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset, getParameterGuesses,
                          getStartParams, getFittingFunction, readPopt, addPartialModel, tau_err_RC)
 from .dialogs import GuessDialog, SimulationDialog, AboutDialog, ParamDialog, FitResultPlotStatus, PlottingWindow
+from .utility import read_ppms_file, get_ppms_column_name_matches, update_data_names
+from .exceptions import FileFormatError
 
 #set constants
 kB = sc.Boltzmann
@@ -102,8 +104,25 @@ class ACGui(QMainWindow):
         
         # Data containers for treatment
         
+        self.read_options = {
+                             'AC Frequency (Hz)': [
+                                'Frequency (Hz)', 'AC Frequency (Hz)'],
+                             'AC Amplitude (Oe)': [
+                                'Amplitude (Oe)', 'AC Drive (Oe)'],
+                             'Magnetic Field (Oe)': [
+                                'Magnetic Field (Oe)'],
+                             'Mp (emu)': [
+                                "M' (emu)"],
+                             'Mpp (emu)': [
+                                "M'' (emu)"],
+                             'Xp (emu/Oe)': [
+                                "AC X'  (emu/Oe)"],
+                             'Xpp (emu/Oe)': [
+                                'AC X" (emu/Oe)']
+                            }
         self.raw_df = None
-        self.raw_df_origin = None
+        self.raw_df_header = None
+        self.ppms_data_file = None
         self.meas_info = {}
         self.data_header_idx = 0
         self.num_meas_freqs = 0
@@ -116,8 +135,6 @@ class ACGui(QMainWindow):
         
         self.Xd_capsule = -1.8*10**-8 # unit: emu/Oe
         self.Xd_film = 6.47*10**-10 # unit: emu/(Oe*mg)
-        self.data_names = None
-        self.reset_data_name_defaults()
         
         self.raw_data_fit = None
         
@@ -235,9 +252,9 @@ class ACGui(QMainWindow):
         self.raw_data_load_btn.clicked.connect(self.load_ppms_data)
         self.data_layout.addWidget(self.raw_data_load_btn)
         
-        self.calculate_Xp_Xpp_btn = QPushButton("(2) Calc. X', X''")
-        self.calculate_Xp_Xpp_btn.clicked.connect(self.calculate_Xp_and_Xpp)
-        self.data_layout.addWidget(self.calculate_Xp_Xpp_btn)
+        self.diamag_correction_btn = QPushButton("(2) Diamagnetic correction")
+        self.diamag_correction_btn.clicked.connect(self.calculate_diamag_correction)
+        self.data_layout.addWidget(self.diamag_correction_btn)
         
         self.fit_Xp_Xpp_btn = QPushButton("(3) Fit X', X''")
         #self.fit_Xp_Xpp_btn.clicked.connect(self.fit_Xp_Xpp_w_ccfit)
@@ -455,9 +472,9 @@ class ACGui(QMainWindow):
         
         lowest_t_idx = self.meas_temps.argmin()
         
-        v = self.temp_subsets[lowest_t_idx][self.data_names['freq']]
-        Xp = self.temp_subsets[lowest_t_idx][self.data_names['Xp']]
-        Xpp = self.temp_subsets[lowest_t_idx][self.data_names['Xpp']]
+        v = self.temp_subsets[lowest_t_idx]['AC Frequency (Hz)']
+        Xp = self.temp_subsets[lowest_t_idx]['Xp (emu/Oe)']
+        Xpp = self.temp_subsets[lowest_t_idx]['Xpp (emu/Oe)']
         
         tau = 1/(2*np.pi*v[Xpp.idxmax()])
         Xs = 0
@@ -476,11 +493,11 @@ class ACGui(QMainWindow):
         
         for n in range(self.num_meas_freqs):
             
-            line = [self.raw_df[self.data_names['freq']].iloc[n]]
+            line = [self.raw_df['AC Frequency (Hz)'].iloc[n]]
             
             for i in range(self.num_meas_temps):
-                line += [self.raw_df[self.data_names['Xp']][i*self.num_meas_freqs+n],
-                         self.raw_df[self.data_names['Xpp']][i*self.num_meas_freqs+n]]
+                line += [self.raw_df['Xp (emu/Oe)'][i*self.num_meas_freqs+n],
+                         self.raw_df['Xpp (emu/Oe)'][i*self.num_meas_freqs+n]]
                 
             line.append('\n')
             line = ' '.join(str(e) for e in line)
@@ -550,11 +567,11 @@ class ACGui(QMainWindow):
         ########
         
         T, Xs, Xt, tau, alpha, resid, tau_fit_err = [],[],[],[],[],[],[]
-        if self.data_names['Xp'] in self.raw_df.columns:
+        if 'Xp (emu/Oe)' in self.raw_df.columns:
             for t_idx in range(self.num_meas_temps):
-                v = np.array(self.temp_subsets[t_idx][self.data_names['freq']])
-                Xp = np.array(self.temp_subsets[t_idx][self.data_names['Xp']])
-                Xpp = np.array(self.temp_subsets[t_idx][self.data_names['Xpp']])
+                v = np.array(self.temp_subsets[t_idx]['AC Frequency (Hz)'])
+                Xp = np.array(self.temp_subsets[t_idx]['Xp (emu/Oe)'])
+                Xpp = np.array(self.temp_subsets[t_idx]['Xpp (emu/Oe)'])
                 
                 data = [Xp, Xpp]
                 
@@ -595,19 +612,6 @@ class ACGui(QMainWindow):
         
         self.statusBar.showMessage("Fit of X' and X'' complete")
         
-    def fit_Xp_Xpp_w_ccfit(self):
-        """
-        This function is deprecated since 27/11/20. Fitting is now done internally instead.
-        """
-        if self.data_names['Xp'] in self.raw_df.columns:
-            working_directory = os.path.dirname(self.raw_df_origin)
-            os.chdir(working_directory)
-            self.write_file_for_ccfit()
-            self.run_ccfit()
-            self.read_ccfit_output()
-        else:
-            print('Give messagebox that they dont exist')
-    
     def get_single_line(self, filename, line_number):
 
         f = open(filename, 'r')
@@ -675,7 +679,7 @@ line 10: INFO,f,<mass>mg""")
             self.sample_mass_inp.setText(str(sample))
             self.film_mass_inp.setText(str(film))
     
-    def calculate_Xp_and_Xpp(self):
+    def calculate_diamag_correction(self):
         
         if self.raw_df is None:
             # Don't do the calculation, if there is nothing to calculate on
@@ -700,8 +704,8 @@ line 10: INFO,f,<mass>mg""")
                 msg.setText('Could not read sample information')
                 msg.exec_()
             else:
-                H = self.raw_df[self.data_names['amplitude']]
-                H0 = self.raw_df[self.data_names['mag_field']]
+                H = self.raw_df['AC Amplitude (Oe)']
+                H0 = self.raw_df['Magnetic Field (Oe)']
                 Mp = self.raw_df["M' (emu)"]
                 Mpp = self.raw_df["M'' (emu)"]
                 
@@ -752,8 +756,8 @@ line 10: INFO,f,<mass>mg""")
             plot_type = self.fit_data_plot_combo.currentText()
             
             if plot_type == 'FreqVSXpp':
-                x_name = self.data_names['freq']
-                y_name = self.data_names['Xpp']
+                x_name = 'AC Frequency (Hz)'
+                y_name = 'Xpp (emu/Oe)'
                 for row in range(self.num_meas_temps):
                 
                     T = self.meas_temps[row]
@@ -771,7 +775,7 @@ line 10: INFO,f,<mass>mg""")
                                                     linestyle='None')
                     if itemdict['fit']:
                         self.treat_fit_plot.ax.plot(self.temp_subsets[row][x_name],
-                                                    Xpp_(self.temp_subsets[row][self.data_names['freq']],
+                                                    Xpp_(self.temp_subsets[row]['AC Frequency (Hz)'],
                                                         self.raw_data_fit['ChiS'].iloc[row],
                                                         self.raw_data_fit['ChiT'].iloc[row],
                                                         self.raw_data_fit['Tau'].iloc[row],
@@ -782,8 +786,8 @@ line 10: INFO,f,<mass>mg""")
                 self.treat_fit_plot.ax.set_ylabel(y_name)
         
             elif plot_type == 'ColeCole':
-                x_name = self.data_names['Xp']
-                y_name = self.data_names['Xpp']
+                x_name = 'Xp (emu/Oe)'
+                y_name = 'Xpp (emu/Oe)'
                 for row in range(self.num_meas_temps):
 
                     T = self.meas_temps[row]
@@ -800,12 +804,12 @@ line 10: INFO,f,<mass>mg""")
                                                 mfc='none',
                                                 linestyle='None')
                     if itemdict['fit']:
-                        self.treat_fit_plot.ax.plot(Xp_(self.temp_subsets[row][self.data_names['freq']],
+                        self.treat_fit_plot.ax.plot(Xp_(self.temp_subsets[row]['AC Frequency (Hz)'],
                                                         self.raw_data_fit['ChiS'].iloc[row],
                                                         self.raw_data_fit['ChiT'].iloc[row],
                                                         self.raw_data_fit['Tau'].iloc[row],
                                                         self.raw_data_fit['Alpha'].iloc[row]),
-                                                    Xpp_(self.temp_subsets[row][self.data_names['freq']],
+                                                    Xpp_(self.temp_subsets[row]['AC Frequency (Hz)'],
                                                         self.raw_data_fit['ChiS'].iloc[row],
                                                         self.raw_data_fit['ChiT'].iloc[row],
                                                         self.raw_data_fit['Tau'].iloc[row],
@@ -841,71 +845,76 @@ line 10: INFO,f,<mass>mg""")
         
         self.treat_raw_plot.canvas.draw()
     
-    def update_data_names(self):
-        
-        with open(self.ppms_data_file, 'r') as f:
-            f_content = f.read()
+    def fill_df_data_values(self):
+    
+        if ('Xp (emu/Oe)' in self.raw_df.columns and not ('Mp (emu)' in self.raw_df.columns)):
+            # Susceptibility exists in the data frame, but magnetisation does not
+            Mp = self.raw_df['Xp (emu/Oe)']*self.raw_df['Magnetic Field (Oe)']
+            Mpp = self.raw_df['Xpp (emu/Oe)']*self.raw_df['Magnetic Field (Oe)']
+            Xp_idx = self.raw_df.columns.get_loc('Xp (emu/Oe)')
+            self.raw_df.insert(Xp_idx, column='Mp (emu)', value=Mp)
+            self.raw_df.insert(Xp_idx, column='Mpp (emu)', value=Mpp)
             
-        VERSION_PATTERN = r'INFO,PPMS ACMS\s(II\s)*.*\s.*\s(?P<VERSION>.*)\sBuild\s(?P<BUILD>[1-9]{1,2}),APPNAME'
-        m = re.search(VERSION_PATTERN, f_content)
-        VERSION, BUILD = m.group('VERSION'), m.group('BUILD')
-        
-        if (VERSION, BUILD) == ('1.0.9', '14'):
-            self.data_names.update({'freq': 'Frequency (Hz)',
-                                    'amplitude': 'Amplitude (Oe)',
-                                    'mag_field': 'Magnetic Field (Oe)'})
-        elif (VERSION, BUILD) == ('1.0.8', '33'):
-            self.data_names.update({'freq': 'AC Frequency (Hz)',
-                                    'amplitude': 'AC Drive (Oe)',
-                                    'mag_field': 'Magnetic Field (Oe)'})
-        
-        self.data_names.update({'VERSION': VERSION,
-                                'BUILD': BUILD})
-                
+        elif (not 'Xp (emu/Oe)' in self.raw_df.columns and ('Mp (emu)' in self.raw_df.columns)):
+            # Magnetisation exists in the data frame, but susceptibility does not
+            Xp = self.raw_df['Mp (emu)']/self.raw_df['Magnetic Field (Oe)']
+            Xpp = self.raw_df['Mpp (emu)']/self.raw_df['Magnetic Field (Oe)']
+            Mp_idx = self.raw_df.columns.get_loc('Mp (emu)')
+            self.raw_df.insert(Mp_idx+2, column='Xp (emu/Oe)', value=Xp)
+            self.raw_df.insert(Mp_idx+3, column='Xpp (emu/Oe)', value=Xpp)
+    
     def load_ppms_data(self):
         
-        filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.last_loaded_file)
+        open_file_dialog = QFileDialog()
+        filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.last_loaded_file)
         filename = filename_info[0]
         
-        self.last_loaded_file = os.path.split(filename)[0]
-        
-        header_start = 0
-        header_lines = []
-        
-        if filename == '':
-            pass
-        else:
-            self.ppms_data_file = filename
-            self.raw_df = None
-            self.raw_df_origin = None
-            self.treat_raw_fit_list.clear()
-            self.reset_data_name_defaults()
         try:
-            with open(self.ppms_data_file, 'r') as f:
-                f_content = f.readlines()
-            for i, line in enumerate(f_content):
-                if '[Header]' in line:
-                    header_start = i+1
-                if '[Data]' in line:
-                    self.data_header_idx = i+1
-                    header_lines = f_content[header_start:self.data_header_idx]
-                    break
-            
-            self.raw_df = pd.read_csv(filename,
-                                      header=self.data_header_idx,
-                                      engine='python')
-        except Exception as e:
+            # FileNotFoundError and UnicodeDecodeError will be raised here
+            potential_header, potential_df = read_ppms_file(filename)
+            if potential_header is None:
+                raise FileFormatError(filename)
+            summary = update_data_names(potential_df, self.read_options)
+            counts = [val>1 for key, val in summary.items()]
+            # To make sure that none of the names in read_options were matched more than once.
+            assert not any(counts)
+            # To make sure that only Mp (and therefore Mpp) OR Xp (and therefore Xpp) can appear at once.
+            # In the case that this is ever an error, self.fill_df_data_values will have to be changed.
+            assert (summary['Mp (emu)']>0) != (summary['Xp (emu/Oe)']>0)
+        
+        except FileNotFoundError:
+            # Did not read any file
             pass
-            print(e)
+        except UnicodeDecodeError:
+            # File being read is binary, not a text file
+            print('The file is not a text file')
+        except FileFormatError as e:
+            # File does not have correct header and data blocks
+            print('Trying to read a file that does not look correct')
+        except AssertionError:
+            # The data names could not be mapped correctly
+            print('A data name from self.read_options is showing up more than once in the columns')
+            print('OR')
+            print('both Mp and Xp are unexpectedly both showing up in the data names')
+        
         else:
+            # Now that everything has been seen to work,
+            # save potential header and potential df as actual header and df
+            self.last_loaded_file = os.path.split(filename)[0]
+            self.ppms_data_file = filename
+            self.raw_df = potential_df
+            self.raw_df_header = potential_header
+            
+            # Clear old data and set new names
+            self.treat_raw_fit_list.clear()
+            self.fill_df_data_values()
+            
             self.cleanup_loaded_ppms()
-            self.update_data_names()
-            self.num_meas_freqs = len(set(self.raw_df[self.data_names['freq']]))
-            self.raw_df_origin = filename
+            self.num_meas_freqs = len(set(self.raw_df['AC Frequency (Hz)']))
             self.update_temp_subsets()
             self.update_meas_temps()
             
-            # Clearing axes of "old" drawings and setting front widget to 
+            # Clearing axes of "old" drawings and setting front widget to the raw data
             self.treat_raw_plot.clear_canvas()
             self.treat_fit_plot.clear_canvas()
             
@@ -914,7 +923,7 @@ line 10: INFO,f,<mass>mg""")
             
             # Updating analysis combos, which will automatically draw the new data
             self.update_analysis_combos()
-            
+ 
     def update_meas_temps(self):
         
         meas_temps = []
@@ -935,7 +944,7 @@ line 10: INFO,f,<mass>mg""")
         i=0
         old_val = 0
         while i<self.raw_df.shape[0]:
-            new_val = self.raw_df[self.data_names['freq']].iloc[i]
+            new_val = self.raw_df['AC Frequency (Hz)'].iloc[i]
             if new_val<old_val:
                 idx_list.append(i)
             else:
@@ -946,25 +955,15 @@ line 10: INFO,f,<mass>mg""")
         for n in range(len(idx_list)-1):
             self.temp_subsets.append(self.raw_df.iloc[idx_list[n]+1:idx_list[n+1]])
     
-    def reset_data_name_defaults(self):
-        
-        self.data_names = {'freq': 'Frequency (Hz)',
-                   'amplitude': 'Amplitude (Oe)',
-                   'mag_field': 'Magnetic Field (Oe)',
-                   'Xp': "X' (emu/(Oe*mol))",
-                   'Xpp': "X'' (emu/(Oe*mol))"}
-    
     def cleanup_loaded_ppms(self):
-        
-        rows_to_remove = []
-        # Removing instrument comment lines (for ACMS version 1.0.8, build 33)
         
         # Drop columns where all values are NaN
         self.raw_df.dropna(axis=1, how='all', inplace=True)
+        # Removing instrument comment lines
         # Drop "Comment" column
         if 'Comment' in self.raw_df.columns:
             self.raw_df.drop(['Comment'], axis='columns', inplace=True)
-        # Drop all rows where there is a NaN value
+        # Drop all rows where there is still a NaN value
         self.raw_df.dropna(axis=0, inplace=True)
         
         # Make sure that the rows are named continuously
