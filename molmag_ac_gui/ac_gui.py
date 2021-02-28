@@ -257,7 +257,6 @@ class ACGui(QMainWindow):
         self.data_layout.addWidget(self.diamag_correction_btn)
         
         self.fit_Xp_Xpp_btn = QPushButton("(3) Fit X', X''")
-        #self.fit_Xp_Xpp_btn.clicked.connect(self.fit_Xp_Xpp_w_ccfit)
         self.fit_Xp_Xpp_btn.clicked.connect(self.fit_Xp_Xpp_standalone)
         self.data_layout.addWidget(self.fit_Xp_Xpp_btn)
         
@@ -466,22 +465,6 @@ class ACGui(QMainWindow):
         except TypeError:
             print('When the fitted data does not yet exist')
         
-    
-    def get_ccfit_starting_params(self):
-        """Reimplementation of CCFITStartingGuesses that used to be in process_ac"""
-        
-        lowest_t_idx = self.meas_temps.argmin()
-        
-        v = self.temp_subsets[lowest_t_idx]['AC Frequency (Hz)']
-        Xp = self.temp_subsets[lowest_t_idx]['Xp (emu/Oe)']
-        Xpp = self.temp_subsets[lowest_t_idx]['Xpp (emu/Oe)']
-        
-        tau = 1/(2*np.pi*v[Xpp.idxmax()])
-        Xs = 0
-        Xt = Xp[0]
-        alpha = 0.1
-        
-        return (Xs, Xt, tau, alpha)
     
     def switch_analysis_view(self):
         
