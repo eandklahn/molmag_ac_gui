@@ -486,68 +486,72 @@ class ACGui(QMainWindow):
     
     def fit_Xp_Xpp_standalone(self):
         
-        self.statusBar.showMessage('Running fit...')
+        if self.raw_df is None:
+            pass
         
-        #### Defining the objective function for lmfit ####
-        def objective(params, v, data):
-    
-            Xp_data = data[0]
-            Xpp_data = data[1]
+        else:
+            self.statusBar.showMessage('Running fit...')
             
-            Xp_model = Xp_dataset(params, v)
-            Xpp_model = Xpp_dataset(params, v)
+            #### Defining the objective function for lmfit ####
+            def objective(params, v, data):
+        
+                Xp_data = data[0]
+                Xpp_data = data[1]
+                
+                Xp_model = Xp_dataset(params, v)
+                Xpp_model = Xpp_dataset(params, v)
+                
+                Xp_resid = Xp_data - Xp_model
+                Xpp_resid = Xpp_data - Xpp_model
+        
+                return np.concatenate([Xp_resid, Xpp_resid])
+            ########
             
-            Xp_resid = Xp_data - Xp_model
-            Xpp_resid = Xpp_data - Xpp_model
-    
-            return np.concatenate([Xp_resid, Xpp_resid])
-        ########
-        
-        T, Xs, Xt, tau, alpha, resid, tau_fit_err = [],[],[],[],[],[],[]
-        if 'Xp (emu/Oe)' in self.raw_df.columns:
-            for t_idx in range(self.num_meas_temps):
-                v = np.array(self.temp_subsets[t_idx]['AC Frequency (Hz)'])
-                Xp = np.array(self.temp_subsets[t_idx]['Xp (emu/Oe)'])
-                Xpp = np.array(self.temp_subsets[t_idx]['Xpp (emu/Oe)'])
-                
-                data = [Xp, Xpp]
-                
-                tau_init = (v[np.argmax(Xpp)]*2*np.pi)**-1
-                fit_params = Parameters()
-                fit_params.add('Xs', value=Xp[-1], min=0, max=np.inf)
-                fit_params.add('Xt', value=Xp[0], min=0, max=np.inf)
-                fit_params.add('tau', value=tau_init, min=0, max=np.inf)
-                fit_params.add('alpha', value=0.1, min=0, max=np.inf)
-                
-                out = minimize(objective, fit_params, args=(v, data))
-                if 'Could not estimate error-bars.' in out.message:
-                    tau_err = 0
-                else:
-                    tau_idx = out.var_names.index('tau')
-                    tau_err = np.sqrt(out.covar[tau_idx, tau_idx])
-                T.append(self.meas_temps[t_idx])
-                Xs.append(out.params['Xs'].value)
-                Xt.append(out.params['Xt'].value)
-                tau.append(out.params['tau'].value)
-                alpha.append(out.params['alpha'].value)
-                resid.append(out.residual.sum())
-                tau_fit_err.append(tau_err)
-        fit_result = pd.DataFrame(data={'Temp': T,
-                                        'ChiS': Xs,
-                                        'ChiT': Xt,
-                                        'Tau': tau,
-                                        'Alpha': alpha,
-                                        'Residual': resid,
-                                        'Tau_Err': tau_fit_err,
-                                        'dTau': tau_err_RC(tau, tau_fit_err, alpha)})
-        
-        self.raw_data_fit = fit_result
-        self.update_treat_raw_fit_list()
-        self.plot_from_itemlist()
-        set_idx = self.analysis_plot_type_combo.findText('Fitted')
-        self.analysis_plot_type_combo.setCurrentIndex(set_idx)
-        
-        self.statusBar.showMessage("Fit of X' and X'' complete")
+            T, Xs, Xt, tau, alpha, resid, tau_fit_err = [],[],[],[],[],[],[]
+            if 'Xp (emu/Oe)' in self.raw_df.columns:
+                for t_idx in range(self.num_meas_temps):
+                    v = np.array(self.temp_subsets[t_idx]['AC Frequency (Hz)'])
+                    Xp = np.array(self.temp_subsets[t_idx]['Xp (emu/Oe)'])
+                    Xpp = np.array(self.temp_subsets[t_idx]['Xpp (emu/Oe)'])
+                    
+                    data = [Xp, Xpp]
+                    
+                    tau_init = (v[np.argmax(Xpp)]*2*np.pi)**-1
+                    fit_params = Parameters()
+                    fit_params.add('Xs', value=Xp[-1], min=0, max=np.inf)
+                    fit_params.add('Xt', value=Xp[0], min=0, max=np.inf)
+                    fit_params.add('tau', value=tau_init, min=0, max=np.inf)
+                    fit_params.add('alpha', value=0.1, min=0, max=np.inf)
+                    
+                    out = minimize(objective, fit_params, args=(v, data))
+                    if 'Could not estimate error-bars.' in out.message:
+                        tau_err = 0
+                    else:
+                        tau_idx = out.var_names.index('tau')
+                        tau_err = np.sqrt(out.covar[tau_idx, tau_idx])
+                    T.append(self.meas_temps[t_idx])
+                    Xs.append(out.params['Xs'].value)
+                    Xt.append(out.params['Xt'].value)
+                    tau.append(out.params['tau'].value)
+                    alpha.append(out.params['alpha'].value)
+                    resid.append(out.residual.sum())
+                    tau_fit_err.append(tau_err)
+            fit_result = pd.DataFrame(data={'Temp': T,
+                                            'ChiS': Xs,
+                                            'ChiT': Xt,
+                                            'Tau': tau,
+                                            'Alpha': alpha,
+                                            'Residual': resid,
+                                            'Tau_Err': tau_fit_err,
+                                            'dTau': tau_err_RC(tau, tau_fit_err, alpha)})
+            
+            self.raw_data_fit = fit_result
+            self.update_treat_raw_fit_list()
+            self.plot_from_itemlist()
+            set_idx = self.analysis_plot_type_combo.findText('Fitted')
+            self.analysis_plot_type_combo.setCurrentIndex(set_idx)
+            
+            self.statusBar.showMessage("Fit of X' and X'' complete")
         
     def get_single_line(self, filename, line_number):
 
@@ -621,14 +625,7 @@ line 10: INFO,f,<mass>mg""")
         if self.raw_df is None:
             # Don't do the calculation, if there is nothing to calculate on
             pass
-        elif "X'' (emu/(Oe*mol))" in self.raw_df.columns:
-            # Don't add an element that is already there
-            pass
-        elif "AC X'  (emu/Oe)" in self.raw_df.columns:
-            # Data was read from source where the column already exists.
-            # Update data names
-            self.data_names.update({'Xp': "AC X'  (emu/Oe)",
-                                    'Xpp': 'AC X" (emu/Oe)'})
+        
         else:
             try:
                 sample_mass = float(self.sample_mass_inp.text())
@@ -643,8 +640,8 @@ line 10: INFO,f,<mass>mg""")
             else:
                 H = self.raw_df['AC Amplitude (Oe)']
                 H0 = self.raw_df['Magnetic Field (Oe)']
-                Mp = self.raw_df["M' (emu)"]
-                Mpp = self.raw_df["M'' (emu)"]
+                Mp = self.raw_df["Mp (emu)"]
+                Mpp = self.raw_df["Mpp (emu)"]
                 
                 Xp = (Mp - self.Xd_capsule*H - self.Xd_film*film_mass*H)*molar_mass/(sample_mass*H) - Xd_sample*molar_mass
                 Xpp = Mpp/(sample_mass*H)*molar_mass
@@ -655,8 +652,18 @@ line 10: INFO,f,<mass>mg""")
                 Xpp_idx = self.raw_df.columns.get_loc("M'' (emu)")+1
                 self.raw_df.insert(Xpp_idx, column="X'' (emu/(Oe*mol))", value=Xpp)
         
-        self.update_temp_subsets()
-        self.update_analysis_combos()
+            self.update_temp_subsets()
+            self.update_analysis_combos()
+    
+        #elif "X'' (emu/(Oe*mol))" in self.raw_df.columns:
+        #    # Don't add an element that is already there
+        #    pass
+        #elif "AC X'  (emu/Oe)" in self.raw_df.columns:
+        #    # Data was read from source where the column already exists.
+        #    # Update data names
+        #    self.data_names.update({'Xp': "AC X'  (emu/Oe)",
+        #                            'Xpp': 'AC X" (emu/Oe)'})
+        
     
     def update_itemdict(self, item, itemdict):
         
