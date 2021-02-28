@@ -32,7 +32,8 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton, QL
 
 #local imports
 from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset, getParameterGuesses,
-                         getStartParams, getFittingFunction, readPopt, addPartialModel, tau_err_RC)
+                         getStartParams, getFittingFunction, readPopt, addPartialModel, tau_err_RC,
+                         diamag_correction)
 from .dialogs import GuessDialog, SimulationDialog, AboutDialog, ParamDialog, FitResultPlotStatus, PlottingWindow
 from .utility import read_ppms_file, get_ppms_column_name_matches, update_data_names
 from .exceptions import FileFormatError
@@ -133,6 +134,7 @@ class ACGui(QMainWindow):
         
         self.temp_colormap = self.gui_default_colormap()
         
+        self.sample_Xd_base = -6e-7 # unit when multiplied with molar mass: emu/(Oe*mol)
         self.Xd_capsule = -1.8*10**-8 # unit: emu/Oe
         self.Xd_film = 6.47*10**-10 # unit: emu/(Oe*mg)
         
@@ -253,7 +255,7 @@ class ACGui(QMainWindow):
         self.data_layout.addWidget(self.raw_data_load_btn)
         
         self.diamag_correction_btn = QPushButton("(2) Diamagnetic correction")
-        self.diamag_correction_btn.clicked.connect(self.calculate_diamag_correction)
+        self.diamag_correction_btn.clicked.connect(self.make_diamag_correction_calculation)
         self.data_layout.addWidget(self.diamag_correction_btn)
         
         self.fit_Xp_Xpp_btn = QPushButton("(3) Fit X', X''")
@@ -333,7 +335,7 @@ class ACGui(QMainWindow):
         self.param_wdgt = QWidget()
         self.param_layout = QVBoxLayout()
         
-        # Sample mass
+        # SAMPLE INFO
         self.sample_info_layout = QVBoxLayout()
         
         self.sample_info_header = QLabel('Sample information')
@@ -348,32 +350,23 @@ class ACGui(QMainWindow):
         self.sample_mass_layout.addWidget(self.sample_mass_lbl)
         
         self.sample_mass_inp = QLineEdit()
+        self.sample_mass_inp.setToolTip('Enter a sample mass in mg')
         self.sample_mass_inp.setValidator(QDoubleValidator())
         self.sample_mass_layout.addWidget(self.sample_mass_inp)
-        
-        # Film mass edit
-        self.film_mass_layout = QHBoxLayout()
-        self.sample_info_layout.addLayout(self.film_mass_layout)
-        
-        self.film_mass_lbl = QLabel('m (film) [mg]')
-        self.film_mass_layout.addWidget(self.film_mass_lbl)
-             
-        self.film_mass_inp = QLineEdit()
-        self.film_mass_inp.setValidator(QDoubleValidator())
-        self.film_mass_layout.addWidget(self.film_mass_inp)
-        
-        # Molar mass edit
+
+        # Sample molar mass edit
         self.molar_mass_lo = QHBoxLayout()
         self.sample_info_layout.addLayout(self.molar_mass_lo)
         
-        self.molar_mass_lbl = QLabel('M [g/mol]')
+        self.molar_mass_lbl = QLabel('M (sample) [g/mol]')
         self.molar_mass_lo.addWidget(self.molar_mass_lbl)
         
         self.molar_mass_inp = QLineEdit()
+        self.molar_mass_inp.setToolTip('Enter the molar mass of the sample in g/mol')
         self.molar_mass_inp.setValidator(QDoubleValidator())
         self.molar_mass_lo.addWidget(self.molar_mass_inp)
-        
-        # Sample X' edit
+
+        # Sample Xd edit
         self.sample_xd_lo = QHBoxLayout()
         self.sample_info_layout.addLayout(self.sample_xd_lo)
         
@@ -381,18 +374,42 @@ class ACGui(QMainWindow):
         self.sample_xd_lo.addWidget(self.sample_xd_lbl)
         
         self.sample_xd_inp = QLineEdit()
-        self.sample_xd_inp.setText('-6e-7')
+        self.sample_xd_inp.setToolTip("""Enter the diamagnetic susceptibility of the sample.
+If set to 0, the value will be replaced by -6e-7*M_sample internally.
+Look up values in units of emu/mol ~ emu/(Oe*mol) in DOI: 10.1021/ed085p532""")
         self.sample_xd_inp.setValidator(QDoubleValidator())
         self.sample_xd_lo.addWidget(self.sample_xd_inp)
         
-        # Mass load button
-        self.load_mass_lo = QHBoxLayout()
-        self.sample_info_layout.addLayout(self.load_mass_lo)
+        # Constant terms edit
+        self.constant_terms_layout = QHBoxLayout()
+        self.sample_info_layout.addLayout(self.constant_terms_layout)
         
-        self.load_mass_btn = QPushButton('Load mass from file')
-        self.load_mass_btn.clicked.connect(self.load_sample_film_mass)
-        self.load_mass_lo.addWidget(self.load_mass_btn)
-        self.load_mass_lo.addStretch()
+        self.constant_terms_lbl = QLabel('Constant terms')
+        self.constant_terms_layout.addWidget(self.constant_terms_lbl)
+             
+        self.constant_terms_inp = QLineEdit()
+        self.constant_terms_inp.setToolTip('Insert constant terms as "val1,val2,val3,..."')
+        self.constant_terms_layout.addWidget(self.constant_terms_inp)
+        
+        # Variable amount edit
+        self.var_amount_layout = QHBoxLayout()
+        self.sample_info_layout.addLayout(self.var_amount_layout)
+        
+        self.var_amount_lbl = QLabel('Variable amounts')
+        self.var_amount_layout.addWidget(self.var_amount_lbl)
+        
+        self.var_amount_inp = QLineEdit()
+        self.var_amount_inp.setToolTip('Insert variable amount terms as "sus1,amount1,sus2,amount2,sus3,amount3,..."')
+        self.var_amount_layout.addWidget(self.var_amount_inp)
+        
+        # Mass load button
+        self.load_sample_data_lo = QHBoxLayout()
+        self.sample_info_layout.addLayout(self.load_sample_data_lo)
+        
+        self.load_sample_data_btn = QPushButton('Load sample data')
+        self.load_sample_data_btn.clicked.connect(self.load_sample_data)
+        self.load_sample_data_lo.addWidget(self.load_sample_data_btn)
+        self.load_sample_data_lo.addStretch()
         
         self.param_layout.addLayout(self.sample_info_layout)
         
@@ -489,6 +506,12 @@ class ACGui(QMainWindow):
         if self.raw_df is None:
             pass
         
+        elif not 'Xp_m (emu/(Oe*mol))' in self.raw_df.columns:
+            msg = QMessageBox()
+            msg.setWindowTitle('Error')
+            msg.setText('Calculate diamagnetic correction first')
+            msg.exec_()
+        
         else:
             self.statusBar.showMessage('Running fit...')
             
@@ -508,34 +531,33 @@ class ACGui(QMainWindow):
             ########
             
             T, Xs, Xt, tau, alpha, resid, tau_fit_err = [],[],[],[],[],[],[]
-            if 'Xp (emu/Oe)' in self.raw_df.columns:
-                for t_idx in range(self.num_meas_temps):
-                    v = np.array(self.temp_subsets[t_idx]['AC Frequency (Hz)'])
-                    Xp = np.array(self.temp_subsets[t_idx]['Xp (emu/Oe)'])
-                    Xpp = np.array(self.temp_subsets[t_idx]['Xpp (emu/Oe)'])
-                    
-                    data = [Xp, Xpp]
-                    
-                    tau_init = (v[np.argmax(Xpp)]*2*np.pi)**-1
-                    fit_params = Parameters()
-                    fit_params.add('Xs', value=Xp[-1], min=0, max=np.inf)
-                    fit_params.add('Xt', value=Xp[0], min=0, max=np.inf)
-                    fit_params.add('tau', value=tau_init, min=0, max=np.inf)
-                    fit_params.add('alpha', value=0.1, min=0, max=np.inf)
-                    
-                    out = minimize(objective, fit_params, args=(v, data))
-                    if 'Could not estimate error-bars.' in out.message:
-                        tau_err = 0
-                    else:
-                        tau_idx = out.var_names.index('tau')
-                        tau_err = np.sqrt(out.covar[tau_idx, tau_idx])
-                    T.append(self.meas_temps[t_idx])
-                    Xs.append(out.params['Xs'].value)
-                    Xt.append(out.params['Xt'].value)
-                    tau.append(out.params['tau'].value)
-                    alpha.append(out.params['alpha'].value)
-                    resid.append(out.residual.sum())
-                    tau_fit_err.append(tau_err)
+            for t_idx in range(self.num_meas_temps):
+                v = np.array(self.temp_subsets[t_idx]['AC Frequency (Hz)'])
+                Xp = np.array(self.temp_subsets[t_idx]['Xp_m (emu/(Oe*mol))'])
+                Xpp = np.array(self.temp_subsets[t_idx]['Xpp_m (emu/(Oe*mol))'])
+                
+                data = [Xp, Xpp]
+                
+                tau_init = (v[np.argmax(Xpp)]*2*np.pi)**-1
+                fit_params = Parameters()
+                fit_params.add('Xs', value=Xp[-1], min=0, max=np.inf)
+                fit_params.add('Xt', value=Xp[0], min=0, max=np.inf)
+                fit_params.add('tau', value=tau_init, min=0, max=np.inf)
+                fit_params.add('alpha', value=0.1, min=0, max=np.inf)
+                
+                out = minimize(objective, fit_params, args=(v, data))
+                if 'Could not estimate error-bars.' in out.message:
+                    tau_err = 0
+                else:
+                    tau_idx = out.var_names.index('tau')
+                    tau_err = np.sqrt(out.covar[tau_idx, tau_idx])
+                T.append(self.meas_temps[t_idx])
+                Xs.append(out.params['Xs'].value)
+                Xt.append(out.params['Xt'].value)
+                tau.append(out.params['tau'].value)
+                alpha.append(out.params['alpha'].value)
+                resid.append(out.residual.sum())
+                tau_fit_err.append(tau_err)
             fit_result = pd.DataFrame(data={'Temp': T,
                                             'ChiS': Xs,
                                             'ChiT': Xt,
@@ -587,40 +609,55 @@ class ACGui(QMainWindow):
                               index=False,
                               float_format='%20.10e')
     
-    def load_sample_film_mass(self):
+    def load_sample_data(self):
     
         filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.last_loaded_file)
         filename = filename_info[0]
         
-        self.last_loaded_file = os.path.split(filename)[0]
-        
-        if filename == '':
-            return 0
-        else:
-            sample = self.get_single_line(filename, 9).strip()
-            film = self.get_single_line(filename, 10).strip()
-        
         try:
-            sample = sample.split(',')
-            film = film.split(',')
+            f = open(filename, 'r')
+            d = f.readlines()
+            f.close()
             
-            assert sample[0] == 'INFO' and (sample[1] == 's' or sample[1] == 'sample')
-            assert film[0] == 'INFO' and (film[1] == 'f' or film[1] == 'film')
+            assert all([len(line.split())>=2 for line in d])
+            
+        except FileNotFoundError:
+            print('File was not selected')
+        except UnicodeDecodeError:
+            print('Cant open a binary file')
         except AssertionError:
-            msg = QMessageBox()
-            msg.setText('File not as expected')
-            msg.setDetailedText("""Expected:
-line 9: INFO,s,<mass>mg
-line 10: INFO,f,<mass>mg""")
-            msg.exec_()
+            print('Some of the lines have lengths less than two')
         else:
-            sample = float(sample[2][:-2])
-            film = float(film[2][:-2])
             
-            self.sample_mass_inp.setText(str(sample))
-            self.film_mass_inp.setText(str(film))
-    
-    def calculate_diamag_correction(self):
+            # These are the default values that are "read" if nothing else is
+            # seen in the file
+            m_sample = '0'
+            M_sample = '0'
+            Xd_sample = '0'
+            constant_terms = '0'
+            var_amount = '0,0'
+            
+            self.last_loaded_file = os.path.split(filename)[0]
+            for line in d:
+                line = line.split()
+                if line[0] == 'm_sample':
+                    m_sample = line[1]
+                elif line[0] == 'M_sample':
+                    M_sample = line[1]
+                elif line[0] == 'Xd_sample':
+                    Xd_sample = line[1]
+                elif line[0] == 'constants':
+                    constant_terms = line[1]
+                elif line[0] == 'var_amount':
+                    var_amount = line[1]
+            
+            self.sample_mass_inp.setText(m_sample)
+            self.molar_mass_inp.setText(M_sample)
+            self.sample_xd_inp.setText(Xd_sample)
+            self.constant_terms_inp.setText(constant_terms)
+            self.var_amount_inp.setText(var_amount)
+            
+    def make_diamag_correction_calculation(self):
         
         if self.raw_df is None:
             # Don't do the calculation, if there is nothing to calculate on
@@ -628,42 +665,55 @@ line 10: INFO,f,<mass>mg""")
         
         else:
             try:
-                sample_mass = float(self.sample_mass_inp.text())
-                film_mass = float(self.film_mass_inp.text())
-                molar_mass = float(self.molar_mass_inp.text())
+                m_sample = float(self.sample_mass_inp.text())
+                M_sample = float(self.molar_mass_inp.text())
                 Xd_sample = float(self.sample_xd_inp.text())
-            except ValueError as error:
+                constant_terms = [float(x) for x in self.constant_terms_inp.text().split(',')]
+                var_am = [float(x) for x in self.var_amount_inp.text().split(',')]
+                
+                assert len(var_am)%2==0
+                paired_terms = [(var_am[n], var_am[n+1]) for n in range(0,len(var_am),2)]
+                
+                if Xd_sample == 0:
+                    Xd_sample = -6e-7*M_sample
+                
+            except (ValueError, AssertionError):
                 msg = QMessageBox()
                 msg.setWindowTitle('Error')
-                msg.setText('Could not read sample information')
+                msg.setText('Something wrong in "Sample information"\n')
                 msg.exec_()
+            
             else:
                 H = self.raw_df['AC Amplitude (Oe)']
                 H0 = self.raw_df['Magnetic Field (Oe)']
                 Mp = self.raw_df["Mp (emu)"]
                 Mpp = self.raw_df["Mpp (emu)"]
                 
-                Xp = (Mp - self.Xd_capsule*H - self.Xd_film*film_mass*H)*molar_mass/(sample_mass*H) - Xd_sample*molar_mass
-                Xpp = Mpp/(sample_mass*H)*molar_mass
+                # Get molar, corrected values from function in process_ac
+                Mp_molar, Mpp_molar, Xp_molar, Xpp_molar = diamag_correction(
+                    H, H0, Mp, Mpp, m_sample, M_sample, Xd_sample,
+                    constant_terms = constant_terms, paired_terms = paired_terms)
+            
+                # PUT THE CODE HERE TO INSERT CORRECTED VALUES INTO DATA FRAME
                 
-                Xp_idx = self.raw_df.columns.get_loc("M' (emu)")+1
-                self.raw_df.insert(Xp_idx, column="X' (emu/(Oe*mol))", value=Xp)
+                Mp_idx = self.raw_df.columns.get_loc('Mp (emu)')
+                self.raw_df.insert(Mp_idx+1, column="Mp_m (emu/mol)", value=Mp_molar)
                 
-                Xpp_idx = self.raw_df.columns.get_loc("M'' (emu)")+1
-                self.raw_df.insert(Xpp_idx, column="X'' (emu/(Oe*mol))", value=Xpp)
-        
+                Mpp_idx = self.raw_df.columns.get_loc('Mpp (emu)')
+                self.raw_df.insert(Mpp_idx+1, column="Mpp_m (emu/mol)", value=Mpp_molar)
+                
+                Xp_idx = self.raw_df.columns.get_loc('Xp (emu/Oe)')
+                self.raw_df.insert(Xp_idx+1, column="Xp_m (emu/(Oe*mol))", value=Xp_molar)
+                
+                Xpp_idx = self.raw_df.columns.get_loc('Xpp (emu/Oe)')
+                self.raw_df.insert(Xpp_idx+1, column="Xpp_m (emu/(Oe*mol))", value=Xpp_molar)
+            
+            for item in self.temp_subsets[0].columns:
+                print(item)
             self.update_temp_subsets()
+            for item in self.temp_subsets[0].columns:
+                print(item)
             self.update_analysis_combos()
-    
-        #elif "X'' (emu/(Oe*mol))" in self.raw_df.columns:
-        #    # Don't add an element that is already there
-        #    pass
-        #elif "AC X'  (emu/Oe)" in self.raw_df.columns:
-        #    # Data was read from source where the column already exists.
-        #    # Update data names
-        #    self.data_names.update({'Xp': "AC X'  (emu/Oe)",
-        #                            'Xpp': 'AC X" (emu/Oe)'})
-        
     
     def update_itemdict(self, item, itemdict):
         
@@ -701,7 +751,7 @@ line 10: INFO,f,<mass>mg""")
             
             if plot_type == 'FreqVSXpp':
                 x_name = 'AC Frequency (Hz)'
-                y_name = 'Xpp (emu/Oe)'
+                y_name = 'Xpp_m (emu/(Oe*mol))'
                 for row in range(self.num_meas_temps):
                 
                     T = self.meas_temps[row]
@@ -730,8 +780,8 @@ line 10: INFO,f,<mass>mg""")
                 self.treat_fit_plot.ax.set_ylabel(y_name)
         
             elif plot_type == 'ColeCole':
-                x_name = 'Xp (emu/Oe)'
-                y_name = 'Xpp (emu/Oe)'
+                x_name = 'Xp_m (emu/(Oe*mol))'
+                y_name = 'Xpp_m (emu/(Oe*mol))'
                 for row in range(self.num_meas_temps):
 
                     T = self.meas_temps[row]
@@ -797,7 +847,7 @@ line 10: INFO,f,<mass>mg""")
             Mpp = self.raw_df['Xpp (emu/Oe)']*self.raw_df['Magnetic Field (Oe)']
             Xp_idx = self.raw_df.columns.get_loc('Xp (emu/Oe)')
             self.raw_df.insert(Xp_idx, column='Mp (emu)', value=Mp)
-            self.raw_df.insert(Xp_idx, column='Mpp (emu)', value=Mpp)
+            self.raw_df.insert(Xp_idx+1, column='Mpp (emu)', value=Mpp)
             
         elif (not 'Xp (emu/Oe)' in self.raw_df.columns and ('Mp (emu)' in self.raw_df.columns)):
             # Magnetisation exists in the data frame, but susceptibility does not

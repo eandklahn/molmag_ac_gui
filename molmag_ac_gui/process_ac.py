@@ -36,9 +36,56 @@ def tau_err_RC(tau, tau_fit_err, alpha, n_sigma=1):
     
     return dtau
 
+def diamag_correction(H, H0, Mp, Mpp, m_sample, M_sample, Xd_sample, constant_terms=[], paired_terms=[]):
+    """
+    Calculates a diamagnetic correction of the data in Mp and Mpp and calculates
+    the corresponding values of Xp and Xpp
+    
+    Input
+    H: amplitude of AC field (unit: Oe)
+    H0: strength of applied DC field (unit: Oe)
+    Mp: in-phase magnetization (unit: emu)
+    Mpp: out-of-phase magnetization (unit: emu)
+    m_sample: sample mass in (unit: mg)
+    M_sample: sample molar mass (unit: g/mol)
+    Xd_sample: sample diamagnetic susceptibility in emu/(Oe*mol) from DOI: 10.1021/ed085p532
+    constant_terms: terms to be subtracted directly from magnetization (unit: emu/Oe)
+    paired_terms: list of tuples (tup) to be subtracted pairwise from magnetization
+                  The terms must pairwise have the unit emu/Oe when multiplied,
+                  fx. unit of tup[0] is emu/(Oe*<amount>) and unit of tup[1] is <amount>
+    
+    Output
+    Mp_molar: molar in-phase magnetization, corrected for diamagnetic contribution (unit: emu/mol)
+    Mpp_molar: molar out-of-phase magnetization, corrected for diamagnetic contribution (unit: emu/mol)
+    Xp_molar: molar in-phase susceptibility, corrected for diamagnetic contribution (unit: emu/(Oe*mol))
+    Xpp_molar: molar out-of-phase susceptibility, corrected for diamagnetic contribution (unit: emu/(Oe*mol))
+    """
+    # Old
+    #Xp = (Mp - self.Xd_capsule*H - self.Xd_film*film_mass*H)*molar_mass/(sample_mass*H) - Xd_sample*molar_mass
+    #Xpp = Mpp/(sample_mass*H)*molar_mass
+    
+    # NEW (documentation in docs with eklahn@chem.au.dk)
+    # ---------------------------
+    # Recalculate sample mass into g
+    m_sample *= 10**-3
+    # Calculate the molar amount of the sample
+    n_sample = m_sample/M_sample
+    
+    sum_of_constants = sum(constant_terms)
+    sum_of_pairwise = sum([tup[0]*tup[1] for tup in paired_terms])
+    
+    Mp_molar = (Mp - (sum_of_constants + sum_of_pairwise)*H - Xd_sample*H*n_sample)/n_sample
+    Mpp_molar = Mpp/n_sample
+    
+    Xp_molar = Mp_molar/H
+    Xpp_molar = Mpp_molar/H
+
+    return Mp_molar, Mpp_molar, Xp_molar, Xpp_molar
+
 def Xp_(v, Xs, Xt, tau, alpha):
     """
     Calculates the function X' [chi prime] as specified in Molecular Nanomagnets eq. 3.27
+    This is the extended Debye model
     
     Input:
     v: frequency of the AC field
@@ -60,6 +107,7 @@ def Xp_(v, Xs, Xt, tau, alpha):
 def Xpp_(v, Xs, Xt, tau, alpha):
     """
     Calculates the function X'' [chi double-prime] as specified in Molecular Nanomagnets eq. 3.27
+    This is the extended Debye model
     
     Input:
     v: frequency of the AC field
