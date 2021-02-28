@@ -483,57 +483,11 @@ class ACGui(QMainWindow):
         
         return (Xs, Xt, tau, alpha)
     
-    def write_file_for_ccfit(self):
-        """
-        This function is deprecated since 27/11/20. The fitting is now done internally.
-        """
-        f = open('ccin.dat', 'w')
-        f.write('1 {} {}\n'.format(self.num_meas_temps, self.num_meas_freqs))
-        f.write('{} {} {} {}\n'.format(*self.get_ccfit_starting_params()))
-        
-        for n in range(self.num_meas_freqs):
-            
-            line = [self.raw_df['AC Frequency (Hz)'].iloc[n]]
-            
-            for i in range(self.num_meas_temps):
-                line += [self.raw_df['Xp (emu/Oe)'][i*self.num_meas_freqs+n],
-                         self.raw_df['Xpp (emu/Oe)'][i*self.num_meas_freqs+n]]
-                
-            line.append('\n')
-            line = ' '.join(str(e) for e in line)
-            
-            f.write(line)
-
-        f.close()
-        
-    def run_ccfit(self):
-        """
-        This function is deprecated since 27/11/20. The fitting is now done internally.
-        """
-        ccfit = Popen('cc-fit ccin.dat', stdin=PIPE, stdout=PIPE, stderr=PIPE)
-        ccfit.stdin.write(b'\n')
-        out, err = ccfit.communicate()
-        print('Using cc-fit')
-        
     def switch_analysis_view(self):
         
         idx = self.analysis_plot_type_combo.currentIndex()
         self.treat_sw.setCurrentIndex(idx)
         
-    def read_ccfit_output(self):
-        """
-        This function is deprecated since 27/11/20. The fitting is now done internally.
-        """
-        filename = 'ccin.dat_cc-fit.out'
-        headers = self.get_single_line(filename, 13).split()
-        self.raw_data_fit = pd.read_csv('ccin.dat_cc-fit.out',
-                                        names=headers,
-                                        sep='   ',
-                                        skiprows=13,
-                                        engine='python')
-        self.update_treat_raw_fit_list()
-        self.plot_from_itemlist()
-    
     def update_treat_raw_fit_list(self):
         
         self.treat_raw_fit_list.clear()
