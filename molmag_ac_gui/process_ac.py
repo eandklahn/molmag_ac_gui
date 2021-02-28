@@ -34,7 +34,7 @@ def tau_err_RC(tau, tau_fit_err, alpha, n_sigma=1):
         
         dtau.append(max([dtau1, dtau2, dtau3, dtau4]))
     
-    return dtau
+    return np.array(dtau)
 
 def diamag_correction(H, H0, Mp, Mpp, m_sample, M_sample, Xd_sample, constant_terms=[], paired_terms=[]):
     """

@@ -12,12 +12,6 @@ import pandas as pd
 
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import cm
-#import matplotlib.pyplot as plt
-#from matplotlib.figure import Figure
-#from matplotlib.backends.qt_compat import QtCore, QtWidgets
-#from matplotlib.backends.backend_qt5agg import FigureCanvas, NavigationToolbar2QT as NavigationToolbar
-#if int(QtCore.qVersion().split('.')[0])>=5:
-#    from matplotlib.backends.backend_qt5agg import (FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
 
 import scipy.constants as sc
 from scipy.optimize import minimize, curve_fit
@@ -350,7 +344,7 @@ class ACGui(QMainWindow):
         self.sample_mass_layout.addWidget(self.sample_mass_lbl)
         
         self.sample_mass_inp = QLineEdit()
-        self.sample_mass_inp.setToolTip('Enter a sample mass in mg')
+        self.sample_mass_inp.setToolTip("Enter a sample mass in mg\nKeyword: 'm_sample'")
         self.sample_mass_inp.setValidator(QDoubleValidator())
         self.sample_mass_layout.addWidget(self.sample_mass_inp)
 
@@ -362,7 +356,7 @@ class ACGui(QMainWindow):
         self.molar_mass_lo.addWidget(self.molar_mass_lbl)
         
         self.molar_mass_inp = QLineEdit()
-        self.molar_mass_inp.setToolTip('Enter the molar mass of the sample in g/mol')
+        self.molar_mass_inp.setToolTip("Enter the molar mass of the sample in g/mol\nKeyword: 'M_sample'")
         self.molar_mass_inp.setValidator(QDoubleValidator())
         self.molar_mass_lo.addWidget(self.molar_mass_inp)
 
@@ -376,7 +370,8 @@ class ACGui(QMainWindow):
         self.sample_xd_inp = QLineEdit()
         self.sample_xd_inp.setToolTip("""Enter the diamagnetic susceptibility of the sample.
 If set to 0, the value will be replaced by -6e-7*M_sample internally.
-Look up values in units of emu/mol ~ emu/(Oe*mol) in DOI: 10.1021/ed085p532""")
+Look up values in units of emu/mol ~ emu/(Oe*mol) in DOI: 10.1021/ed085p532
+Keyword: 'Xd_sample'""")
         self.sample_xd_inp.setValidator(QDoubleValidator())
         self.sample_xd_lo.addWidget(self.sample_xd_inp)
         
@@ -388,7 +383,7 @@ Look up values in units of emu/mol ~ emu/(Oe*mol) in DOI: 10.1021/ed085p532""")
         self.constant_terms_layout.addWidget(self.constant_terms_lbl)
              
         self.constant_terms_inp = QLineEdit()
-        self.constant_terms_inp.setToolTip('Insert constant terms as "val1,val2,val3,..."')
+        self.constant_terms_inp.setToolTip("Insert constant terms as 'val1,val2,val3,...'\nKeyword: 'constants'")
         self.constant_terms_layout.addWidget(self.constant_terms_inp)
         
         # Variable amount edit
@@ -399,7 +394,7 @@ Look up values in units of emu/mol ~ emu/(Oe*mol) in DOI: 10.1021/ed085p532""")
         self.var_amount_layout.addWidget(self.var_amount_lbl)
         
         self.var_amount_inp = QLineEdit()
-        self.var_amount_inp.setToolTip('Insert variable amount terms as "sus1,amount1,sus2,amount2,sus3,amount3,..."')
+        self.var_amount_inp.setToolTip("Insert variable amount terms as 'sus1,amount1,sus2,amount2,sus3,amount3,...'\nKeyword: 'var_amount'")
         self.var_amount_layout.addWidget(self.var_amount_inp)
         
         # Mass load button
@@ -708,11 +703,7 @@ Look up values in units of emu/mol ~ emu/(Oe*mol) in DOI: 10.1021/ed085p532""")
                 Xpp_idx = self.raw_df.columns.get_loc('Xpp (emu/Oe)')
                 self.raw_df.insert(Xpp_idx+1, column="Xpp_m (emu/(Oe*mol))", value=Xpp_molar)
             
-            for item in self.temp_subsets[0].columns:
-                print(item)
             self.update_temp_subsets()
-            for item in self.temp_subsets[0].columns:
-                print(item)
             self.update_analysis_combos()
     
     def update_itemdict(self, item, itemdict):
@@ -1205,7 +1196,9 @@ Look up values in units of emu/mol ~ emu/(Oe*mol) in DOI: 10.1021/ed085p532""")
         """
         Uses the array D to set new values for T, tau, and alpha
         Assumes that the first column is temperatures, second column is tau-values
-        and third column is error on tau.
+        If three columns in D: assume the third is dtau
+        If four columns in D: assume third is alpha, fourth is tau_fit_error
+            dtau will then be calculated from these values
         """
         
         T = D[:,0]
@@ -1216,10 +1209,23 @@ Look up values in units of emu/mol ~ emu/(Oe*mol) in DOI: 10.1021/ed085p532""")
         self.data_tau = tau[sort_indices]
         self.data_dtau = None
         
-        if D.shape[1]>2:
+        if D.shape[1]==3:
+            # Three columns in the array loaded, assume the third is error
             dtau = D[:,2]
-            self.data_dtau = dtau[sort_indices]
+            dtau = dtau[sort_indices]
             
+        elif D.shape[1]==4:
+            # Four columns in the array loaded, assume the third is alpha
+            # and that the fourth is the fitting error on tau
+            alpha = D[:,2]
+            tau_fit_err = D[:,3]
+            dtau = tau_err_RC(tau, tau_fit_err, alpha)
+            dtau = dtau[sort_indices]
+        else:
+            dtau = None
+            
+        self.data_dtau = dtau 
+        
     def prepare_sim_dict_for_plotting(self, p_fit_gui_struct):
 
         params = []
@@ -1287,7 +1293,7 @@ Look up values in units of emu/mol ~ emu/(Oe*mol) in DOI: 10.1021/ed085p532""")
         if self.used_dtau is None:
             popt, pcov = curve_fit(f, self.used_T, np.log(self.used_tau), p0)
         else:
-            popt, pcov = curve_fit(f, self.used_T, np.log(self.used_tau), p0, sigma=self.used_dtau)
+            popt, pcov = curve_fit(f, self.used_T, np.log(self.used_tau), p0, sigma=np.log(self.used_dtau))
         p_fit = readPopt(popt, pcov, fitType=perform_this_fit)
         
         return p_fit
