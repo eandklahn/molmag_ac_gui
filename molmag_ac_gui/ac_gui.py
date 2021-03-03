@@ -27,7 +27,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton, QL
 #local imports
 from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset, getParameterGuesses,
                          getStartParams, getFittingFunction, readPopt, addPartialModel, tau_err_RC,
-                         diamag_correction)
+                         diamag_correction, fit_Xp_Xpp_genDebye)
 from .dialogs import GuessDialog, SimulationDialog, AboutDialog, ParamDialog, FitResultPlotStatus, PlottingWindow
 from .utility import read_ppms_file, get_ppms_column_name_matches, update_data_names
 from .exceptions import FileFormatError
@@ -498,61 +498,44 @@ Keyword: 'Xd_sample'""")
     
     def fit_Xp_Xpp_standalone(self):
         
-        if self.raw_df is None:
-            pass
-        
-        elif not 'Xp_m (emu/(Oe*mol))' in self.raw_df.columns:
+        try:
+            # Check to see if there has been loaded a data frame
+            self.raw_df.columns
+            # Check to see if the data to work on is in the data frame
+            assert 'Xp_m (emu/(Oe*mol))' in self.raw_df.columns
+            
+        except AttributeError:
+            print("There hasn't been loaded a data frame to work on")
+        except AssertionError:
             msg = QMessageBox()
             msg.setWindowTitle('Error')
-            msg.setText('Calculate diamagnetic correction first')
+            msg.setText('Calculate diamagnetic correction first\nto make Xp_m and Xpp_m for the algorithm')
             msg.exec_()
         
         else:
             self.statusBar.showMessage('Running fit...')
             
-            #### Defining the objective function for lmfit ####
-            def objective(params, v, data):
-        
-                Xp_data = data[0]
-                Xpp_data = data[1]
-                
-                Xp_model = Xp_dataset(params, v)
-                Xpp_model = Xpp_dataset(params, v)
-                
-                Xp_resid = Xp_data - Xp_model
-                Xpp_resid = Xpp_data - Xpp_model
-        
-                return np.concatenate([Xp_resid, Xpp_resid])
-            ########
-            
             T, Xs, Xt, tau, alpha, resid, tau_fit_err = [],[],[],[],[],[],[]
+            
             for t_idx in range(self.num_meas_temps):
+                # Collecting data for fitting
+                T_val = self.meas_temps[t_idx]
+                
                 v = np.array(self.temp_subsets[t_idx]['AC Frequency (Hz)'])
                 Xp = np.array(self.temp_subsets[t_idx]['Xp_m (emu/(Oe*mol))'])
                 Xpp = np.array(self.temp_subsets[t_idx]['Xpp_m (emu/(Oe*mol))'])
                 
-                data = [Xp, Xpp]
+                # The actual fitting is done by a function in process_ac
+                tau_val, tau_err_val, alpha_val, Xs_val, Xt_val, resid_val = fit_Xp_Xpp_genDebye(v, Xp, Xpp)
                 
-                tau_init = (v[np.argmax(Xpp)]*2*np.pi)**-1
-                fit_params = Parameters()
-                fit_params.add('Xs', value=Xp[-1], min=0, max=np.inf)
-                fit_params.add('Xt', value=Xp[0], min=0, max=np.inf)
-                fit_params.add('tau', value=tau_init, min=0, max=np.inf)
-                fit_params.add('alpha', value=0.1, min=0, max=np.inf)
+                T.append(T_val)
+                Xs.append(Xs_val)
+                Xt.append(Xt_val)
+                tau.append(tau_val)
+                alpha.append(alpha_val)
+                resid.append(resid_val)
+                tau_fit_err.append(tau_err_val)
                 
-                out = minimize(objective, fit_params, args=(v, data))
-                if 'Could not estimate error-bars.' in out.message:
-                    tau_err = 0
-                else:
-                    tau_idx = out.var_names.index('tau')
-                    tau_err = np.sqrt(out.covar[tau_idx, tau_idx])
-                T.append(self.meas_temps[t_idx])
-                Xs.append(out.params['Xs'].value)
-                Xt.append(out.params['Xt'].value)
-                tau.append(out.params['tau'].value)
-                alpha.append(out.params['alpha'].value)
-                resid.append(out.residual.sum())
-                tau_fit_err.append(tau_err)
             fit_result = pd.DataFrame(data={'Temp': T,
                                             'ChiS': Xs,
                                             'ChiT': Xt,
@@ -561,6 +544,7 @@ Keyword: 'Xd_sample'""")
                                             'Residual': resid,
                                             'Tau_Err': tau_fit_err,
                                             'dTau': tau_err_RC(tau, tau_fit_err, alpha)})
+        
             
             self.raw_data_fit = fit_result
             self.update_treat_raw_fit_list()

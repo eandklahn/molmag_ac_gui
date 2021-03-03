@@ -10,16 +10,59 @@ import matplotlib.patches as mpatches
 import scipy.constants as sc
 from scipy.optimize import curve_fit
 
+from lmfit import Parameters, minimize as lmfit_minimize
+
 """
 HELPER FUNCTIONS FOR PROCESSING AC-DATA
 """
+
+def fit_Xp_Xpp_genDebye(v, Xp_data, Xpp_data):
+    
+    def genDebye_objective(params, v, data):
+        
+        Xp_data = data[0]
+        Xpp_data = data[1]
+        
+        Xp_model = Xp_dataset(params, v)
+        Xpp_model = Xpp_dataset(params, v)
+        
+        Xp_resid = Xp_data - Xp_model
+        Xpp_resid = Xpp_data - Xpp_model
+    
+        return np.concatenate([Xp_resid, Xpp_resid])
+            
+    data = [Xp_data, Xpp_data]
+    
+    tau_init = (v[np.argmax(Xpp_data)]*2*np.pi)**-1
+    fit_params = Parameters()
+    fit_params.add('Xs', value=Xp_data[-1], min=0, max=np.inf)
+    fit_params.add('Xt', value=Xp_data[0], min=0, max=np.inf)
+    fit_params.add('tau', value=tau_init, min=0, max=np.inf)
+    fit_params.add('alpha', value=0.1, min=0, max=np.inf)
+    
+    out = lmfit_minimize(genDebye_objective, fit_params, args=(v, data))
+    
+    Xs = out.params['Xs'].value
+    Xt = out.params['Xt'].value
+    tau = out.params['tau'].value
+    alpha = out.params['alpha'].value
+    resid = out.residual.sum()
+    
+    if 'Could not estimate error-bars.' in out.message:
+        # When fit errors are not available from experiment, set to arbitratrily small
+        # value. The actual standard deviations will then be based on alpha.
+        tau_fit_err = 0.0001*tau
+    else:
+        tau_idx = out.var_names.index('tau')
+        tau_fit_err = np.sqrt(out.covar[tau_idx, tau_idx])
+    
+    return tau, tau_fit_err, alpha, Xs, Xt, resid
 
 def tau_err_RC(tau, tau_fit_err, alpha, n_sigma=1):
     """
     Calculates the error in tau from the alpha-values as
     defined by Reta and Chilton (RC) in https://doi.org/10.1039/C9CP04301B
     """
-    
     
     dtau = []
     for idx in range(len(tau)):
