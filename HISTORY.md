@@ -1,6 +1,9 @@
 
 # v. 0.2.1:
 Published on 3/3/2021
+Changed fitting procedures so
+ - function to fit Xp and Xpp together is now in a separate function in process_ac
+ - fitting of Xp and Xpp in the GUI is now done by multiprocessing
 
 # v. 0.2.0:
 Published on 1/3/2021
