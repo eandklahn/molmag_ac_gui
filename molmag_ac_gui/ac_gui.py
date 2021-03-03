@@ -5,6 +5,7 @@ import re
 import os
 import time
 from subprocess import Popen, PIPE
+from multiprocessing import Pool
 
 #third-party packages
 import numpy as np
@@ -515,27 +516,25 @@ Keyword: 'Xd_sample'""")
         else:
             self.statusBar.showMessage('Running fit...')
             
-            T, Xs, Xt, tau, alpha, resid, tau_fit_err = [],[],[],[],[],[],[]
+            T = [x for x in self.meas_temps]
+            Xs, Xt, tau, alpha, resid, tau_fit_err = [],[],[],[],[],[]
             
-            for t_idx in range(self.num_meas_temps):
-                # Collecting data for fitting
-                T_val = self.meas_temps[t_idx]
-                
-                v = np.array(self.temp_subsets[t_idx]['AC Frequency (Hz)'])
-                Xp = np.array(self.temp_subsets[t_idx]['Xp_m (emu/(Oe*mol))'])
-                Xpp = np.array(self.temp_subsets[t_idx]['Xpp_m (emu/(Oe*mol))'])
-                
-                # The actual fitting is done by a function in process_ac
-                tau_val, tau_err_val, alpha_val, Xs_val, Xt_val, resid_val = fit_Xp_Xpp_genDebye(v, Xp, Xpp)
-                
-                T.append(T_val)
-                Xs.append(Xs_val)
-                Xt.append(Xt_val)
-                tau.append(tau_val)
-                alpha.append(alpha_val)
-                resid.append(resid_val)
-                tau_fit_err.append(tau_err_val)
-                
+            v_all = [np.array(self.temp_subsets[t_idx]['AC Frequency (Hz)']) for t_idx in range(self.num_meas_temps)]
+            Xp_all = [np.array(self.temp_subsets[t_idx]['Xp_m (emu/(Oe*mol))']) for t_idx in range(self.num_meas_temps)]
+            Xpp_all = [np.array(self.temp_subsets[t_idx]['Xpp_m (emu/(Oe*mol))']) for t_idx in range(self.num_meas_temps)]
+            
+            inputs = tuple(zip(v_all, Xp_all, Xpp_all))
+            
+            with Pool() as pool:
+                res = pool.starmap(fit_Xp_Xpp_genDebye, inputs)
+            
+            tau = [e[0] for e in res]
+            tau_fit_err = [e[1] for e in res]
+            alpha = [e[2] for e in res]
+            Xs = [e[3] for e in res]
+            Xt = [e[4] for e in res]
+            resid = [e[5] for e in res]
+            
             fit_result = pd.DataFrame(data={'Temp': T,
                                             'ChiS': Xs,
                                             'ChiT': Xt,
@@ -544,7 +543,6 @@ Keyword: 'Xd_sample'""")
                                             'Residual': resid,
                                             'Tau_Err': tau_fit_err,
                                             'dTau': tau_err_RC(tau, tau_fit_err, alpha)})
-        
             
             self.raw_data_fit = fit_result
             self.update_treat_raw_fit_list()
@@ -554,15 +552,6 @@ Keyword: 'Xd_sample'""")
             
             self.statusBar.showMessage("Fit of X' and X'' complete")
         
-    def get_single_line(self, filename, line_number):
-
-        f = open(filename, 'r')
-        for n in range(line_number):
-            line = f.readline()
-        f.close()
-        
-        return line
-    
     def save_fit_to_file(self):
         
         name = QFileDialog.getSaveFileName(self, 'Save File')
