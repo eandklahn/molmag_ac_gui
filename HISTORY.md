@@ -1,13 +1,19 @@
 
+# v. 0.2.2:
+Published on 4/3/2021
+Adding a data-folder to hold static variables. This will also  
+make it easier in the future to add a function to change which  
+header values can be read by the interface.
+
 # v. 0.2.1:
 Published on 3/3/2021
-Changed fitting procedures so
+Changed fitting procedures so  
  - function to fit Xp and Xpp together is now in a separate function in process_ac
  - fitting of Xp and Xpp in the GUI is now done by multiprocessing
 
 # v. 0.2.0:
 Published on 1/3/2021
-Fixed issues relating to
+Fixed issues relating to  
  - loading of PPMS-data (issue #8)
  - loading of T,tau-data (issue #5, issue #9)
  - calculation of diamagnetic corrections (issue #6)
