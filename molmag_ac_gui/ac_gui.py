@@ -4,6 +4,8 @@ import sys
 import re
 import os
 import time
+import pkg_resources
+import json
 from subprocess import Popen, PIPE
 from multiprocessing import Pool
 
@@ -99,23 +101,10 @@ class ACGui(QMainWindow):
         self.used_indices = None
         
         # Data containers for treatment
-        
-        self.read_options = {
-                             'AC Frequency (Hz)': [
-                                'Frequency (Hz)', 'AC Frequency (Hz)'],
-                             'AC Amplitude (Oe)': [
-                                'Amplitude (Oe)', 'AC Drive (Oe)'],
-                             'Magnetic Field (Oe)': [
-                                'Magnetic Field (Oe)'],
-                             'Mp (emu)': [
-                                "M' (emu)"],
-                             'Mpp (emu)': [
-                                "M'' (emu)"],
-                             'Xp (emu/Oe)': [
-                                "AC X'  (emu/Oe)"],
-                             'Xpp (emu/Oe)': [
-                                'AC X" (emu/Oe)']
-                            }
+        with open(pkg_resources.resource_filename('molmag_ac_gui', 'data/read_options.json'), 'r') as file:
+            # Would be better to use importlib.resources
+            self.read_options = json.load(file)
+
         self.raw_df = None
         self.raw_df_header = None
         self.ppms_data_file = None

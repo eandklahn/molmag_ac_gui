@@ -1,0 +1,16 @@
+{
+"AC Frequency (Hz)":
+["Frequency (Hz)", "AC Frequency (Hz)"],
+"AC Amplitude (Oe)":
+["Amplitude (Oe)", "AC Drive (Oe)"],
+"Magnetic Field (Oe)":
+["Magnetic Field (Oe)"],
+"Mp (emu)":
+["M' (emu)"],
+"Mpp (emu)":
+["M'' (emu)"],
+"Xp (emu/Oe)":
+["AC X'  (emu/Oe)"],
+"Xpp (emu/Oe)":
+["AC X\" (emu/Oe)"]
+}

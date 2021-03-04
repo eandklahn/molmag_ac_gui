@@ -13,12 +13,16 @@ setup_args = dict(
     long_description_content_type="text/markdown",
     long_description=README + '\n\n' + HISTORY,
     license='MIT',
-    packages=find_packages(),
+    packages=['molmag_ac_gui'],
     author='Emil A. Klahn',
     author_email='emil.klahn@gmail.com',
     keywords=['Magnetism', 'Molecular magnetism', 'Magnetic relaxation'],
     url='http://www.eklahn.com',
     download_url='https://pypi.org/project/molmag-ac-gui'
+)
+
+package_data = dict(
+    data=["molmag_ac_gui/data/read_options.json"]
 )
 
 #Not best practice to do this, I've added the issue on Github
@@ -43,4 +47,8 @@ install_requires = [
 ]
 
 if __name__ == '__main__':
-    setup(**setup_args, install_requires=install_requires)
+    setup(**setup_args,
+          install_requires=install_requires,
+          package_data=package_data,
+          include_package_data=True
+          )
