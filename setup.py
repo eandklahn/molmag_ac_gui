@@ -27,13 +27,24 @@ package_data = dict(
 
 #Not best practice to do this, I've added the issue on Github
 install_requires = [
-    'lmfit',
-    'matplotlib',
-    'numpy',
-    'pandas',
-    'names'
-    'PyQt5',
-    'scipy',
+    'asteval==0.9.21',
+    'cycler==0.10.0',
+    'future==0.18.2',
+    'kiwisolver==1.3.1',
+    'lmfit==1.0.1',
+    'matplotlib==3.3.3',
+    'numpy==1.19.4',
+    'pandas==1.1.4',
+    'Pillow==8.0.1',
+    'names',
+    'pyparsing==2.4.7',
+    'PyQt5==5.15.2',
+    'PyQt5-sip==12.8.1',
+    'python-dateutil==2.8.1',
+    'pytz==2020.4',
+    'scipy==1.5.4',
+    'six==1.15.0',
+    'uncertainties==3.1.5'
 ]
 
 if __name__ == '__main__':
