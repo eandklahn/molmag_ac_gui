@@ -17,7 +17,6 @@ class NoGuessExistsError(Exception):
     """Exception raised for errors in the reading of files
 
     Attributes:
-        filename -- name of file that did not conform to the implied standard
         message -- explanation of the error
     """
 

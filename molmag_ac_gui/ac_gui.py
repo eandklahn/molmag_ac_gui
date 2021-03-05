@@ -474,7 +474,7 @@ Keyword: 'Xd_sample'""")
         
         for i in range(self.num_meas_temps):
             newitem = QListWidgetItem()
-            newitem.setText('{}, {}, {}'.format(self.meas_temps[i],True, True))
+            newitem.setText('{:<6.2f} K, {}, {}'.format(round(self.meas_temps[i],2),True, True))
             plotting_dict = {'temp': self.meas_temps[i],
                              'raw': True,
                              'fit': True}
@@ -666,7 +666,7 @@ Keyword: 'Xd_sample'""")
     def update_itemdict(self, item, itemdict):
         
         item.setData(32, itemdict)
-        item.setText('{}, {}, {}'.format(itemdict['temp'],
+        item.setText('{:<6.2f} K, {}, {}'.format(round(itemdict['temp'],2),
                                          itemdict['raw'],
                                          itemdict['fit']))
     
