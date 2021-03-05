@@ -4,8 +4,8 @@ import sys
 import re
 import os
 import time
-import importlib.resources
 import json
+from importlib.resources import read_text
 from subprocess import Popen, PIPE
 from multiprocessing import Pool
 from collections import deque
@@ -13,9 +13,11 @@ from collections import deque
 #third-party packages
 import numpy as np
 import pandas as pd
+import names
 
-from matplotlib.colors import LinearSegmentedColormap
+import matplotlib as mpl
 from matplotlib import cm
+from matplotlib.colors import LinearSegmentedColormap, to_hex
 from matplotlib._color_data import TABLEAU_COLORS
 
 import scipy.constants as sc
@@ -23,18 +25,24 @@ from scipy.optimize import minimize, curve_fit
 from lmfit import Parameters, minimize
 
 from PyQt5.QtWinExtras import QWinTaskbarButton
-from PyQt5.QtGui import QIcon, QFont, QDoubleValidator
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton, QLabel, QAction, QComboBox, QStackedWidget,
-                             QDoubleSpinBox, QFormLayout, QCheckBox, QVBoxLayout, QMessageBox, QSplitter, QGridLayout,
-                             QHBoxLayout, QFileDialog, QDialog, QLineEdit, QListWidget, QListWidgetItem, QTabWidget,
+from PyQt5.QtGui import QIcon, QFont, QDoubleValidator, QColor
+from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton,
+                             QLabel, QAction, QComboBox, QStackedWidget,
+                             QDoubleSpinBox, QFormLayout, QCheckBox,
+                             QVBoxLayout, QMessageBox, QSplitter, QGridLayout,
+                             QHBoxLayout, QFileDialog, QDialog, QLineEdit,
+                             QListWidget, QListWidgetItem, QTabWidget,
                              QScrollArea, QStatusBar)
 
 #local imports
-from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset, getParameterGuesses,
-                         getStartParams, getFittingFunction, readPopt, addPartialModel, tau_err_RC,
-                         diamag_correction, fit_Xp_Xpp_genDebye)
-from .dialogs import GuessDialog, SimulationDialog, AboutDialog, ParamDialog, FitResultPlotStatus, PlottingWindow
-from .utility import read_ppms_file, get_ppms_column_name_matches, update_data_names
+from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset,
+                         getParameterGuesses, getStartParams,
+                         getFittingFunction, readPopt, addPartialModel,
+                         tau_err_RC, diamag_correction, fit_Xp_Xpp_genDebye)
+from .dialogs import (GuessDialog, SimulationDialog, AboutDialog, ParamDialog,
+                      FitResultPlotStatus, PlottingWindow)
+from .utility import (read_ppms_file, get_ppms_column_name_matches,
+                      update_data_names)
 from .exceptions import FileFormatError, NoGuessExistsError
 from . import data as pkg_static_data
 
@@ -56,9 +64,13 @@ class ACGui(QMainWindow):
     def initUI(self):
         
         """About"""
-        self.about_information = {'author': 'Emil A. Klahn (eklahn@chem.au.dk)',
-                                  'webpage': 'https://chem.au.dk/en/molmag',
-                                  'personal': 'https://eandklahn.github.io'}
+        self.about_information = {'author':
+                                  'Emil A. Klahn (eklahn@chem.au.dk)',
+                                  'webpage':
+                                  'https://chem.au.dk/en/molmag',
+                                  'personal':
+                                  'https://eandklahn.github.io'
+                                  }
         
         self.startUp = True
         
@@ -76,7 +88,7 @@ class ACGui(QMainWindow):
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
         
-        """ Constructing the data analysis tab ---------------------------------------------------------------------------------- """
+        """ Constructing the data analysis tab """
         # Data containers for analysis
         
         self.simulation_colors = [x for x in TABLEAU_COLORS]
@@ -109,11 +121,18 @@ class ACGui(QMainWindow):
         self.used_indices = None
         
         # Data containers for treatment
-        self.read_options = json.loads(importlib.resources.read_text(pkg_static_data, 'read_options.json'))
-        self.diamag_constants = json.loads(importlib.resources.read_text(pkg_static_data, 'diamag_constants.json'))
+        self.read_options = json.loads(read_text(pkg_static_data,
+                                                'read_options.json'))
+        
+        self.diamag_constants = json.loads(read_text(pkg_static_data,
+                                                    'diamag_constants.json'))
+        
         self.temperature_cmap = LinearSegmentedColormap.from_list(
             'temp_colormap',
-            json.loads(importlib.resources.read_text(pkg_static_data, 'default_colormap.json')))
+            json.loads(read_text(pkg_static_data, 'default_colormap.json')))
+        
+        self.tooltips_dict = json.loads(read_text(pkg_static_data,
+                                                  'tooltips.json'))
         
         self.raw_df = None
         self.raw_df_header = None
@@ -126,7 +145,7 @@ class ACGui(QMainWindow):
         
         self.raw_data_fit = None
         
-        """ Creating data analysis tab ----------------------------------------------------- """
+        """ Creating data analysis tab """
         self.data_analysis_tab = QSplitter()
         self.all_the_tabs.addTab(self.data_analysis_tab, 'Analysis')
         
@@ -176,7 +195,8 @@ class ACGui(QMainWindow):
         self.fit_layout.addWidget(self.temp_headline)
         
         self.temp_horizontal_layout = QHBoxLayout()
-        self.temp_line = [QLabel('('), QDoubleSpinBox(), QLabel(','), QDoubleSpinBox(), QLabel(')')]
+        self.temp_line = [QLabel('('), QDoubleSpinBox(), QLabel(','),
+                          QDoubleSpinBox(), QLabel(')')]
         
         self.temp_line[1].setRange(0,self.temp_line[3].value())
         self.temp_line[1].setSingleStep(0.1)
@@ -228,7 +248,7 @@ class ACGui(QMainWindow):
         self.data_analysis_tab.addWidget(self.ana_plot)
         self.data_analysis_tab.addWidget(self.fit_wdgt)
         
-        """ Creating the data treatment tab  ------------------------------------------------------------------------------- """
+        """ Creating the data treatment tab """
         self.data_treatment_tab = QSplitter()
         self.all_the_tabs.addTab(self.data_treatment_tab, 'Data treatment')
         
@@ -312,7 +332,7 @@ class ACGui(QMainWindow):
         self.treat_sw = QStackedWidget()
         
         self.treat_raw_plot = PlottingWindow()
-        self.treat_fit_plot = PlottingWindow()
+        self.treat_fit_plot = PlottingWindow(make_cax=True)
         
         self.treat_sw.addWidget(self.treat_raw_plot)
         self.treat_sw.addWidget(self.treat_fit_plot)
@@ -336,7 +356,7 @@ class ACGui(QMainWindow):
         self.sample_mass_layout.addWidget(self.sample_mass_lbl)
         
         self.sample_mass_inp = QLineEdit()
-        self.sample_mass_inp.setToolTip("Enter a sample mass in mg\nKeyword: 'm_sample'")
+        self.sample_mass_inp.setToolTip(self.tooltips_dict['m_sample'])
         self.sample_mass_inp.setValidator(QDoubleValidator())
         self.sample_mass_layout.addWidget(self.sample_mass_inp)
 
@@ -348,7 +368,7 @@ class ACGui(QMainWindow):
         self.molar_mass_lo.addWidget(self.molar_mass_lbl)
         
         self.molar_mass_inp = QLineEdit()
-        self.molar_mass_inp.setToolTip("Enter the molar mass of the sample in g/mol\nKeyword: 'M_sample'")
+        self.molar_mass_inp.setToolTip(self.tooltips_dict['M_sample'])
         self.molar_mass_inp.setValidator(QDoubleValidator())
         self.molar_mass_lo.addWidget(self.molar_mass_inp)
 
@@ -360,10 +380,7 @@ class ACGui(QMainWindow):
         self.sample_xd_lo.addWidget(self.sample_xd_lbl)
         
         self.sample_xd_inp = QLineEdit()
-        self.sample_xd_inp.setToolTip("""Enter the diamagnetic susceptibility of the sample.
-If set to 0, the value will be replaced by -6e-7*M_sample internally.
-Look up values in units of emu/mol ~ emu/(Oe*mol) in DOI: 10.1021/ed085p532
-Keyword: 'Xd_sample'""")
+        self.sample_xd_inp.setToolTip(self.tooltips_dict['Xd_sample'])
         self.sample_xd_inp.setValidator(QDoubleValidator())
         self.sample_xd_lo.addWidget(self.sample_xd_inp)
         
@@ -375,7 +392,7 @@ Keyword: 'Xd_sample'""")
         self.constant_terms_layout.addWidget(self.constant_terms_lbl)
              
         self.constant_terms_inp = QLineEdit()
-        self.constant_terms_inp.setToolTip("Insert constant terms as 'val1,val2,val3,...'\nKeyword: 'constants'")
+        self.constant_terms_inp.setToolTip(self.tooltips_dict['const_terms'])
         self.constant_terms_layout.addWidget(self.constant_terms_inp)
         
         # Variable amount edit
@@ -386,7 +403,7 @@ Keyword: 'Xd_sample'""")
         self.var_amount_layout.addWidget(self.var_amount_lbl)
         
         self.var_amount_inp = QLineEdit()
-        self.var_amount_inp.setToolTip("Insert variable amount terms as 'sus1,amount1,sus2,amount2,sus3,amount3,...'\nKeyword: 'var_amount'")
+        self.var_amount_inp.setToolTip(self.tooltips_dict['var_amounts'])
         self.var_amount_layout.addWidget(self.var_amount_inp)
         
         # Mass load button
@@ -407,7 +424,7 @@ Keyword: 'Xd_sample'""")
         
         self.treat_raw_fit_list = QListWidget()
         self.param_layout.addWidget(self.treat_raw_fit_list)
-        self.treat_raw_fit_list.doubleClicked.connect(self.update_raw_plot_status)
+        self.treat_raw_fit_list.doubleClicked.connect(self.update_raw_plot)
         
         ## Finalizing layout
         
@@ -418,7 +435,7 @@ Keyword: 'Xd_sample'""")
         self.data_treatment_tab.addWidget(self.treat_sw)
         self.data_treatment_tab.addWidget(self.param_wdgt)
         
-        """ Making a menubar -------------------------------------------------------------- """
+        """ Making a menubar """
         self.menu_bar = self.menuBar()
         
         # File menu
@@ -480,12 +497,15 @@ Keyword: 'Xd_sample'""")
         self.treat_raw_fit_list.clear()
         
         for i in range(self.num_meas_temps):
+            T = self.meas_temps[i]
             newitem = QListWidgetItem()
-            newitem.setText('{:<6.2f} K, {}, {}'.format(round(self.meas_temps[i],2),True, True))
+            newitem.setText('{:<6.2f} K, {}, {}'.format(round(T,2),True, True))
             plotting_dict = {'temp': self.meas_temps[i],
                              'raw': True,
                              'fit': True}
             newitem.setData(32, plotting_dict)
+            t_float = (T-self.Tmin)/(self.Tmax-self.Tmin)
+            newitem.setBackground(QColor(to_hex(self.temperature_cmap(t_float))))
             self.treat_raw_fit_list.addItem(newitem)
     
     def fit_Xp_Xpp_standalone(self):
@@ -677,7 +697,7 @@ Keyword: 'Xd_sample'""")
                                          itemdict['raw'],
                                          itemdict['fit']))
     
-    def update_raw_plot_status(self):
+    def update_raw_plot(self):
         
         w = FitResultPlotStatus(list_input=self.treat_raw_fit_list)
         finished_value = w.exec_()
@@ -767,6 +787,13 @@ Keyword: 'Xd_sample'""")
                                                     
                 self.treat_fit_plot.ax.set_xlabel(x_name)
                 self.treat_fit_plot.ax.set_ylabel(y_name)
+            
+            norm = mpl.colors.Normalize(vmin=self.Tmin, vmax=self.Tmax)
+            self.treat_fit_plot.fig.colorbar(
+                mpl.cm.ScalarMappable(norm=norm,
+                                      cmap=self.temperature_cmap),
+                                            orientation='horizontal',
+                cax=self.treat_fit_plot.cax)
             
             self.treat_fit_plot.canvas.draw()
         
@@ -866,6 +893,7 @@ Keyword: 'Xd_sample'""")
             # Clearing axes of "old" drawings and setting front widget to the raw data
             self.treat_raw_plot.clear_canvas()
             self.treat_fit_plot.clear_canvas()
+            self.treat_fit_plot.cax.clear()
             
             combo_idx = self.analysis_plot_type_combo.findText('Raw data')
             self.analysis_plot_type_combo.setCurrentIndex(combo_idx)
@@ -964,17 +992,20 @@ Keyword: 'Xd_sample'""")
                 old_p_fit = old_data['p_fit']
                 old_T_vals = old_data['T_vals']
                 old_line = old_data['line']
+                old_color = old_line._color
+                old_label = old_line._label
         
         elif action == 'New':
             
             old_plot_type_list = []
-            old_p_fit = {'tQT': 0.01, 'Cr': 0.01, 'n': 0.01, 't0': 0.01, 'Ueff': 0.01}
+            old_p_fit = {'tQT': 0.1, 'Cr': 0.1, 'n': 0.1, 't0': 0.1, 'Ueff': 0.1}
             old_T_vals = [0,0]
             old_line = False
-            
-        else:
-            print('We were not supposed to end here')
-            return
+            if len(self.simulation_colors)<1:
+                self.statusBar.showMessage("ERROR: can't make any more simulations")
+                return
+            old_color = self.simulation_colors.pop()
+            old_label = names.get_first_name()
             
         sim_dialog = SimulationDialog(fitted_parameters=self.fitted_parameters,
                                       plot_type_list=old_plot_type_list,
@@ -997,8 +1028,10 @@ Keyword: 'Xd_sample'""")
             new_T_vals = sim_dialog.min_and_max_temps
             plot_to_make = ''.join(new_plot_type)
             
-            new_item_text = '{}, ({},{}), tQT: {}, Cr: {}, n: {}, t0: {}, Ueff: {}'.format(
-                            new_plot_type, new_T_vals[0], new_T_vals[1], new_p_fit['tQT'], new_p_fit['Cr'],
+            text_name = ''
+            
+            new_item_text = '{},\n({},{}),\ntQT: {}, Cr: {}, n: {}, t0: {}, Ueff: {}'.format(
+                            old_label, new_T_vals[0], new_T_vals[1], new_p_fit['tQT'], new_p_fit['Cr'],
                             new_p_fit['n'], new_p_fit['t0'], new_p_fit['Ueff'])
 
             if old_line:
@@ -1012,17 +1045,21 @@ Keyword: 'Xd_sample'""")
                                        new_T_vals[0],
                                        new_T_vals[1],
                                        self.prepare_sim_dict_for_plotting(new_p_fit),
-                                       plotType=plot_to_make)
+                                       plotType=plot_to_make,
+                                       c=old_color,
+                                       label=old_label)
             
             list_item_data = {'plot_type': new_plot_type,
                               'p_fit': new_p_fit,
                               'T_vals': new_T_vals,
-                              'line': new_line}
+                              'line': new_line,
+                              'color': old_color}
                               
             self.ana_plot.canvas.draw()
                 
             sim_item.setData(32, list_item_data)
             sim_item.setText(new_item_text)
+            sim_item.setBackground(QColor(to_hex(old_color)))
             
     def delete_sim(self):
         
@@ -1032,7 +1069,8 @@ Keyword: 'Xd_sample'""")
             pass
         else:
             line_pointer = sim_item.data(32)['line']
-            line_color = sim_item.data(32)['color']
+            line_color = line_pointer._color
+            
             self.ana_plot.ax.lines.remove(line_pointer)
             self.ana_plot.canvas.draw()
             

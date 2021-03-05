@@ -1,0 +1,12 @@
+{
+"Xd_sample":
+"Enter the diamagnetic susceptibility of the sample.\nIf set to 0, the value will be replaced by -6e-7*M_sample internally.\nLook up values in units of emu/mol ~ emu/(Oe*mol) in DOI: 10.1021/ed085p532.\nKeyword: 'Xd_sample'",
+"M_sample":
+"Enter the molar mass of the sample in g/mol\nKeyword: 'M_sample'",
+"const_terms":
+"Insert constant terms as 'val1,val2,val3,...'\nKeyword: 'constants'",
+"var_amounts":
+"Insert variable amount terms as 'sus1,amount1,sus2,amount2,sus3,amount3,...'\nKeyword: 'var_amount'",
+"m_sample":
+"Enter a sample mass in mg\nKeyword: 'm_sample'"
+}

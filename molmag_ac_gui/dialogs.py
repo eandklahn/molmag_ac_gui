@@ -18,7 +18,7 @@ kB = sc.Boltzmann
 
 class PlottingWindow(QWidget):
 
-    def __init__(self):
+    def __init__(self, make_cax=False):
     
         super(PlottingWindow, self).__init__()
         
@@ -27,8 +27,13 @@ class PlottingWindow(QWidget):
         self.fig = Figure()
         self.canvas = FigureCanvas(self.fig)
         self.tools = NavigationToolbar(self.canvas, self)
-        self.ax = self.fig.add_subplot(111)
-        self.fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95)
+        if make_cax:
+            self.grid = plt.GridSpec(20,1)
+            self.ax = self.fig.add_subplot(self.grid[:17,0])
+            self.cax = self.fig.add_subplot(self.grid[-1,0])
+        else:
+            self.ax = self.fig.add_subplot(111)
+        self.fig.subplots_adjust(left=0.1, bottom=0.05, right=0.95, top=0.95)
         
         self.layout.addWidget(self.canvas)
         
