@@ -4,7 +4,7 @@ import sys
 import re
 import os
 import time
-import pkg_resources
+import importlib.resources
 import json
 from subprocess import Popen, PIPE
 from multiprocessing import Pool
@@ -34,6 +34,7 @@ from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset, getParameterGuesses
 from .dialogs import GuessDialog, SimulationDialog, AboutDialog, ParamDialog, FitResultPlotStatus, PlottingWindow
 from .utility import read_ppms_file, get_ppms_column_name_matches, update_data_names
 from .exceptions import FileFormatError
+from . import data as pkg_static_data
 
 #set constants
 kB = sc.Boltzmann
@@ -101,15 +102,13 @@ class ACGui(QMainWindow):
         self.used_indices = None
         
         # Data containers for treatment
-        with open(pkg_resources.resource_filename('molmag_ac_gui', 'data/read_options.json'), 'r') as file:
-            # Would be better to use importlib.resources
-            self.read_options = json.load(file)
-
+        self.read_options = json.loads(importlib.resources.read_text(pkg_static_data, 'read_options.json'))
+        self.diamag_constants = json.loads(importlib.resources.read_text(pkg_static_data, 'diamag_constants.json'))
+        
+        
         self.raw_df = None
         self.raw_df_header = None
         self.ppms_data_file = None
-        self.meas_info = {}
-        self.data_header_idx = 0
         self.num_meas_freqs = 0
         self.num_meas_temps = 0
         self.temp_subsets = []
@@ -117,10 +116,6 @@ class ACGui(QMainWindow):
         self.Tmin, self.Tmax = 0,0
         
         self.temp_colormap = self.gui_default_colormap()
-        
-        self.sample_Xd_base = -6e-7 # unit when multiplied with molar mass: emu/(Oe*mol)
-        self.Xd_capsule = -1.8*10**-8 # unit: emu/Oe
-        self.Xd_film = 6.47*10**-10 # unit: emu/(Oe*mg)
         
         self.raw_data_fit = None
         
