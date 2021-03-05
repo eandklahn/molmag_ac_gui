@@ -33,7 +33,7 @@ from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset, getParameterGuesses
                          diamag_correction, fit_Xp_Xpp_genDebye)
 from .dialogs import GuessDialog, SimulationDialog, AboutDialog, ParamDialog, FitResultPlotStatus, PlottingWindow
 from .utility import read_ppms_file, get_ppms_column_name_matches, update_data_names
-from .exceptions import FileFormatError
+from .exceptions import FileFormatError, NoGuessExistsError
 from . import data as pkg_static_data
 
 #set constants
@@ -104,7 +104,9 @@ class ACGui(QMainWindow):
         # Data containers for treatment
         self.read_options = json.loads(importlib.resources.read_text(pkg_static_data, 'read_options.json'))
         self.diamag_constants = json.loads(importlib.resources.read_text(pkg_static_data, 'diamag_constants.json'))
-        
+        self.temperature_cmap = LinearSegmentedColormap.from_list(
+            'temp_colormap',
+            json.loads(importlib.resources.read_text(pkg_static_data, 'default_colormap.json')))
         
         self.raw_df = None
         self.raw_df_header = None
@@ -114,8 +116,6 @@ class ACGui(QMainWindow):
         self.temp_subsets = []
         self.meas_temps = []
         self.Tmin, self.Tmax = 0,0
-        
-        self.temp_colormap = self.gui_default_colormap()
         
         self.raw_data_fit = None
         
@@ -703,7 +703,7 @@ Keyword: 'Xd_sample'""")
                 for row in range(self.num_meas_temps):
                 
                     T = self.meas_temps[row]
-                    rgb = self.temp_colormap((T-self.Tmin)/(self.Tmax-self.Tmin))
+                    rgb = self.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))
                     
                     item = self.treat_raw_fit_list.item(row)
                     itemdict = item.data(32)
@@ -733,7 +733,7 @@ Keyword: 'Xd_sample'""")
                 for row in range(self.num_meas_temps):
 
                     T = self.meas_temps[row]
-                    rgb = self.temp_colormap((T-self.Tmin)/(self.Tmax-self.Tmin))
+                    rgb = self.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))
                     
                     item = self.treat_raw_fit_list.item(row)
                     itemdict = item.data(32)
@@ -1092,20 +1092,6 @@ Keyword: 'Xd_sample'""")
         self.fitted_parameters = None
         self.used_indices = None
         
-    def gui_default_colormap(self):
-        
-        colormap = LinearSegmentedColormap.from_list('temp_colormap', [(0,   (0, 0, 0.5)),
-                                                                       (1/8, (0, 0.0, 1)),
-                                                                       (2/8, (0, 0.5, 1)),
-                                                                       (3/8, (0.0, 1, 1.0)),
-                                                                       (4/8, (0.5, 1, 0.5)),
-                                                                       (5/8, (1, 1.0, 0)),
-                                                                       (6/8, (1, 0.5, 0)),
-                                                                       (7/8, (1.0, 0, 0)),
-                                                                       (8/8, (0.5, 0, 0))])
-        
-        return colormap
-        
     def load_t_tau_data(self):
         
         if self.startUp:
@@ -1133,7 +1119,7 @@ Keyword: 'Xd_sample'""")
             D = np.loadtxt(self.data_file_name,
                            skiprows=1,
                            delimiter=';')
-        except (ValueError, OSError) as error:
+        except (ValueError, OSError) as error_type:
             sys.stdout.flush()
             if error_type == 'ValueError':
                 msg = QMessageBox()
@@ -1233,15 +1219,8 @@ Keyword: 'Xd_sample'""")
         except (AttributeError, TypeError):
             print('No data have been selected yet!')
     
-    def fit_relaxation(self):
+    def fit_relaxation(self, guess):
         
-        guess = getParameterGuesses(self.used_T, self.used_tau)
-        guess_dialog = GuessDialog(guess=guess)
-        guess_dialog.exec_()
-        try:
-            guess = guess_dialog.return_guess
-        except AttributeError:
-            guess = guess
         perform_this_fit = self.read_fit_type_cbs()
         
         f = getFittingFunction(fitType=perform_this_fit)
@@ -1251,6 +1230,7 @@ Keyword: 'Xd_sample'""")
             popt, pcov = curve_fit(f, self.used_T, np.log(self.used_tau), p0)
         else:
             popt, pcov = curve_fit(f, self.used_T, np.log(self.used_tau), p0, sigma=np.log(self.used_dtau))
+        
         p_fit = readPopt(popt, pcov, fitType=perform_this_fit)
         
         return p_fit
@@ -1267,38 +1247,61 @@ Keyword: 'Xd_sample'""")
             self.plot_t_tau_on_axes()
         
     def make_the_fit(self):
-        
+        window_title = 'Fit aborted'
+        msg_text = ''
+        msg_details = ''
+            
         try:
+            
+            # This will raise TypeError and IndexError first
+            # to warn that no data was loaded
+            guess = getParameterGuesses(self.used_T, self.used_tau)
+            
             Tmin = self.temp_line[1].value()
             Tmax = self.temp_line[3].value()
             perform_this_fit = self.read_fit_type_cbs()
+            
             assert Tmin != Tmax
             assert perform_this_fit != ''
             
-            p_fit = self.fit_relaxation()
-            self.fitted_parameters = p_fit
-        
-        except (AssertionError, RuntimeError, ValueError) as error:
+            guess_dialog = GuessDialog(guess=guess)
+            accepted = guess_dialog.exec_()
+            if not accepted: raise NoGuessExistsError
             
-            error_type = error.__class__.__name__
-            if error_type == 'AssertionError':
-                msg_text = 'Check your temperature and fit settings'
-                msg_details = """Possible errors:
+            # If both fit and temperature setting are good,
+            # and the GuessDialog was accepted, get the
+            # guess and perform fitting
+            guess = guess_dialog.return_guess
+            p_fit = self.fit_relaxation(guess)
+            
+        except (AssertionError, IndexError):
+            msg_text = 'Bad temperature or fit settings'
+            msg_details = """Possible errors:
  - min and max temperatures are the same
- - no fit options have been selected"""
-            elif error_type == 'RuntimeError':
-                msg_text = 'This fit cannot be made within the set temperatures'
-                msg_details = ''
-            elif error_type == 'ValueError':
-                msg_text = 'No file has been loaded'
-                msg_details = ''
-            
+ - no fit options have been selected
+ - can't fit only one data point"""
+        except RuntimeError:
+            msg_text = 'This fit cannot be made within the set temperatures'
+        except ValueError:
+            msg_text = 'No file has been loaded'
+        except TypeError:    
+            msg_text = 'No data has been selected'
+        except NoGuessExistsError:
+            msg_text = 'Made no guess for initial parameters'
+        
+        else:
+            self.fitted_parameters = p_fit
+            window_title = 'Fit successful!'
+            msg_text = 'Congratulations'
+        
+        finally:
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Warning)
-            msg.setWindowTitle('Fit aborted')
+            msg.setWindowTitle(window_title)
             msg.setText(msg_text)
             msg.setDetailedText(msg_details)
-            msg.exec_()
+            msg.exec_()        
+            
     
 if __name__ == '__main__':
     
@@ -1307,7 +1310,4 @@ if __name__ == '__main__':
     
     app = QApplication(sys.argv)
     w = ACGui()
-    sys.exit(app.exec_())
-        
-        
-        
+    sys.exit(app.exec_())     

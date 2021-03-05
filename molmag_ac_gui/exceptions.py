@@ -13,3 +13,15 @@ class FileFormatError(Exception):
         self.message = '{} is not formatted to be read according to the implied standard'.format(self.filename)
         super().__init__(self.message)
         
+class NoGuessExistsError(Exception):
+    """Exception raised for errors in the reading of files
+
+    Attributes:
+        filename -- name of file that did not conform to the implied standard
+        message -- explanation of the error
+    """
+
+    def __init__(self):
+        self.message = 'No guess has been made for the fitting parameters'
+        super().__init__(self.message)
+        
