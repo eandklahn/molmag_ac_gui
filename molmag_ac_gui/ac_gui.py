@@ -8,6 +8,7 @@ import importlib.resources
 import json
 from subprocess import Popen, PIPE
 from multiprocessing import Pool
+from collections import deque
 
 #third-party packages
 import numpy as np
@@ -15,6 +16,7 @@ import pandas as pd
 
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import cm
+from matplotlib._color_data import TABLEAU_COLORS
 
 import scipy.constants as sc
 from scipy.optimize import minimize, curve_fit
@@ -76,6 +78,11 @@ class ACGui(QMainWindow):
         
         """ Constructing the data analysis tab ---------------------------------------------------------------------------------- """
         # Data containers for analysis
+        
+        self.simulation_colors = [x for x in TABLEAU_COLORS]
+        self.simulation_colors.remove('tab:gray')
+        self.simulation_colors = deque(self.simulation_colors)
+        
         self.last_loaded_file = os.getcwd()
         
         self.data_file_name = None
@@ -194,7 +201,7 @@ class ACGui(QMainWindow):
         self.fit_layout.addWidget(self.simulations_headline)
         
         self.list_of_simulations = QListWidget()
-        self.list_of_simulations.doubleClicked.connect(self.edit_a_simulation)
+        self.list_of_simulations.doubleClicked.connect(self.edit_simulation_from_list)
         self.fit_layout.addWidget(self.list_of_simulations)
         
         # Adding buttons to control simulation list
@@ -205,11 +212,11 @@ class ACGui(QMainWindow):
         self.sim_btn_layout.addWidget(self.delete_sim_btn)
         
         self.edit_sim_btn = QPushButton('Edit')
-        self.edit_sim_btn.clicked.connect(self.edit_a_simulation)
+        self.edit_sim_btn.clicked.connect(self.edit_simulation_from_list)
         self.sim_btn_layout.addWidget(self.edit_sim_btn)
         
         self.new_sim_btn = QPushButton('New')
-        self.new_sim_btn.clicked.connect(self.add_new_simulation)
+        self.new_sim_btn.clicked.connect(self.edit_simulation_from_list)
         self.sim_btn_layout.addWidget(self.new_sim_btn)
         
         self.fit_layout.addLayout(self.sim_btn_layout)
@@ -427,7 +434,7 @@ Keyword: 'Xd_sample'""")
         
         self.add_sim_w_menu = QAction('&New', self)
         self.add_sim_w_menu.setShortcut("Ctrl+Shift+N")
-        self.add_sim_w_menu.triggered.connect(self.add_new_simulation)
+        self.add_sim_w_menu.triggered.connect(self.edit_simulation_from_list)
         self.sim_menu.addAction(self.add_sim_w_menu)
         
         # About menu
@@ -930,112 +937,93 @@ Keyword: 'Xd_sample'""")
             dialog = ParamDialog(param_dict=self.fitted_parameters)
             finished = dialog.exec_()
     
-    def add_new_simulation(self):
+    def edit_simulation_from_list(self):
     
-        sim_dialog = SimulationDialog(fitted_parameters=self.fitted_parameters,
-                                      plot_type_list=[],
-                                      plot_parameters={'tQT': 0.01, 'Cr': 0.01, 'n': 0.01, 't0': 0.01, 'Ueff': 0.01},
-                                      min_and_max_temps=[0,0])
+        try:
+            sender = self.sender().text()
+        except AttributeError:
+            # Sent here because of double-click on QListWidget
+            action = 'Edit'
+        else:
+            if sender == 'Edit':
+                action = 'Edit'
+            elif sender in ('New', '&New'):
+                action = 'New'
+
+        if action == 'Edit':
+            try:
+                sim_item = self.list_of_simulations.selectedItems()[0]
+            except IndexError:
+                print('Did not find any selected line')
+                return
+            else:
+
+                # Reading off information from the selected item
+                old_data = sim_item.data(32)
+                old_plot_type_list = old_data['plot_type']
+                old_p_fit = old_data['p_fit']
+                old_T_vals = old_data['T_vals']
+                old_line = old_data['line']
         
+        elif action == 'New':
+            
+            old_plot_type_list = []
+            old_p_fit = {'tQT': 0.01, 'Cr': 0.01, 'n': 0.01, 't0': 0.01, 'Ueff': 0.01}
+            old_T_vals = [0,0]
+            old_line = False
+            
+        else:
+            print('We were not supposed to end here')
+            return
+            
+        sim_dialog = SimulationDialog(fitted_parameters=self.fitted_parameters,
+                                      plot_type_list=old_plot_type_list,
+                                      plot_parameters=old_p_fit,
+                                      min_and_max_temps=old_T_vals)
         finished_value = sim_dialog.exec_()
         
-        if finished_value:
-            
-            plot_type = sim_dialog.plot_type_list
-
-            if len(plot_type)<1:
-                pass
-            else:
-                p_fit = sim_dialog.plot_parameters
-                T_vals = sim_dialog.min_and_max_temps
-                
-                plot_to_make = ''.join(plot_type)
-                new_item_text = '{}, ({},{}), tQT: {}, Cr: {}, n: {}, t0: {}, Ueff: {}'.format(
-                                plot_type, T_vals[0], T_vals[1], p_fit['tQT'], p_fit['Cr'],
-                                p_fit['n'], p_fit['t0'], p_fit['Ueff'])
-                
-                new_list_item = QListWidgetItem()
-                
-                line = addPartialModel(self.ana_plot.fig,
-                                        T_vals[0],
-                                        T_vals[1],
-                                        self.prepare_sim_dict_for_plotting(p_fit),
-                                        plotType=plot_to_make)
-                                        
-                list_item_data = {'plot_type': plot_type,
-                                  'p_fit': p_fit,
-                                  'T_vals': T_vals,
-                                  'line': line}
-                
-                self.list_of_simulations.addItem(new_list_item)
-                new_list_item.setText(new_item_text)
-                new_list_item.setData(32, list_item_data)
-                
-                self.ana_plot.canvas.draw()
-                
-        else:
-            pass
-    
-    def edit_a_simulation(self):
-        
         try:
-            sim_item = self.list_of_simulations.selectedItems()[0]
-        except IndexError:
+            assert finished_value
+            
+            new_plot_type = sim_dialog.plot_type_list
+            assert len(new_plot_type)>0
+            
+        except AssertionError:
             pass
+            
         else:
-            # Reading off information from the selected item
-            old_data = sim_item.data(32)
-            old_plot_type_input = old_data['plot_type']
-            old_p_fit = old_data['p_fit']
-            old_T_vals = old_data['T_vals']
-            old_line = old_data['line']
             
+            new_p_fit = sim_dialog.plot_parameters
+            new_T_vals = sim_dialog.min_and_max_temps
+            plot_to_make = ''.join(new_plot_type)
             
-            
-            # Opening simulation dialog with old parameters
-            sim_dialog = SimulationDialog(fitted_parameters=self.fitted_parameters,
-                                          plot_type_list=old_plot_type_input,
-                                          plot_parameters=old_p_fit,
-                                          min_and_max_temps=old_T_vals)
-            
-            finished_value = sim_dialog.exec_()
-            
-            if finished_value:
-                # Reading new parameters of simulation
-                new_plot_type = sim_dialog.plot_type_list
-                
-                
-                if len(new_plot_type)<1:
-                    pass
-                else:
-                    new_p_fit = sim_dialog.plot_parameters
-                    new_T_vals = sim_dialog.min_and_max_temps
-                    
-                    plot_to_make = ''.join(new_plot_type)
-                    new_item_text = '{}, ({},{}), tQT: {}, Cr: {}, n: {}, t0: {}, Ueff: {}'.format(
-                                    new_plot_type, new_T_vals[0], new_T_vals[1], new_p_fit['tQT'], new_p_fit['Cr'],
-                                    new_p_fit['n'], new_p_fit['t0'], new_p_fit['Ueff'])
-                    
-                    self.ana_plot.ax.lines.remove(old_line)
-                    
-                    new_line = addPartialModel(self.ana_plot.fig,
-                                               new_T_vals[0],
-                                               new_T_vals[1],
-                                               self.prepare_sim_dict_for_plotting(new_p_fit),
-                                               plotType=plot_to_make)
-                    
-                    list_item_data = {'plot_type': new_plot_type,
-                                      'p_fit': new_p_fit,
-                                      'T_vals': new_T_vals,
-                                      'line': new_line}
-                    
-                    self.ana_plot.canvas.draw()
-                    
-                    sim_item.setData(32, list_item_data)
-                    sim_item.setText(new_item_text)
+            new_item_text = '{}, ({},{}), tQT: {}, Cr: {}, n: {}, t0: {}, Ueff: {}'.format(
+                            new_plot_type, new_T_vals[0], new_T_vals[1], new_p_fit['tQT'], new_p_fit['Cr'],
+                            new_p_fit['n'], new_p_fit['t0'], new_p_fit['Ueff'])
+
+            if old_line:
+                self.ana_plot.ax.lines.remove(old_line)
             else:
-                pass
-        
+                # In this case, there was no old line and therefore also no sim_item
+                sim_item = QListWidgetItem()
+                self.list_of_simulations.addItem(sim_item)
+
+            new_line = addPartialModel(self.ana_plot.fig,
+                                       new_T_vals[0],
+                                       new_T_vals[1],
+                                       self.prepare_sim_dict_for_plotting(new_p_fit),
+                                       plotType=plot_to_make)
+            
+            list_item_data = {'plot_type': new_plot_type,
+                              'p_fit': new_p_fit,
+                              'T_vals': new_T_vals,
+                              'line': new_line}
+                              
+            self.ana_plot.canvas.draw()
+                
+            sim_item.setData(32, list_item_data)
+            sim_item.setText(new_item_text)
+            
     def delete_sim(self):
         
         try:
@@ -1044,11 +1032,14 @@ Keyword: 'Xd_sample'""")
             pass
         else:
             line_pointer = sim_item.data(32)['line']
+            line_color = sim_item.data(32)['color']
             self.ana_plot.ax.lines.remove(line_pointer)
             self.ana_plot.canvas.draw()
             
             item_row = self.list_of_simulations.row(sim_item)
             sim_item = self.list_of_simulations.takeItem(item_row)
+            
+            self.simulation_colors.append(line_color)
             
             del sim_item
         
@@ -1065,8 +1056,18 @@ Keyword: 'Xd_sample'""")
             self.plotted_data_pointers.append(used)
             self.plotted_data_pointers.append(not_used)
         else:
-            err_used_point, caplines1, barlinecols1 = self.ana_plot.ax.errorbar(1/self.used_T, np.log(self.used_tau), yerr=self.used_dtau, fmt='bo', ecolor='b')
-            err_not_used_point, caplines2, barlinecols2 = self.ana_plot.ax.errorbar(1/self.not_used_T, np.log(self.not_used_tau), yerr=self.not_used_dtau, fmt='ro', ecolor='r')
+            err_used_point, caplines1, barlinecols1 = self.ana_plot.ax.errorbar(1/self.used_T,
+                                                                                np.log(self.used_tau),
+                                                                                yerr=self.used_dtau,
+                                                                                fmt='bo',
+                                                                                ecolor='b'
+                                                                                )
+            err_not_used_point, caplines2, barlinecols2 = self.ana_plot.ax.errorbar(1/self.not_used_T,
+                                                                                    np.log(self.not_used_tau),
+                                                                                    yerr=self.not_used_dtau,
+                                                                                    fmt='ro',
+                                                                                    ecolor='r'
+                                                                                    )
 
             self.plotted_data_pointers.append(err_used_point)
             self.plotted_data_pointers.append(err_not_used_point)
@@ -1167,7 +1168,7 @@ Keyword: 'Xd_sample'""")
         else:
             dtau = None
             
-        self.data_dtau = dtau 
+        self.data_dtau = dtau
         
     def prepare_sim_dict_for_plotting(self, p_fit_gui_struct):
 

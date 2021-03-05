@@ -484,7 +484,7 @@ def readPFITinOrder(p_fit, plotType='O'):
     
     return p
     
-def addPartialModel(fig, Tmin, Tmax, p_fit, plotType='O'):
+def addPartialModel(fig, Tmin, Tmax, p_fit, plotType='O', *args, **kwargs):
     
     ax = fig.get_axes()[0]
     
@@ -492,6 +492,7 @@ def addPartialModel(fig, Tmin, Tmax, p_fit, plotType='O'):
     p = readPFITinOrder(p_fit, plotType=plotType)
     
     T_space = np.linspace(Tmin, Tmax, 101)
-    line, = ax.plot(1/T_space, np.ones(T_space.shape)*f(T_space, *p), label=plotType)
+    line, = ax.plot(1/T_space, np.ones(T_space.shape)*f(T_space, *p), *args, label=plotType, **kwargs)
     
     return line
+    
