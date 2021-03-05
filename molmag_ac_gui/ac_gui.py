@@ -1219,9 +1219,7 @@ Keyword: 'Xd_sample'""")
         except (AttributeError, TypeError):
             print('No data have been selected yet!')
     
-    def fit_relaxation(self, guess):
-        
-        perform_this_fit = self.read_fit_type_cbs()
+    def fit_relaxation(self, guess, perform_this_fit):
         
         f = getFittingFunction(fitType=perform_this_fit)
         p0 = getStartParams(guess, fitType=perform_this_fit)
@@ -1272,7 +1270,7 @@ Keyword: 'Xd_sample'""")
             # and the GuessDialog was accepted, get the
             # guess and perform fitting
             guess = guess_dialog.return_guess
-            p_fit = self.fit_relaxation(guess)
+            p_fit = self.fit_relaxation(guess, perform_this_fit)
             
         except (AssertionError, IndexError):
             msg_text = 'Bad temperature or fit settings'
