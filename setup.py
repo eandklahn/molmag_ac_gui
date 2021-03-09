@@ -22,7 +22,7 @@ setup_args = dict(
 )
 
 package_data = dict(
-    data=["molmag_ac_gui/data/read_options.json"]
+    data=["molmag_ac_gui/data/*"]
 )
 
 #Not best practice to do this, I've added the issue on Github
