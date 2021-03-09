@@ -73,6 +73,7 @@ class ACGui(QMainWindow):
                                   }
         
         self.startUp = True
+        self.last_loaded_file = os.getcwd()
         
         """ Things to do with how the window is shown """
         self.setWindowTitle('AC Processing')
@@ -94,8 +95,6 @@ class ACGui(QMainWindow):
         self.simulation_colors = [x for x in TABLEAU_COLORS]
         self.simulation_colors.remove('tab:gray')
         self.simulation_colors = deque(self.simulation_colors)
-        
-        self.last_loaded_file = os.getcwd()
         
         self.data_file_name = None
         self.data_file_dir = os.getcwd()
@@ -532,6 +531,10 @@ class ACGui(QMainWindow):
         else:
             self.statusBar.showMessage('Running fit...')
             
+            w = QMessageBox()
+            w.setText('Running the fit...\nPlease wait!')
+            w.exec_()
+            
             T = [x for x in self.meas_temps]
             Xs, Xt, tau, alpha, resid, tau_fit_err = [],[],[],[],[],[]
             
@@ -543,6 +546,8 @@ class ACGui(QMainWindow):
             
             with Pool() as pool:
                 res = pool.starmap(fit_Xp_Xpp_genDebye, inputs)
+            
+            w.close()
             
             tau = [e[0] for e in res]
             tau_fit_err = [e[1] for e in res]
@@ -643,7 +648,9 @@ class ACGui(QMainWindow):
     
     def save_sample_data(self):
     
-        filename_info = QFileDialog.getSaveFileName(self, 'Save file', self.last_loaded_file)
+        filename_info = QFileDialog.getSaveFileName(self,
+                                                   'Save sample file',
+                                                   self.last_loaded_file)
         filename = filename_info[0]
         
         try:
@@ -653,9 +660,9 @@ class ACGui(QMainWindow):
             if ext == '':
                 ext = '.dat'
             
-            comment = QInputDialog.getText(self,
-                                          'Comment',
-                                          'Comment for saved sample data')[0]
+            comment, ok = QInputDialog.getText(self,
+                                              'Comment',
+                                              'Comment for saved sample data')
 
             fc = ''
             fc += '# ' + comment + '\n'
@@ -710,18 +717,23 @@ class ACGui(QMainWindow):
                     constant_terms = constant_terms, paired_terms = paired_terms)
             
                 # PUT THE CODE HERE TO INSERT CORRECTED VALUES INTO DATA FRAME
-                
-                Mp_idx = self.raw_df.columns.get_loc('Mp (emu)')
-                self.raw_df.insert(Mp_idx+1, column="Mp_m (emu/mol)", value=Mp_molar)
-                
-                Mpp_idx = self.raw_df.columns.get_loc('Mpp (emu)')
-                self.raw_df.insert(Mpp_idx+1, column="Mpp_m (emu/mol)", value=Mpp_molar)
-                
-                Xp_idx = self.raw_df.columns.get_loc('Xp (emu/Oe)')
-                self.raw_df.insert(Xp_idx+1, column="Xp_m (emu/(Oe*mol))", value=Xp_molar)
-                
-                Xpp_idx = self.raw_df.columns.get_loc('Xpp (emu/Oe)')
-                self.raw_df.insert(Xpp_idx+1, column="Xpp_m (emu/(Oe*mol))", value=Xpp_molar)
+                if "Mp_m (emu/mol)" in self.raw_df.columns:
+                    self.raw_df.replace(to_replace="Mp_m (emu/mol)", value=Mp_molar)
+                    self.raw_df.replace(to_replace="Mpp_m (emu/mol)", value=Mpp_molar)
+                    self.raw_df.replace(to_replace="Xp_m (emu/(Oe*mol))", value=Xp_molar)
+                    self.raw_df.replace(to_replace="Xpp_m (emu/(Oe*mol))", value=Xpp_molar)
+                else:
+                    Mp_idx = self.raw_df.columns.get_loc('Mp (emu)')
+                    self.raw_df.insert(Mp_idx+1, column="Mp_m (emu/mol)", value=Mp_molar)
+                    
+                    Mpp_idx = self.raw_df.columns.get_loc('Mpp (emu)')
+                    self.raw_df.insert(Mpp_idx+1, column="Mpp_m (emu/mol)", value=Mpp_molar)
+                    
+                    Xp_idx = self.raw_df.columns.get_loc('Xp (emu/Oe)')
+                    self.raw_df.insert(Xp_idx+1, column="Xp_m (emu/(Oe*mol))", value=Xp_molar)
+                    
+                    Xpp_idx = self.raw_df.columns.get_loc('Xpp (emu/Oe)')
+                    self.raw_df.insert(Xpp_idx+1, column="Xpp_m (emu/(Oe*mol))", value=Xpp_molar)
             
             self.update_temp_subsets()
             self.update_analysis_combos()
