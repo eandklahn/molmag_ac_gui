@@ -32,7 +32,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton,
                              QVBoxLayout, QMessageBox, QSplitter, QGridLayout,
                              QHBoxLayout, QFileDialog, QDialog, QLineEdit,
                              QListWidget, QListWidgetItem, QTabWidget,
-                             QScrollArea, QStatusBar)
+                             QScrollArea, QStatusBar, QInputDialog)
 
 #local imports
 from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset,
@@ -407,13 +407,18 @@ class ACGui(QMainWindow):
         self.var_amount_layout.addWidget(self.var_amount_inp)
         
         # Mass load button
-        self.load_sample_data_lo = QHBoxLayout()
-        self.sample_info_layout.addLayout(self.load_sample_data_lo)
+        self.sample_data_lo = QHBoxLayout()
+        self.sample_info_layout.addLayout(self.sample_data_lo)
         
         self.load_sample_data_btn = QPushButton('Load sample data')
         self.load_sample_data_btn.clicked.connect(self.load_sample_data)
-        self.load_sample_data_lo.addWidget(self.load_sample_data_btn)
-        self.load_sample_data_lo.addStretch()
+        self.sample_data_lo.addWidget(self.load_sample_data_btn)
+        
+        self.save_sample_data_btn = QPushButton('Save sample data')
+        self.save_sample_data_btn.clicked.connect(self.save_sample_data)
+        self.sample_data_lo.addWidget(self.save_sample_data_btn)
+        
+        self.sample_data_lo.addStretch()
         
         self.param_layout.addLayout(self.sample_info_layout)
         
@@ -635,7 +640,38 @@ class ACGui(QMainWindow):
             self.sample_xd_inp.setText(Xd_sample)
             self.constant_terms_inp.setText(constant_terms)
             self.var_amount_inp.setText(var_amount)
+    
+    def save_sample_data(self):
+    
+        filename_info = QFileDialog.getSaveFileName(self, 'Save file', self.last_loaded_file)
+        filename = filename_info[0]
+        
+        try:
+            assert filename != ''
+            self.last_loaded_file = os.path.split(filename)[0]
+            filename, ext = os.path.splitext(filename)
+            if ext == '':
+                ext = '.dat'
             
+            comment = QInputDialog.getText(self,
+                                          'Comment',
+                                          'Comment for saved sample data')[0]
+
+            fc = ''
+            fc += '# ' + comment + '\n'
+            fc += 'm_sample ' + self.sample_mass_inp.text() + '\n'
+            fc += 'M_sample ' + self.molar_mass_inp.text() + '\n'
+            fc += 'Xd_sample ' + self.sample_xd_inp.text() + '\n'
+            fc += 'constants ' + self.constant_terms_inp.text() + '\n'
+            fc += 'var_amount ' + self.var_amount_inp.text() + '\n'
+            
+            f = open(filename+ext, 'w')
+            f.write(fc)
+            f.close()
+            
+        except AssertionError:
+            pass
+        
     def make_diamag_correction_calculation(self):
         
         if self.raw_df is None:
