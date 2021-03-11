@@ -451,6 +451,9 @@ class ParamDialog(QDialog):
                 key_idx = quants.index(key)
                 key_param = params[key_idx]
                 key_sigma = sigmas[key_idx]
+                if key=='Ueff':
+                    key_param /= kB
+                    key_sigma /= kB
                 val.setText(f'{key} = {key_param:.6e} +- {key_sigma:.6e}')
             else:
                 val.setText(f'{key} = None')
