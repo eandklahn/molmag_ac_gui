@@ -106,6 +106,8 @@ class ACGui(QMainWindow):
         self.data_used_pointer = None
         self.data_not_used_pointer = None
         
+        self.used_indices = None
+        
         self.used_T = None
         self.not_used_T = None
         
@@ -114,10 +116,7 @@ class ACGui(QMainWindow):
         
         self.used_dtau = None
         self.not_used_dtau = None
-        
-        self.fitted_parameters = None
-        self.used_indices = None
-        
+                
         # Data containers for treatment
         self.read_options = json.loads(read_text(pkg_static_data,
                                                 'read_options.json'))
@@ -134,7 +133,6 @@ class ACGui(QMainWindow):
         
         self.raw_df = None
         self.raw_df_header = None
-        self.ppms_data_file = None
         self.num_meas_freqs = 0
         self.num_meas_temps = 0
         self.temp_subsets = []
@@ -924,7 +922,6 @@ class ACGui(QMainWindow):
             # Now that everything has been seen to work,
             # save potential header and potential df as actual header and df
             self.last_loaded_file = os.path.split(filename)[0]
-            self.ppms_data_file = filename
             self.raw_df = potential_df
             self.raw_df_header = potential_header
             
@@ -1006,10 +1003,10 @@ class ACGui(QMainWindow):
     
     def print_fitted_params(self):
         
-        if self.fitted_parameters == None:
+        if len(self.fit_history)<1:
             pass
         else:
-            dialog = ParamDialog(param_dict=self.fitted_parameters)
+            dialog = ParamDialog(fit_history=self.fit_history)
             finished = dialog.exec_()
     
     def edit_simulation_from_list(self):
@@ -1054,8 +1051,7 @@ class ACGui(QMainWindow):
                 self.statusBar.showMessage("ERROR: can't make any more simulations")
                 return
             
-        sim_dialog = SimulationDialog(fitted_parameters=self.fitted_parameters,
-                                      fit_history=self.fit_history,
+        sim_dialog = SimulationDialog(fit_history=self.fit_history,
                                       plot_type_list=old_plot_type_list,
                                       plot_parameters=old_p_fit,
                                       min_and_max_temps=old_T_vals)
@@ -1176,7 +1172,6 @@ class ACGui(QMainWindow):
         self.used_dtau = None
         self.not_used_dtau = None
         
-        self.fitted_parameters = None
         self.used_indices = None
         
     def load_t_tau_data(self):
@@ -1374,7 +1369,6 @@ class ACGui(QMainWindow):
             msg_text = 'Made no guess for initial parameters'
         
         else:
-            self.fitted_parameters = p_fit
             window_title = 'Fit successful!'
             msg_text = 'Congratulations'
             

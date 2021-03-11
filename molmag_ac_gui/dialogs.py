@@ -199,7 +199,6 @@ class SimulationDialog(QDialog):
 
     def __init__(self,
                  parent=None,
-                 fitted_parameters=None,
                  fit_history=[],
                  plot_type_list=[],
                  plot_parameters={'tQT': 0.1, 'Cr': 0.1, 'n': 0.1, 't0': 0.1, 'Ueff': 0.1},
@@ -406,30 +405,78 @@ class AboutDialog(QDialog):
 class ParamDialog(QDialog):
 
     def __init__(self,
-                 parent=None,
-                 param_dict=None):
+                 fit_history,
+                 parent=None):
                  
         super(ParamDialog, self).__init__()
         
         self.setWindowTitle('Fitted parameters')
-        self.dialog_layout = QVBoxLayout()
-        self.param_labels = {}
+        self.layout = QVBoxLayout()
+
+        self.fit_history = fit_history
         
-        for val in param_dict['quantities']:
-            multiplier = 1
-            idx = param_dict['quantities'].index(val)
+        self.parameter_labels = OrderedDict()
+        self.parameter_labels['tQT']=QLabel()
+        self.parameter_labels['Cr']=QLabel()
+        self.parameter_labels['n']=QLabel()
+        self.parameter_labels['t0']=QLabel()
+        self.parameter_labels['Ueff']=QLabel()
+        
+        self.fit_history_combo = QComboBox()
+        for e in self.fit_history:
+            rep = self.fit_history_element_repr(e)
+            self.fit_history_combo.addItem(rep)
+        self.fit_history_combo.activated.connect(self.show_fit)
+        self.layout.addWidget(self.fit_history_combo)
+        
+        for key, val in self.parameter_labels.items():
+            self.layout.addWidget(val)        
             
-            current_label = QLabel()
-            if val == 'Ueff': multiplier = sc.Boltzmann
-            current_label.setText('{}: {:6.3e} +/- {:6.3e}'.format(val,
-                                                                   param_dict['params'][idx]/multiplier,
-                                                                   param_dict['sigmas'][idx]/multiplier))
-                                                                   
-            self.dialog_layout.addWidget(current_label)
-        
-        self.setLayout(self.dialog_layout)
+        self.fit_history_combo.setCurrentIndex(0)
+        self.show_fit()
+        self.setLayout(self.layout)
         self.show()
 
+    def show_fit(self):
+        
+        fit_idx = self.fit_history_combo.currentIndex()
+        fit = self.fit_history[fit_idx]
+        
+        quants = fit[1]['quantities']
+        params = fit[1]['params']
+        sigmas = fit[1]['sigmas']
+        
+        for key, val in self.parameter_labels.items():
+            if key in quants:
+                key_idx = quants.index(key)
+                key_param = params[key_idx]
+                key_sigma = sigmas[key_idx]
+                val.setText(f'{key} = {key_param:.2e} +- {key_sigma:.2e}')
+            else:
+                val.setText(f'{key} = None')
+        
+    def fit_history_element_repr(self, e):
+        
+        fit_type = e[0]
+        fit_dict = e[1]
+        params = fit_dict['params']
+        quants = fit_dict['quantities']
+        
+        rep = []
+        for key in self.parameter_labels.keys():
+            if key in quants:
+                idx = quants.index(key)
+                param_val = params[idx]
+                if key=='Ueff':
+                    param_val /= kB
+                rep.append(f'{key}: {param_val:.2e}')
+            else:
+                rep.append(f'{key}: None')
+                
+        rep = f'Fit type: {fit_type}'+'\n'+'\n'.join(rep)    
+        
+        return rep
+    
 
 
 class FitResultPlotStatus(QDialog):
