@@ -96,8 +96,7 @@ class ACGui(QMainWindow):
         self.simulation_colors.remove('tab:gray')
         self.simulation_colors = deque(self.simulation_colors)
         
-        self.data_file_name = None
-        self.data_file_dir = os.getcwd()
+        self.fit_history = list()
         
         self.data_T = None
         self.data_tau = None
@@ -1049,13 +1048,14 @@ class ACGui(QMainWindow):
             old_p_fit = {'tQT': 0.1, 'Cr': 0.1, 'n': 0.1, 't0': 0.1, 'Ueff': 0.1}
             old_T_vals = [0,0]
             old_line = False
+            old_label = None
+            old_color = None
             if len(self.simulation_colors)<1:
                 self.statusBar.showMessage("ERROR: can't make any more simulations")
                 return
-            old_color = self.simulation_colors.pop()
-            old_label = names.get_first_name()
             
         sim_dialog = SimulationDialog(fitted_parameters=self.fitted_parameters,
+                                      fit_history=self.fit_history,
                                       plot_type_list=old_plot_type_list,
                                       plot_parameters=old_p_fit,
                                       min_and_max_temps=old_T_vals)
@@ -1076,19 +1076,15 @@ class ACGui(QMainWindow):
             new_T_vals = sim_dialog.min_and_max_temps
             plot_to_make = ''.join(new_plot_type)
             
-            text_name = ''
-            
-            new_item_text = '{},\n({},{}),\ntQT: {}, Cr: {}, n: {}, t0: {}, Ueff: {}'.format(
-                            old_label, new_T_vals[0], new_T_vals[1], new_p_fit['tQT'], new_p_fit['Cr'],
-                            new_p_fit['n'], new_p_fit['t0'], new_p_fit['Ueff'])
-
             if old_line:
                 self.ana_plot.ax.lines.remove(old_line)
             else:
                 # In this case, there was no old line and therefore also no sim_item
                 sim_item = QListWidgetItem()
                 self.list_of_simulations.addItem(sim_item)
-
+                old_color = self.simulation_colors.pop()
+                old_label = names.get_first_name()
+            
             new_line = addPartialModel(self.ana_plot.fig,
                                        new_T_vals[0],
                                        new_T_vals[1],
@@ -1102,9 +1098,14 @@ class ACGui(QMainWindow):
                               'T_vals': new_T_vals,
                               'line': new_line,
                               'color': old_color}
-                              
+            
             self.ana_plot.canvas.draw()
-                
+
+            new_item_text = f"{old_label},\n({new_T_vals[0]:.1f},{new_T_vals[1]:.1f}),\n"
+            new_item_text += f"tQT: {new_p_fit['tQT']:.2e}, Cr: {new_p_fit['Cr']:.2e}, "
+            new_item_text += f"n: {new_p_fit['n']:.2e}, t0: {new_p_fit['t0']:.2e}, "
+            new_item_text += f"Ueff: {new_p_fit['Ueff']:.2e}"
+            
             sim_item.setData(32, list_item_data)
             sim_item.setText(new_item_text)
             sim_item.setBackground(QColor(to_hex(old_color)))
@@ -1146,25 +1147,24 @@ class ACGui(QMainWindow):
                                                                                 np.log(self.used_tau),
                                                                                 yerr=self.used_dtau,
                                                                                 fmt='bo',
-                                                                                ecolor='b'
-                                                                                )
+                                                                                ecolor='b',
+                                                                                label='Data')
             err_not_used_point, caplines2, barlinecols2 = self.ana_plot.ax.errorbar(1/self.not_used_T,
                                                                                     np.log(self.not_used_tau),
                                                                                     yerr=self.not_used_dtau,
                                                                                     fmt='ro',
-                                                                                    ecolor='r'
-                                                                                    )
+                                                                                    ecolor='r',
+                                                                                    label='Data')
 
             self.plotted_data_pointers.append(err_used_point)
             self.plotted_data_pointers.append(err_not_used_point)
             for e in [caplines1, caplines2, barlinecols1, barlinecols2]:
                 for line in e:
                     self.plotted_data_pointers.append(line)
-
+        
         self.ana_plot.canvas.draw()
     
     def reset_analysis_containers(self):
-        self.data_file_name = None
         self.data_T = None
         self.data_tau = None
         self.data_dtau = None
@@ -1199,11 +1199,9 @@ class ACGui(QMainWindow):
             pass
         else:
             self.reset_analysis_containers()
-            self.data_file_name = filename
-            self.data_file_dir = os.path.dirname(filename)
         
         try:
-            D = np.loadtxt(self.data_file_name,
+            D = np.loadtxt(filename,
                            skiprows=1,
                            delimiter=';')
         except (ValueError, OSError) as error_type:
@@ -1349,7 +1347,8 @@ class ACGui(QMainWindow):
             assert Tmin != Tmax
             assert perform_this_fit != ''
             
-            guess_dialog = GuessDialog(guess=guess)
+            guess_dialog = GuessDialog(guess=guess,
+                                       fit_history=self.fit_history)
             accepted = guess_dialog.exec_()
             if not accepted: raise NoGuessExistsError
             
@@ -1378,7 +1377,9 @@ class ACGui(QMainWindow):
             self.fitted_parameters = p_fit
             window_title = 'Fit successful!'
             msg_text = 'Congratulations'
-        
+            
+            self.add_to_history(p_fit, perform_this_fit)
+            
         finally:
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Warning)
@@ -1386,7 +1387,12 @@ class ACGui(QMainWindow):
             msg.setText(msg_text)
             msg.setDetailedText(msg_details)
             msg.exec_()        
-            
+    
+    def add_to_history(self, p_fit, perform_this_fit):
+    
+        if len(self.fit_history)>9:
+            self.fit_history.pop()
+        self.fit_history.insert(0, (perform_this_fit, p_fit))
     
 if __name__ == '__main__':
     

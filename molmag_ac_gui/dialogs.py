@@ -1,3 +1,6 @@
+#std packages
+from collections import OrderedDict
+
 #third-party packages
 import scipy.constants as sc
 
@@ -31,6 +34,7 @@ class PlottingWindow(QWidget):
             self.grid = plt.GridSpec(20,1)
             self.ax = self.fig.add_subplot(self.grid[:17,0])
             self.cax = self.fig.add_subplot(self.grid[-1,0])
+            self.cax.set_yticklabels([])
         else:
             self.ax = self.fig.add_subplot(111)
         self.fig.subplots_adjust(left=0.1, bottom=0.05, right=0.95, top=0.95)
@@ -92,42 +96,102 @@ class PlottingWindow(QWidget):
            self.ax.set_ylim(new_y[0]-0.05*(new_y[1]-new_y[0]),new_y[1]+0.05*(new_y[1]-new_y[0]))
            
            self.canvas.draw()
-                            
+
 class GuessDialog(QDialog):
 
     def __init__(self,
                  parent=None,
-                 guess=None):
+                 guess=None,
+                 fit_history=None):
         super(GuessDialog, self).__init__()
         
-        self.layout = QFormLayout()
+        self.layout = QVBoxLayout()
         self.setWindowTitle('Guess parameters')
+
         self.validator = QDoubleValidator()
+        self.validator.setNotation(QDoubleValidator.ScientificNotation)
         
+        self.fit_history = fit_history
+        self.init_guess = guess
         self.values = []
         
-        for pair in guess.items():
-            lbl = QLabel(pair[0])
-            text = QLineEdit()
-            text.setValidator(self.validator)
-            if pair[0]=='Ueff':
-                text.setText(str(pair[1]/kB))
+        self.parameter_inputs = OrderedDict()
+        self.parameter_inputs['tQT']=None
+        self.parameter_inputs['Cr']=None
+        self.parameter_inputs['n']=None
+        self.parameter_inputs['t0']=None
+        self.parameter_inputs['Ueff']=None
+        
+        self.fit_history_lbl = QLabel('Fit history (latest first)')
+        self.layout.addWidget(self.fit_history_lbl)
+        
+        self.fit_history_combo = QComboBox()
+        for e in self.fit_history:
+            rep = self.fit_history_element_repr(e)
+            self.fit_history_combo.addItem(rep)
+        self.layout.addWidget(self.fit_history_combo)
+        self.fit_history_combo.activated.connect(self.fit_take_control)
+        
+        self.sim_vals_layout = QFormLayout()
+        for key in self.parameter_inputs.keys():
+            self.parameter_inputs[key] = QLineEdit()
+            self.parameter_inputs[key].setValidator(self.validator)
+            if key=='Ueff':
+                self.parameter_inputs[key].setText(str(self.init_guess[key]/kB))
             else:
-                text.setText(str(pair[1]))
-            self.layout.addRow(lbl, text)
-            self.values.append((lbl, text))
+                self.parameter_inputs[key].setText(str(self.init_guess[key]))
+            self.sim_vals_layout.addRow(key, self.parameter_inputs[key])
+        self.layout.addLayout(self.sim_vals_layout)
         
-        self.setLayout(self.layout)
-        
-        accept_btn = QPushButton('Ok')
+        accept_btn = QPushButton('Fit')
         accept_btn.clicked.connect(self.on_close)
-        self.layout.addRow(accept_btn)
-        
+        self.layout.addWidget(accept_btn)
+
+        self.setLayout(self.layout)
         self.show()
+    
+    def fit_history_element_repr(self, e):
         
+        fit_type = e[0]
+        fit_dict = e[1]
+        params = fit_dict['params']
+        quants = fit_dict['quantities']
+        
+        rep = []
+        for key in self.parameter_inputs.keys():
+            if key in quants:
+                idx = quants.index(key)
+                param_val = params[idx]
+                if key=='Ueff':
+                    param_val /= kB
+                rep.append(f'{key}: {param_val:.2e}')
+            else:
+                rep.append(f'{key}: None')
+                
+        rep = f'Fit type: {fit_type}'+'\n'+'\n'.join(rep)    
+        
+        return rep    
+    
+    def fit_take_control(self):
+        
+        idx = self.fit_history_combo.currentIndex()
+        fit = self.fit_history[idx]
+        
+        fit_dict = fit[1]
+        params = fit_dict['params']
+        quants = fit_dict['quantities']
+        
+        for key, val in self.parameter_inputs.items():
+            if key in quants:
+                key_idx = quants.index(key)
+                new_val = params[key_idx]
+                if key == 'Ueff':
+                    new_val /= kB
+                val.setText(str(new_val))
+                
     def on_close(self):
         
-        self.return_guess = {v[0].text(): float(v[1].text()) for v in self.values}
+        self.return_guess = {key: float(val.text()) for key, val in self.parameter_inputs.items()}
         self.return_guess['Ueff'] = self.return_guess['Ueff']*kB
         self.accept()
 
@@ -136,48 +200,54 @@ class SimulationDialog(QDialog):
     def __init__(self,
                  parent=None,
                  fitted_parameters=None,
+                 fit_history=[],
                  plot_type_list=[],
-                 plot_parameters={'tQT': 0.01, 'Cr': 0.00, 'n': 0.00, 't0': 0.00, 'Ueff': 0.00},
+                 plot_parameters={'tQT': 0.1, 'Cr': 0.1, 'n': 0.1, 't0': 0.1, 'Ueff': 0.1},
                  min_and_max_temps=[0]*2):
     
         super(SimulationDialog, self).__init__()
         
         self.setWindowTitle('Add simulation')
-        
-        # Containers for objects
-        self.lineedit_inputs = {}
-        
         self.headline_font = QFont()
         self.headline_font.setBold(True)
         
+        # Storing input values
         self.plot_type_list = plot_type_list
         self.plot_parameters = plot_parameters
-        
         self.min_and_max_temps = min_and_max_temps
-        
-        self.layout = QVBoxLayout()
-        
+        self.fit_history = fit_history
+
         # Abstracting the validator for the QLineEdits
         self.validator = QDoubleValidator()
         self.validator.setNotation(QDoubleValidator.ScientificNotation)
         
-        if fitted_parameters is not None:
-            self.use_fit_cb = QCheckBox('Use fitted parameters')
-            self.use_fit_cb.stateChanged.connect(self.fit_take_control)
-            self.layout.addWidget(self.use_fit_cb)
-            
-            self.fitted_parameters = {}
-            for quant in fitted_parameters['quantities']:
-                try:
-                    idx = fitted_parameters['quantities'].index(quant)
-                    param = fitted_parameters['params'][idx]
-                except IndexError:
-                    param = None
-                finally:
-                    if quant=='Ueff':
-                        param/=sc.Boltzmann
-                    self.fitted_parameters[quant] = param
-            
+        # Containers for objects
+        self.parameter_inputs = OrderedDict()
+        self.parameter_inputs['tQT']=None
+        self.parameter_inputs['Cr']=None
+        self.parameter_inputs['n']=None
+        self.parameter_inputs['t0']=None
+        self.parameter_inputs['Ueff']=None
+        
+        self.possible_functions = OrderedDict()
+        self.possible_functions['QT']=['QT',None]
+        self.possible_functions['R']=['Raman',None]
+        self.possible_functions['O']=['Orbach',None]
+        
+        self.layout = QVBoxLayout()
+        
+        self.fit_history_lbl = QLabel('Fit history (latest first)')
+        self.fit_history_lbl.setFont(self.headline_font)
+        self.layout.addWidget(self.fit_history_lbl)
+        
+        self.fit_history_combo = QComboBox()
+        for fit in self.fit_history:
+            rep = self.fit_history_element_repr(fit)
+            self.fit_history_combo.addItem(rep)
+        
+        self.fit_history_combo.activated.connect(self.fit_take_control)
+        self.layout.addWidget(self.fit_history_combo)
+        
         # Controls to play with temperature
         self.temp_headline = QLabel('Temperature')
         self.temp_headline.setFont(self.headline_font)
@@ -195,6 +265,8 @@ class SimulationDialog(QDialog):
         self.temp_max.editingFinished.connect(self.temp_interval_changed)
         self.temp_hbl.addWidget(self.temp_max)
         
+        self.temp_hbl.addStretch()
+        
         self.layout.addLayout(self.temp_hbl)
         
         # Controls for which type of plot to consider
@@ -203,56 +275,24 @@ class SimulationDialog(QDialog):
         self.layout.addWidget(self.plot_headline)
         
         self.plot_type_hbl = QHBoxLayout()
-        
-        self.use_orbach = QCheckBox('Orbach')
-        if 'O' in self.plot_type_list: self.use_orbach.setChecked(True)
-        self.use_orbach.clicked.connect(self.plot_type_changed)
-        self.plot_type_hbl.addWidget(self.use_orbach)
-        
-        self.use_raman = QCheckBox('Raman')
-        if 'R' in self.plot_type_list: self.use_raman.setChecked(True)
-        self.use_raman.clicked.connect(self.plot_type_changed)
-        self.plot_type_hbl.addWidget(self.use_raman)
-        
-        self.use_qt = QCheckBox('QT')
-        if 'QT' in self.plot_type_list: self.use_qt.setChecked(True)
-        self.use_qt.clicked.connect(self.plot_type_changed)
-        self.plot_type_hbl.addWidget(self.use_qt)
-        
+        for key, val in reversed(self.possible_functions.items()):
+            shorthand = key
+            fullname = val[0]
+            val[1] = QCheckBox(fullname)
+            val[1].clicked.connect(self.plot_type_changed)
+            if key in self.plot_type_list: val[1].setChecked(True)
+            self.plot_type_hbl.addWidget(val[1])
+            
+        self.plot_type_hbl.addStretch()
         self.layout.addLayout(self.plot_type_hbl)
         
+        # Values to use
         self.sim_vals_layout = QFormLayout()
-        
-        self.tqt_val = QLineEdit()
-        self.lineedit_inputs['tQT'] = self.tqt_val
-        self.tqt_val.setValidator(self.validator)
-        self.tqt_val.setText(str(self.plot_parameters['tQT']))
-        self.sim_vals_layout.addRow('t_QT', self.tqt_val)
-        
-        self.cr_val = QLineEdit()
-        self.lineedit_inputs['Cr'] = self.cr_val
-        self.cr_val.setValidator(self.validator)
-        self.cr_val.setText(str(self.plot_parameters['Cr']))
-        self.sim_vals_layout.addRow('C_R', self.cr_val)
-        
-        self.n_val = QLineEdit()
-        self.lineedit_inputs['n'] = self.n_val
-        self.n_val.setValidator(self.validator)
-        self.n_val.setText(str(self.plot_parameters['n']))
-        self.sim_vals_layout.addRow('n', self.n_val)
-        
-        self.t0_val = QLineEdit()
-        self.lineedit_inputs['t0'] = self.t0_val
-        self.t0_val.setValidator(self.validator)
-        self.t0_val.setText(str(self.plot_parameters['t0']))
-        self.sim_vals_layout.addRow('t0', self.t0_val)
-        
-        self.Ueff_val = QLineEdit()
-        self.lineedit_inputs['Ueff'] = self.Ueff_val
-        self.Ueff_val.setValidator(self.validator)
-        self.Ueff_val.setText(str(self.plot_parameters['Ueff']))
-        self.sim_vals_layout.addRow('U_eff', self.Ueff_val)
-        
+        for key in self.parameter_inputs.keys():
+            self.parameter_inputs[key] = QLineEdit()
+            self.parameter_inputs[key].setValidator(self.validator)
+            self.parameter_inputs[key].setText(str(self.plot_parameters[key]))
+            self.sim_vals_layout.addRow(key, self.parameter_inputs[key])
         self.layout.addLayout(self.sim_vals_layout)
         
         # Making control buttons at the end
@@ -264,6 +304,7 @@ class SimulationDialog(QDialog):
         self.button_layout.addWidget(self.cancel_btn)
         
         self.accept_btn = QPushButton('Ok')
+        self.accept_btn.setAutoDefault(True)
         self.accept_btn.clicked.connect(self.replace_and_accept)
         self.button_layout.addWidget(self.accept_btn)
         
@@ -273,39 +314,57 @@ class SimulationDialog(QDialog):
         
         self.show()
     
+    def fit_history_element_repr(self, e):
+        
+        fit_type = e[0]
+        fit_dict = e[1]
+        params = fit_dict['params']
+        quants = fit_dict['quantities']
+        
+        rep = []
+        for key in self.parameter_inputs.keys():
+            if key in quants:
+                idx = quants.index(key)
+                param_val = params[idx]
+                if key=='Ueff':
+                    param_val /= kB
+                rep.append(f'{key}: {param_val:.2e}')
+            else:
+                rep.append(f'{key}: None')
+                
+        rep = f'Fit type: {fit_type}'+'\n'+'\n'.join(rep)    
+        
+        return rep
+    
     def fit_take_control(self):
         
-        if self.use_fit_cb.isChecked():
-            
-            for key, val in self.fitted_parameters.items():
-                if val is not None:
-                    self.lineedit_inputs[key].setText('{}'.format(val))
-                self.lineedit_inputs[key].setReadOnly(True)
-            
-        else:
-            self.tqt_val.setReadOnly(False)
-            self.cr_val.setReadOnly(False)
-            self.n_val.setReadOnly(False)
-            self.t0_val.setReadOnly(False)
-            self.Ueff_val.setReadOnly(False)
+        idx = self.fit_history_combo.currentIndex()
+        fit = self.fit_history[idx]
         
-        self.param_values_changed()
-    
+        fit_dict = fit[1]
+        params = fit_dict['params']
+        quants = fit_dict['quantities']
+        
+        for key, val in self.parameter_inputs.items():
+            if key in quants:
+                key_idx = quants.index(key)
+                new_val = params[key_idx]
+                if key == 'Ueff':
+                    new_val /= kB
+                val.setText(str(new_val))
+            
     def param_values_changed(self):
-        
-        self.plot_parameters['tQT'] = float(self.tqt_val.text())
-        self.plot_parameters['Cr'] = float(self.cr_val.text())
-        self.plot_parameters['n'] = float(self.n_val.text())
-        self.plot_parameters['t0'] = float(self.t0_val.text())
-        self.plot_parameters['Ueff'] = float(self.Ueff_val.text())
-        
+
+        for key, val in self.parameter_inputs.items():
+            self.plot_parameters[key] = float(val.text())
+    
     def plot_type_changed(self):
-        
+
         self.plot_type_list = []
-        if self.use_qt.isChecked(): self.plot_type_list.append('QT')
-        if self.use_raman.isChecked(): self.plot_type_list.append('R')
-        if self.use_orbach.isChecked(): self.plot_type_list.append('O')
-        
+        for key in self.possible_functions.keys():
+            val = self.possible_functions[key]
+            if val[1].isChecked(): self.plot_type_list.append(key)
+
     def temp_interval_changed(self):
         
         try:
