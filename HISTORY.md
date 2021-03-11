@@ -1,4 +1,10 @@
 
+# v. 0.2.3:
+Published on 11/3/2021
+Added a fit history so the last 10 fits can be retrived to see the parameters
+or use the parameters as starting guesses for new fits or to use the parameters
+to plot the simulation
+
 # v. 0.2.2:
 Published on 4/3/2021
 Adding a data-folder to hold static variables. This will also  

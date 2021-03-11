@@ -451,7 +451,7 @@ class ParamDialog(QDialog):
                 key_idx = quants.index(key)
                 key_param = params[key_idx]
                 key_sigma = sigmas[key_idx]
-                val.setText(f'{key} = {key_param:.2e} +- {key_sigma:.2e}')
+                val.setText(f'{key} = {key_param:.6e} +- {key_sigma:.6e}')
             else:
                 val.setText(f'{key} = None')
         
