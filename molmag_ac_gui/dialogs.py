@@ -37,6 +37,7 @@ class PlottingWindow(QWidget):
             self.cax.set_yticklabels([])
         else:
             self.ax = self.fig.add_subplot(111)
+        
         self.fig.subplots_adjust(left=0.1, bottom=0.05, right=0.95, top=0.95)
         
         self.layout.addWidget(self.canvas)
@@ -53,49 +54,49 @@ class PlottingWindow(QWidget):
         self.setLayout(self.layout)
     
     def clear_canvas(self):
-        
+            
         self.ax.clear()
         self.canvas.draw()
     
     def reset_axes(self):
-       
-       s = 0
-       if len(self.ax.lines)<1: pass
-       else:
-           while True:
-               start = self.ax.lines[s]
-               if len(start.get_xdata())<1:
-                   s += 1
-               else:
-                   break
+        
+        s = 0
+        if len(self.ax.lines)<1: pass
+        else:
            
-           x = start.get_xdata()
-           y = start.get_ydata()
-           
-           new_x = [x.min(), x.max()]
-           new_y = [y.min(), y.max()]
-           
-           for i in range(s, len(self.ax.lines)):
-               x = self.ax.lines[i].get_xdata()
-               y = self.ax.lines[i].get_ydata()
-               
-               if len(x)>1 and len(y)>1:
-                   if x.min()<new_x[0]: new_x[0] = x.min()
-                   if x.max()>new_x[1]: new_x[1] = x.max()
-                   if y.min()<new_y[0]: new_y[0] = y.min()
-                   if y.max()>new_y[1]: new_y[1] = y.max()
-           
-           if new_x[0] == new_x[1]:
-               new_x[0] -= 0.5
-               new_x[1] += 0.5
-           if new_y[0] == new_y[1]:
-               new_y[0] -= 0.5
-               new_y[1] += 0.5
-               
-           self.ax.set_xlim(new_x[0]-0.05*(new_x[1]-new_x[0]),new_x[1]+0.05*(new_x[1]-new_x[0]))
-           self.ax.set_ylim(new_y[0]-0.05*(new_y[1]-new_y[0]),new_y[1]+0.05*(new_y[1]-new_y[0]))
-           
-           self.canvas.draw()
+            lines_to_manage = []
+            for line in self.ax.lines:
+                if len(line.get_xdata())<1: pass
+                elif not line._visible: pass
+                else: lines_to_manage.append(line)
+                
+            x = lines_to_manage[0].get_xdata()
+            y = lines_to_manage[0].get_ydata()
+            
+            new_x = [x.min(), x.max()]
+            new_y = [y.min(), y.max()]
+            
+            for line in lines_to_manage:
+                x = line.get_xdata()
+                y = line.get_ydata()
+                
+                if len(x)>1 and len(y)>1:
+                    if x.min()<new_x[0]: new_x[0] = x.min()
+                    if x.max()>new_x[1]: new_x[1] = x.max()
+                    if y.min()<new_y[0]: new_y[0] = y.min()
+                    if y.max()>new_y[1]: new_y[1] = y.max()
+            
+            if new_x[0] == new_x[1]:
+                new_x[0] -= 0.5
+                new_x[1] += 0.5
+            if new_y[0] == new_y[1]:
+                new_y[0] -= 0.5
+                new_y[1] += 0.5
+                
+            self.ax.set_xlim(new_x[0]-0.05*(new_x[1]-new_x[0]),new_x[1]+0.05*(new_x[1]-new_x[0]))
+            self.ax.set_ylim(new_y[0]-0.05*(new_y[1]-new_y[0]),new_y[1]+0.05*(new_y[1]-new_y[0]))
+            
+            self.canvas.draw()
 
 class GuessDialog(QDialog):
 

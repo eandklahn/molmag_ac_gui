@@ -24,6 +24,7 @@ import scipy.constants as sc
 from scipy.optimize import minimize, curve_fit
 from lmfit import Parameters, minimize
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtWinExtras import QWinTaskbarButton
 from PyQt5.QtGui import QIcon, QFont, QDoubleValidator, QColor
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton,
@@ -219,7 +220,12 @@ class ACGui(QMainWindow):
         self.fit_layout.addWidget(self.simulations_headline)
         
         self.list_of_simulations = QListWidget()
+        self.list_of_simulations.setDragDropMode(self.list_of_simulations.InternalMove)
+        
         self.list_of_simulations.doubleClicked.connect(self.edit_simulation_from_list)
+        """https://stackoverflow.com/questions/41353653/how-do-i-get-the-checked-items-in-a-qlistview"""
+        self.list_of_simulations.itemChanged.connect(self.redraw_simulation_lines)
+        
         self.fit_layout.addWidget(self.list_of_simulations)
         
         # Adding buttons to control simulation list
@@ -1085,7 +1091,12 @@ class ACGui(QMainWindow):
                 self.ana_plot.ax.lines.remove(old_line)
             else:
                 # In this case, there was no old line and therefore also no sim_item
+                
+                """https://stackoverflow.com/questions/55145390/pyqt5-qlistwidget-with-checkboxes-and-drag-and-drop"""
                 sim_item = QListWidgetItem()
+                sim_item.setFlags( sim_item.flags() | Qt.ItemIsUserCheckable )
+                sim_item.setCheckState(Qt.Checked)
+                
                 self.list_of_simulations.addItem(sim_item)
                 old_color = self.simulation_colors.pop()
                 old_label = names.get_first_name()
@@ -1104,8 +1115,6 @@ class ACGui(QMainWindow):
                               'line': new_line,
                               'color': old_color}
             
-            self.ana_plot.canvas.draw()
-
             new_item_text = f"{old_label},\n({new_T_vals[0]:.1f},{new_T_vals[1]:.1f}),\n"
             new_item_text += f"tQT: {new_p_fit['tQT']:.2e}, Cr: {new_p_fit['Cr']:.2e}, "
             new_item_text += f"n: {new_p_fit['n']:.2e}, t0: {new_p_fit['t0']:.2e}, "
@@ -1114,6 +1123,8 @@ class ACGui(QMainWindow):
             sim_item.setData(32, list_item_data)
             sim_item.setText(new_item_text)
             sim_item.setBackground(QColor(to_hex(old_color)))
+            
+            self.redraw_simulation_lines()
             
     def delete_sim(self):
         
@@ -1134,6 +1145,19 @@ class ACGui(QMainWindow):
             self.simulation_colors.append(line_color)
             
             del sim_item
+    
+    def redraw_simulation_lines(self):
+        
+        for idx in range(self.list_of_simulations.count()):
+            item = self.list_of_simulations.item(idx)
+            data = item.data(32)
+            
+            if item.checkState() == Qt.Checked:
+                data['line']._visible = True
+            elif item.checkState() == Qt.Unchecked:
+                data['line']._visible = False
+        
+        self.ana_plot.canvas.draw()
         
     def plot_t_tau_on_axes(self):
         
@@ -1143,8 +1167,8 @@ class ACGui(QMainWindow):
         self.plotted_data_pointers = []
         
         if self.data_dtau is None:
-            used, = self.ana_plot.ax.plot(1/self.used_T, np.log(self.used_tau), 'bo')
-            not_used, = self.ana_plot.ax.plot(1/self.not_used_T, np.log(self.not_used_tau), 'ro')
+            used, = self.ana_plot.ax.plot(1/self.used_T, np.log(self.used_tau), 'bo', zorder=0.1)
+            not_used, = self.ana_plot.ax.plot(1/self.not_used_T, np.log(self.not_used_tau), 'ro', zorder=0.1)
             self.plotted_data_pointers.append(used)
             self.plotted_data_pointers.append(not_used)
         else:
@@ -1153,13 +1177,15 @@ class ACGui(QMainWindow):
                                                                                 yerr=self.used_dtau,
                                                                                 fmt='bo',
                                                                                 ecolor='b',
-                                                                                label='Data')
+                                                                                label='Data',
+                                                                                zorder=0.1)
             err_not_used_point, caplines2, barlinecols2 = self.ana_plot.ax.errorbar(1/self.not_used_T,
                                                                                     np.log(self.not_used_tau),
                                                                                     yerr=self.not_used_dtau,
                                                                                     fmt='ro',
                                                                                     ecolor='r',
-                                                                                    label='Data')
+                                                                                    label='Data',
+                                                                                    zorder=0.1)
 
             self.plotted_data_pointers.append(err_used_point)
             self.plotted_data_pointers.append(err_not_used_point)
