@@ -116,6 +116,8 @@ class ACGui(QMainWindow):
         
         self.used_dtau = None
         self.not_used_dtau = None
+        
+        self.fitted_params_dialog = None
                 
         # Data containers for treatment
         self.read_options = json.loads(read_text(pkg_static_data,
@@ -151,7 +153,7 @@ class ACGui(QMainWindow):
         self.load_layout.addStretch()
         
         self.see_fit_btn = QPushButton('Fitted params')
-        self.see_fit_btn.clicked.connect(self.print_fitted_params)
+        self.see_fit_btn.clicked.connect(self.show_fitted_params)
         self.load_layout.addWidget(self.see_fit_btn)
         
         self.load_btn = QPushButton('Load')
@@ -1001,14 +1003,21 @@ class ACGui(QMainWindow):
         self.analysis_y_combo.clear()
         self.analysis_y_combo.addItems(self.raw_df.columns)
     
-    def print_fitted_params(self):
+    def show_fitted_params(self):
         
-        if len(self.fit_history)<1:
+        try:
+            fit = self.fit_history[0]
+            assert self.fitted_params_dialog is None
+            
+        except IndexError:
             pass
+        except AssertionError:
+            self.fitted_params_dialog.show()
+            self.fitted_params_dialog.activateWindow()
         else:
-            dialog = ParamDialog(fit_history=self.fit_history)
-            finished = dialog.exec_()
-    
+            self.fitted_params_dialog = ParamDialog(fit_history=self.fit_history)
+            finished = self.fitted_params_dialog.exec_()
+        
     def edit_simulation_from_list(self):
     
         try:
