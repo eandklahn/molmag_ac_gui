@@ -150,7 +150,7 @@ class GuessDialog(QDialog):
         self.layout.addWidget(accept_btn)
 
         self.setLayout(self.layout)
-        self.show()
+        #self.show()
     
     def fit_history_element_repr(self, e):
         
@@ -313,7 +313,7 @@ class SimulationDialog(QDialog):
         
         self.setLayout(self.layout)
         
-        self.show()
+        #self.show()
     
     def fit_history_element_repr(self, e):
         
@@ -402,7 +402,7 @@ class AboutDialog(QDialog):
         self.layout.addWidget(self.pers_lbl)
         
         self.setLayout(self.layout)
-        self.show()
+        #self.show()
 
 class ParamDialog(QDialog):
 
@@ -437,7 +437,7 @@ class ParamDialog(QDialog):
         self.fit_history_combo.setCurrentIndex(0)
         self.show_fit()
         self.setLayout(self.layout)
-        self.show()
+        #self.show()
 
     def show_fit(self):
         
@@ -554,7 +554,7 @@ class FitResultPlotStatus(QDialog):
         self.layout.addLayout(self.judge_btn_lo)
         
         self.setLayout(self.layout)
-        self.show()
+        #self.show()
         
     def check_all_function(self):
     
