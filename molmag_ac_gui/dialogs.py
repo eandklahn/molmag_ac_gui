@@ -104,6 +104,7 @@ class GuessDialog(QDialog):
                  parent=None,
                  guess=None,
                  fit_history=None):
+        
         super(GuessDialog, self).__init__()
         
         self.layout = QVBoxLayout()

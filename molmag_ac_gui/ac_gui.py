@@ -380,7 +380,9 @@ class ACGui(QMainWindow):
         self.sample_xd_lo = QHBoxLayout()
         self.sample_info_layout.addLayout(self.sample_xd_lo)
         
-        self.sample_xd_lbl = QLabel(u"X\u1D05"+' (sample) [emu/(Oe*mol)]')
+        self.sample_xd_lbl = QLabel(u"<a href={}>X\u1D05</a>".format(
+                                    self.tooltips_dict['Xd_link'])
+                                    +' (sample) [emu/(Oe*mol)]')
         self.sample_xd_lo.addWidget(self.sample_xd_lbl)
         
         self.sample_xd_inp = QLineEdit()
