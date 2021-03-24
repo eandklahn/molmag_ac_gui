@@ -538,9 +538,10 @@ class ACGui(QMainWindow):
         else:
             self.statusBar.showMessage('Running fit...')
             
-            w = QMessageBox()
-            w.setText('Running the fit...\nPlease wait!')
-            w.exec_()
+            # This can't be used currently. Will only work if a separate thread is spawned for fitting.
+            #w = QMessageBox()
+            #w.setText('Running the fit...\nPlease wait!')
+            #w.exec_()
             
             T = [x for x in self.meas_temps]
             Xs, Xt, tau, alpha, resid, tau_fit_err = [],[],[],[],[],[]
