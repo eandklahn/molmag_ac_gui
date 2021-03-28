@@ -22,7 +22,7 @@ from matplotlib._color_data import TABLEAU_COLORS
 
 import scipy.constants as sc
 from scipy.optimize import minimize, curve_fit
-from lmfit import Parameters, minimize
+from lmfit import Parameter, Parameters, Minimizer, minimize
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWinExtras import QWinTaskbarButton
@@ -39,7 +39,8 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton,
 from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset,
                          getParameterGuesses, getStartParams,
                          getFittingFunction, readPopt, addPartialModel,
-                         tau_err_RC, diamag_correction, fit_Xp_Xpp_genDebye)
+                         tau_err_RC, diamag_correction, fit_Xp_Xpp_genDebye,
+                         _QT, _R, _O)
 from .dialogs import (GuessDialog, SimulationDialog, AboutDialog, ParamDialog,
                       FitResultPlotStatus, PlottingWindow)
 from .utility import (read_ppms_file, get_ppms_column_name_matches,
@@ -1337,7 +1338,88 @@ class ACGui(QMainWindow):
         except (AttributeError, TypeError):
             print('No data have been selected yet!')
     
+    def make_fitting_function(self, perform_this_fit):
+    
+        use_QT = 0
+        use_R = 0
+        use_O = 0
+        
+        if 'QT' in perform_this_fit: use_QT = 1
+        if 'R' in perform_this_fit: use_R = 1
+        if 'O' in perform_this_fit: use_O = 1
+        
+        fn = lambda T, tQT, Cr, n, t0, Ueff: np.log(1/(use_QT*1/_QT(T, tQT) + use_R*1/_R(T, Cr, n) + use_O*1/_O(T, t0, Ueff)))
+        
+        return fn
+        
+    def fit_relaxation_lmfit(self, guess, perform_this_fit):
+
+        fn = self.make_fitting_function(perform_this_fit)
+        
+        def objective(params, T, tau_obs, err=None):
+            
+            tQT = params['tQT']
+            Cr = params['Cr']
+            n = params['n']
+            t0 = params['t0']
+            Ueff = params['Ueff']
+            
+            tau_calc = fn(T, tQT, Cr, n, t0, Ueff)
+
+            residuals = tau_calc - tau_obs
+            
+            if err is not None:
+                residuals = residuals/err
+                
+            return residuals
+        
+        def iter_cb(params, iter, resid, *args, **kwargs):
+        
+            print(f'---------- {iter}')
+            print(f'Residual is {np.sum(resid**2)}')
+            for p in params:
+                print(f'{p}: {params[p].value:.2e}')
+        
+        params = Parameters()
+        params.add('tQT', value=guess['tQT'], vary=('QT' in perform_this_fit), min=0)
+        params.add('Cr', value=guess['Cr'], vary=('R' in perform_this_fit),min=0)
+        params.add('n', value=guess['n'], vary=('R' in perform_this_fit), min=0)
+        params.add('t0', value=guess['t0'], vary=('O' in perform_this_fit), min=0)
+        params.add('Ueff', value=guess['Ueff'], vary=('O' in perform_this_fit))
+
+        user_args = (self.used_T, np.log(self.used_tau))
+
+        if self.used_tau is None:
+            user_kws = None
+        else:
+            user_kws = {'err': np.log(self.used_dtau)}
+        
+        m = Minimizer(objective,
+                      params,
+                      fcn_args=user_args,
+                      fcn_kws=user_kws,
+                      reduce_fcn=None,
+                      nan_policy='raise',
+                      iter_cb=iter_cb)
+        
+        result = m.minimize()
+        
+        pars = [result.params[p].value for p in result.params if result.params[p].vary]
+        sigs = [result.params[p].stderr for p in result.params if result.params[p].vary]
+        nams = [result.params[p].name for p in result.params if result.params[p].vary]
+        
+        p_fit = {'params': pars,
+                 'sigmas': sigs,
+                 'quantities': nams}
+
+        return p_fit
+        
     def fit_relaxation(self, guess, perform_this_fit):
+        """
+        First function used to fit t-tau-data, but this function uses curve_fit,
+        where it is more difficult to control parameters. Trying to switch to
+        lmfit, where control of refinable parameters is more extensive.
+        """
         
         f = getFittingFunction(fitType=perform_this_fit)
         p0 = getStartParams(guess, fitType=perform_this_fit)
@@ -1389,7 +1471,7 @@ class ACGui(QMainWindow):
             # and the GuessDialog was accepted, get the
             # guess and perform fitting
             guess = guess_dialog.return_guess
-            p_fit = self.fit_relaxation(guess, perform_this_fit)
+            p_fit = self.fit_relaxation_lmfit(guess, perform_this_fit)
             
         except (AssertionError, IndexError):
             msg_text = 'Bad temperature or fit settings'
@@ -1399,7 +1481,8 @@ class ACGui(QMainWindow):
  - can't fit only one data point"""
         except RuntimeError:
             msg_text = 'This fit cannot be made within the set temperatures'
-        except ValueError:
+        except ValueError as e:
+            print(e)
             msg_text = 'No file has been loaded'
         except TypeError:    
             msg_text = 'No data has been selected'
