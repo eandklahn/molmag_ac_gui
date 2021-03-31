@@ -134,6 +134,9 @@ class ACGui(QMainWindow):
         
         self.tooltips_dict = json.loads(read_text(pkg_static_data,
                                                   'tooltips.json'))
+
+        self.setStyleSheet(read_text(pkg_static_data, 'styles.css'))
+
         
         self.raw_df = None
         self.raw_df_header = None
