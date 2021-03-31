@@ -137,7 +137,6 @@ class ACGui(QMainWindow):
 
         self.setStyleSheet(read_text(pkg_static_data, 'styles.css'))
 
-        
         self.raw_df = None
         self.raw_df_header = None
         self.num_meas_freqs = 0
