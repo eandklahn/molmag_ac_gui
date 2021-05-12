@@ -6,7 +6,6 @@ import os
 import time
 import json
 from importlib.resources import read_text
-from subprocess import Popen, PIPE
 from multiprocessing import Pool
 from collections import deque
 
@@ -135,7 +134,7 @@ class ACGui(QMainWindow):
         self.tooltips_dict = json.loads(read_text(pkg_static_data,
                                                   'tooltips.json'))
 
-        self.setStyleSheet(read_text(pkg_static_data, 'styles.css'))
+        self.setStyleSheet(read_text(pkg_static_data, 'styles.qss'))
 
         self.raw_df = None
         self.raw_df_header = None
@@ -325,10 +324,22 @@ class ACGui(QMainWindow):
         self.raw_data_plot_lo.addWidget(self.fitted_data_plot_header)
         
         self.fit_data_plot_combo = QComboBox()
-        self.fit_data_plot_combo.addItems(['ColeCole', 'FreqVSXpp'])
+        self.fit_data_plot_combo.addItems(['ColeCole', 'FreqVSXp', 'FreqVSXpp'])
         self.fit_data_plot_combo.currentIndexChanged.connect(self.plot_from_itemlist)
         self.raw_data_plot_lo.addWidget(self.fit_data_plot_combo)
         
+        # Checkbox for coloring measured points
+        self.fit_data_color_cb_lo = QHBoxLayout()
+        self.fit_data_color_cb_header = QLabel('Use temp. colors')
+        self.fit_data_color_cb_lo.addWidget(self.fit_data_color_cb_header)
+        
+        self.fit_data_color_cb = QCheckBox()
+        self.fit_data_color_cb.stateChanged.connect(self.plot_from_itemlist)
+        self.fit_data_color_cb_lo.addWidget(self.fit_data_color_cb)
+        
+        self.raw_data_plot_lo.addLayout(self.fit_data_color_cb_lo)
+        
+        # Finalizing the raw data layout
         self.data_layout.addLayout(self.raw_data_plot_lo)
         
         ## Finalizing the data loading widget
@@ -558,7 +569,7 @@ class ACGui(QMainWindow):
             with Pool() as pool:
                 res = pool.starmap(fit_Xp_Xpp_genDebye, inputs)
             
-            w.close()
+            #w.close()
             
             tau = [e[0] for e in res]
             tau_fit_err = [e[1] for e in res]
@@ -779,82 +790,74 @@ class ACGui(QMainWindow):
         
         if self.treat_raw_fit_list.count()==0:
             return
-        else:
-            self.treat_fit_plot.ax.clear()
-            plot_type = self.fit_data_plot_combo.currentText()
-            
-            if plot_type == 'FreqVSXpp':
-                x_name = 'AC Frequency (Hz)'
-                y_name = 'Xpp_m (emu/(Oe*mol))'
-                for row in range(self.num_meas_temps):
-                
-                    T = self.meas_temps[row]
-                    rgb = self.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))
-                    
-                    item = self.treat_raw_fit_list.item(row)
-                    itemdict = item.data(32)
-                    
-                    if itemdict['raw']:
-                        self.treat_fit_plot.ax.plot(self.temp_subsets[row][x_name],
-                                                    self.temp_subsets[row][y_name],
-                                                    marker='o',
-                                                    mec='k',
-                                                    mfc='none',
-                                                    linestyle='None')
-                    if itemdict['fit']:
-                        self.treat_fit_plot.ax.plot(self.temp_subsets[row][x_name],
-                                                    Xpp_(self.temp_subsets[row]['AC Frequency (Hz)'],
-                                                        self.raw_data_fit['ChiS'].iloc[row],
-                                                        self.raw_data_fit['ChiT'].iloc[row],
-                                                        self.raw_data_fit['Tau'].iloc[row],
-                                                        self.raw_data_fit['Alpha'].iloc[row]),
-                                                    c=rgb)
-                self.treat_fit_plot.ax.set_xscale('log')
-                self.treat_fit_plot.ax.set_xlabel(x_name)
-                self.treat_fit_plot.ax.set_ylabel(y_name)
         
-            elif plot_type == 'ColeCole':
-                x_name = 'Xp_m (emu/(Oe*mol))'
-                y_name = 'Xpp_m (emu/(Oe*mol))'
-                for row in range(self.num_meas_temps):
-
-                    T = self.meas_temps[row]
-                    rgb = self.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))
-                    
-                    item = self.treat_raw_fit_list.item(row)
-                    itemdict = item.data(32)
-                    
-                    if itemdict['raw']:
-                        self.treat_fit_plot.ax.plot(self.temp_subsets[row][x_name],
-                                                self.temp_subsets[row][y_name],
-                                                marker='o',
-                                                mec='k',
-                                                mfc='none',
-                                                linestyle='None')
-                    if itemdict['fit']:
-                        self.treat_fit_plot.ax.plot(Xp_(self.temp_subsets[row]['AC Frequency (Hz)'],
-                                                        self.raw_data_fit['ChiS'].iloc[row],
-                                                        self.raw_data_fit['ChiT'].iloc[row],
-                                                        self.raw_data_fit['Tau'].iloc[row],
-                                                        self.raw_data_fit['Alpha'].iloc[row]),
-                                                    Xpp_(self.temp_subsets[row]['AC Frequency (Hz)'],
-                                                        self.raw_data_fit['ChiS'].iloc[row],
-                                                        self.raw_data_fit['ChiT'].iloc[row],
-                                                        self.raw_data_fit['Tau'].iloc[row],
-                                                        self.raw_data_fit['Alpha'].iloc[row]),
-                                                    c=rgb)
-                                                    
-                self.treat_fit_plot.ax.set_xlabel(x_name)
-                self.treat_fit_plot.ax.set_ylabel(y_name)
+        self.treat_fit_plot.ax.clear()
+        plot_type = self.fit_data_plot_combo.currentText()
+        
+        if plot_type == 'FreqVSXp':
+            x_name = 'AC Frequency (Hz)'
+            y_name = 'Xp_m (emu/(Oe*mol))'
+            fcn_y = Xp_
+            x_scale = 'log'
+        elif plot_type == 'FreqVSXpp':
+            x_name = 'AC Frequency (Hz)'
+            y_name = 'Xpp_m (emu/(Oe*mol))'
+            fcn_y = Xpp_
+            x_scale = 'log'
+        elif plot_type == 'ColeCole':
+            x_name = 'Xp_m (emu/(Oe*mol))'
+            y_name = 'Xpp_m (emu/(Oe*mol))'
+            fcn_y = Xpp_
+            x_scale = 'linear'
             
-            norm = mpl.colors.Normalize(vmin=self.Tmin, vmax=self.Tmax)
-            self.treat_fit_plot.fig.colorbar(
-                mpl.cm.ScalarMappable(norm=norm,
-                                      cmap=self.temperature_cmap),
-                                            orientation='horizontal',
-                cax=self.treat_fit_plot.cax)
+        for row in range(self.num_meas_temps):
+        
+            T = self.meas_temps[row]
+            rgb = self.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))
+            markercolor = 'k'
+            if self.fit_data_color_cb.isChecked():
+                markercolor = rgb
             
-            self.treat_fit_plot.canvas.draw()
+            if plot_type == 'ColeCole':
+                x_data = Xp_(self.temp_subsets[row]['AC Frequency (Hz)'],
+                             self.raw_data_fit['ChiS'].iloc[row],
+                             self.raw_data_fit['ChiT'].iloc[row],
+                             self.raw_data_fit['Tau'].iloc[row],
+                             self.raw_data_fit['Alpha'].iloc[row])
+            else:
+                x_data = self.temp_subsets[row][x_name]
+                
+            item = self.treat_raw_fit_list.item(row)
+            itemdict = item.data(32)
+            
+            if itemdict['raw']:
+                self.treat_fit_plot.ax.plot(self.temp_subsets[row][x_name],
+                                            self.temp_subsets[row][y_name],
+                                            marker='o',
+                                            mec=markercolor,
+                                            mfc='none',
+                                            linestyle='None')
+            if itemdict['fit']:
+                self.treat_fit_plot.ax.plot(x_data,
+                                            fcn_y(self.temp_subsets[row]['AC Frequency (Hz)'],
+                                                  self.raw_data_fit['ChiS'].iloc[row],
+                                                  self.raw_data_fit['ChiT'].iloc[row],
+                                                  self.raw_data_fit['Tau'].iloc[row],
+                                                  self.raw_data_fit['Alpha'].iloc[row]),
+                                            c=rgb)
+            
+        self.treat_fit_plot.ax.set_xscale(x_scale)
+        self.treat_fit_plot.ax.set_xlabel(x_name)
+        self.treat_fit_plot.ax.set_ylabel(y_name)
+        
+        norm = mpl.colors.Normalize(vmin=self.Tmin, vmax=self.Tmax)
+        self.treat_fit_plot.fig.colorbar(
+            mpl.cm.ScalarMappable(norm=norm,
+                                  cmap=self.temperature_cmap),
+                                        orientation='horizontal',
+            cax=self.treat_fit_plot.cax)
+        
+        self.treat_fit_plot.canvas.draw()
         
     def plot_from_combo(self):
         

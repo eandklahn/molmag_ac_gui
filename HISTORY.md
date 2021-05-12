@@ -1,3 +1,6 @@
+# v. 0.2.5
+Published on 12/5/2021
+Added option to color the measured data points
 
 # v. 0.2.4:
 Published on 11/3/2021
