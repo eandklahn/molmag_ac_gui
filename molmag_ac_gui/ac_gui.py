@@ -1476,7 +1476,7 @@ class ACGui(QMainWindow):
             # and the GuessDialog was accepted, get the
             # guess and perform fitting
             guess = guess_dialog.return_guess
-            p_fit = self.fit_relaxation_lmfit(guess, perform_this_fit)
+            p_fit = self.fit_relaxation(guess, perform_this_fit)
             
         except (AssertionError, IndexError):
             msg_text = 'Bad temperature or fit settings'
