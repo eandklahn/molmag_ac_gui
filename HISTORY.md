@@ -1,3 +1,8 @@
+# v. 0.2.6
+Published on 20/10/2021
+Removed requirements from setup.py.
+Will instead rely on third-party packages being imported in __init__.py
+
 # v. 0.2.5
 Published on 12/5/2021
 Added option to color the measured data points

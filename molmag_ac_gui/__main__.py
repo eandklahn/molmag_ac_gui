@@ -6,7 +6,8 @@ import sys
 from PyQt5.QtWidgets import QApplication
 
 #local imports
-from molmag_ac_gui.ac_gui import ACGui
+from . import ac_gui
+from . import process_ac
 
 if __name__ == '__main__':
     
@@ -14,5 +15,5 @@ if __name__ == '__main__':
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     
     app = QApplication(sys.argv)
-    w = ACGui()
+    w = ac_gui.ACGui()
     sys.exit(app.exec_())
