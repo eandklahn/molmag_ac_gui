@@ -1,3 +1,6 @@
+# v. 0.2.7
+Published on 25/10/2021
+
 # v. 0.2.6
 Published on 20/10/2021
 Removed requirements from setup.py.
