@@ -8,6 +8,7 @@ ac_gui_venv/*
 
 #Files
 .pypirc
+deploy.bat
 *.docx
 *.pdf
 *.tmp
