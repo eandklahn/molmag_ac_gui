@@ -8,7 +8,7 @@ with open('HISTORY.md') as history_file:
 
 setup_args = dict(
     name='molmag_ac_gui',
-    version='0.2.8',
+    version='0.2.9',
     description='A user interface and functions to work with magnetic relaxation',
     long_description_content_type="text/markdown",
     long_description=README + '\n\n' + HISTORY,

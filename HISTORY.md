@@ -1,3 +1,7 @@
+# v. 0.2.9
+Published on 26/10/2021
+Makes Windows-specific code only run on Windows
+
 # v. 0.2.8
 Published on 26/10/2021
 Updated read_options so SQUID-files can be read

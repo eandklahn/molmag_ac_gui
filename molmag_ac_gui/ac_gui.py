@@ -34,6 +34,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton,
                              QScrollArea, QStatusBar, QInputDialog)
 
 #local imports
+from .__init__ import __version__
 from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset,
                          getParameterGuesses, getStartParams,
                          getFittingFunction, readPopt, addPartialModel,
@@ -76,7 +77,7 @@ class ACGui(QMainWindow):
         self.last_loaded_file = os.getcwd()
         
         """ Things to do with how the window is shown """
-        self.setWindowTitle('AC Processing')
+        self.setWindowTitle('Molmag AC GUI v{}'.format(__version__))
         self.setWindowIcon(QIcon('double_well_potential_R6p_icon.ico'))
         
         """ FONT STUFF """
