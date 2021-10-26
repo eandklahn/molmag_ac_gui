@@ -1,14 +1,14 @@
 {
 "AC Frequency (Hz)":
-["Frequency (Hz)", "AC Frequency (Hz)"],
+["Frequency (Hz)", "AC Frequency (Hz)", "Wave Frequency (Hz)"],
 "AC Amplitude (Oe)":
-["Amplitude (Oe)", "AC Drive (Oe)"],
+["Amplitude (Oe)", "AC Drive (Oe)", "Drive Amplitude (Oe)"],
 "Magnetic Field (Oe)":
-["Magnetic Field (Oe)"],
+["Magnetic Field (Oe)", "Field (Oe)"],
 "Mp (emu)":
-["M' (emu)"],
+["M' (emu)", "m' (emu)"],
 "Mpp (emu)":
-["M'' (emu)"],
+["M'' (emu)", "m\" (emu)"],
 "Xp (emu/Oe)":
 ["AC X'  (emu/Oe)"],
 "Xpp (emu/Oe)":
