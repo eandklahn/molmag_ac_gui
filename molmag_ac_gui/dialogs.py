@@ -4,7 +4,6 @@ from collections import OrderedDict
 #third-party packages
 import scipy.constants as sc
 
-from PyQt5.QtWinExtras import QWinTaskbarButton
 from PyQt5.QtGui import QIcon, QFont, QDoubleValidator
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton, QLabel, QAction, QComboBox, QStackedWidget,
                              QDoubleSpinBox, QFormLayout, QCheckBox, QVBoxLayout, QMessageBox, QSplitter, QGridLayout,

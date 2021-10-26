@@ -24,7 +24,6 @@ from scipy.optimize import minimize, curve_fit
 from lmfit import Parameter, Parameters, Minimizer, minimize
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWinExtras import QWinTaskbarButton
 from PyQt5.QtGui import QIcon, QFont, QDoubleValidator, QColor
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton,
                              QLabel, QAction, QComboBox, QStackedWidget,
