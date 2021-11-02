@@ -31,7 +31,8 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton,
                              QVBoxLayout, QMessageBox, QSplitter, QGridLayout,
                              QHBoxLayout, QFileDialog, QDialog, QLineEdit,
                              QListWidget, QListWidgetItem, QTabWidget,
-                             QScrollArea, QStatusBar, QInputDialog)
+                             QScrollArea, QStatusBar, QInputDialog,
+                             QActionGroup)
 
 #local imports
 from .__init__ import __version__
@@ -374,7 +375,6 @@ class ACGui(QMainWindow):
         self.sample_mass_layout.addWidget(self.sample_mass_lbl)
         
         self.sample_mass_inp = QLineEdit()
-        self.sample_mass_inp.setToolTip(self.tooltips_dict['m_sample'])
         self.sample_mass_inp.setValidator(QDoubleValidator())
         self.sample_mass_layout.addWidget(self.sample_mass_inp)
 
@@ -386,7 +386,6 @@ class ACGui(QMainWindow):
         self.molar_mass_lo.addWidget(self.molar_mass_lbl)
         
         self.molar_mass_inp = QLineEdit()
-        self.molar_mass_inp.setToolTip(self.tooltips_dict['M_sample'])
         self.molar_mass_inp.setValidator(QDoubleValidator())
         self.molar_mass_lo.addWidget(self.molar_mass_inp)
 
@@ -395,12 +394,12 @@ class ACGui(QMainWindow):
         self.sample_info_layout.addLayout(self.sample_xd_lo)
         
         self.sample_xd_lbl = QLabel(u"<a href={}>X\u1D05</a>".format(
-                                    self.tooltips_dict['Xd_link'])
+                                    self.tooltips_dict['English']['Xd_link'])
                                     +' (sample) [emu/(Oe*mol)]')
+        self.sample_xd_lbl.setOpenExternalLinks(True)
         self.sample_xd_lo.addWidget(self.sample_xd_lbl)
         
         self.sample_xd_inp = QLineEdit()
-        self.sample_xd_inp.setToolTip(self.tooltips_dict['Xd_sample'])
         self.sample_xd_inp.setValidator(QDoubleValidator())
         self.sample_xd_lo.addWidget(self.sample_xd_inp)
         
@@ -412,7 +411,6 @@ class ACGui(QMainWindow):
         self.constant_terms_layout.addWidget(self.constant_terms_lbl)
              
         self.constant_terms_inp = QLineEdit()
-        self.constant_terms_inp.setToolTip(self.tooltips_dict['const_terms'])
         self.constant_terms_layout.addWidget(self.constant_terms_inp)
         
         # Variable amount edit
@@ -423,8 +421,8 @@ class ACGui(QMainWindow):
         self.var_amount_layout.addWidget(self.var_amount_lbl)
         
         self.var_amount_inp = QLineEdit()
-        self.var_amount_inp.setToolTip(self.tooltips_dict['var_amounts'])
         self.var_amount_layout.addWidget(self.var_amount_inp)
+        
         
         # Mass load button
         self.sample_data_lo = QHBoxLayout()
@@ -466,6 +464,15 @@ class ACGui(QMainWindow):
         # File menu
         self.file_menu = self.menu_bar.addMenu('File')
         
+        self.settings_action = QAction('&Settings', self)
+        self.settings_action.setShortcut("Ctrl+I")
+        
+        self.settings_action.triggered.connect(lambda: os.system(os.path.join(
+            os.path.dirname(__file__),
+            'data',
+            'read_options.json')))
+        self.file_menu.addAction(self.settings_action)
+
         self.quit_action = QAction('&Quit', self)
         self.quit_action.setShortcut("Ctrl+Q")
         self.quit_action.triggered.connect(sys.exit)
@@ -482,17 +489,44 @@ class ACGui(QMainWindow):
         # About menu
         self.help_menu = self.menu_bar.addMenu('Help')
         
+        self.help_lang_menu = self.help_menu.addMenu('Language')
+        self.help_lang_actiongrp = QActionGroup(self)
+        
+        self.help_lang_eng = QAction('English', self)
+        self.help_lang_eng.setCheckable(True)
+        self.help_lang_eng.setChecked(True)
+        self.help_lang_dan = QAction('Dansk', self)
+        self.help_lang_dan.setCheckable(True)
+
+        self.help_lang_eng.triggered.connect(self.set_gui_language)
+        self.help_lang_dan.triggered.connect(self.set_gui_language)
+        
+        self.help_lang_menu.addAction(self.help_lang_eng)
+        self.help_lang_actiongrp.addAction(self.help_lang_eng)
+        self.help_lang_menu.addAction(self.help_lang_dan)
+        self.help_lang_actiongrp.addAction(self.help_lang_dan)
+
         self.help_about_menu = QAction('About', self)
         self.help_about_menu.triggered.connect(self.show_about_dialog)
         self.help_about_menu.setShortcut("F10")
         self.help_menu.addAction(self.help_about_menu)
-        
+
         # Showing the GUI
         self.load_t_tau_data()
         
+        self.help_lang_eng.trigger()
         self.showMaximized()
         self.show()
     
+    def set_gui_language(self):
+
+        language = self.sender().text()
+        self.sample_mass_inp.setToolTip(self.tooltips_dict[language]['m_sample'])
+        self.molar_mass_inp.setToolTip(self.tooltips_dict[language]['M_sample'])
+        self.sample_xd_inp.setToolTip(self.tooltips_dict[language]['Xd_sample'])
+        self.constant_terms_inp.setToolTip(self.tooltips_dict[language]['const_terms'])
+        self.var_amount_inp.setToolTip(self.tooltips_dict[language]['var_amounts'])
+
     def show_about_dialog(self):
     
         w = AboutDialog(info=self.about_information)
@@ -1513,12 +1547,4 @@ class ACGui(QMainWindow):
         if len(self.fit_history)>9:
             self.fit_history.pop()
         self.fit_history.insert(0, (perform_this_fit, p_fit))
-    
-if __name__ == '__main__':
-    
-    myappid = 'AC Processing v1.0'
-    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-    
-    app = QApplication(sys.argv)
-    w = ACGui()
-    sys.exit(app.exec_())     
+        
