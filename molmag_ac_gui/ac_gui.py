@@ -1010,7 +1010,7 @@ class ACGui(QMainWindow):
     def update_temp_subsets(self):
         
         self.temp_subsets = []
-        idx_list = [-1]
+        idx_list = [0]
         # Splits based on where the frequency "restarts"
         # Assumes that the frequency is always increasing within a measurement
         i=0
@@ -1024,8 +1024,9 @@ class ACGui(QMainWindow):
             old_val = new_val
             i+=1
         idx_list.append(self.raw_df.shape[0])
+        
         for n in range(len(idx_list)-1):
-            self.temp_subsets.append(self.raw_df.iloc[idx_list[n]+1:idx_list[n+1]])
+            self.temp_subsets.append(self.raw_df.iloc[idx_list[n]:idx_list[n+1]])
     
     def cleanup_loaded_ppms(self):
         
