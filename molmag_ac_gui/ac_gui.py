@@ -34,7 +34,8 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton,
                              QListWidget, QListWidgetItem, QTabWidget,
                              QScrollArea, QStatusBar, QInputDialog)
 
-#local imports
+
+#local imports: Hvorfor punktum ved local imports?
 from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset,
                          getParameterGuesses, getStartParams,
                          getFittingFunction, readPopt, addPartialModel,
@@ -47,10 +48,16 @@ from .utility import (read_ppms_file, get_ppms_column_name_matches,
 from .exceptions import FileFormatError, NoGuessExistsError
 from . import data as pkg_static_data
 
+#Datatabletab import:
+from .Datatabletab import Datatabletab 
+
+
 #set constants
 kB = sc.Boltzmann
 
-"""
+
+
+"""08 >
 MAIN GUI WINDOW
 """
 
@@ -73,32 +80,35 @@ class ACGui(QMainWindow):
                                   'https://eandklahn.github.io'
                                   }
         
-        self.startUp = True
-        self.last_loaded_file = os.getcwd()
+        self.startUp = True #Some old stuff about reading a filee directly from the terminal. Does not work fully. 
+        self.last_loaded_file = os.getcwd() #Remember the last used folder.
+        self.current_file = ''
+
         
         """ Things to do with how the window is shown """
         self.setWindowTitle('AC Processing')
         self.setWindowIcon(QIcon('double_well_potential_R6p_icon.ico'))
         
         """ FONT STUFF """
-        self.headline_font = QFont()
-        self.headline_font.setBold(True)
+        self.headline_font = QFont() #Defines headline font
+        self.headline_font.setBold(True) #Makes it bold
         
         """ Setting up the main tab widget """
-        self.all_the_tabs = QTabWidget()
+        self.all_the_tabs = QTabWidget() 
         self.setCentralWidget(self.all_the_tabs)
-        self.statusBar = QStatusBar()
+        self.statusBar = QStatusBar() #A statusbar in the buttom of the window
         self.setStatusBar(self.statusBar)
         
         """ Constructing the data analysis tab """
         # Data containers for analysis
         
         self.simulation_colors = [x for x in TABLEAU_COLORS]
-        self.simulation_colors.remove('tab:gray')
-        self.simulation_colors = deque(self.simulation_colors)
+        self.simulation_colors.remove('tab:gray') #Hvorfor fjerne grå og hvorfor tab: 
+        self.simulation_colors = deque(self.simulation_colors) #Hvorfor deque i stedet for liste? 
         
+        #Creating all the needed attributes or whatever it is called
         self.fit_history = list()
-        
+
         self.data_T = None
         self.data_tau = None
         self.data_dtau = None
@@ -123,6 +133,7 @@ class ACGui(QMainWindow):
         # Data containers for treatment
         self.read_options = json.loads(read_text(pkg_static_data,
                                                 'read_options.json'))
+        #JSON: JavaScript Object Notation. Vil du forklare lidt om det? Hvordan det bruges
         
         self.diamag_constants = json.loads(read_text(pkg_static_data,
                                                     'diamag_constants.json'))
@@ -136,6 +147,7 @@ class ACGui(QMainWindow):
 
         self.setStyleSheet(read_text(pkg_static_data, 'styles.qss'))
 
+        #Creates dataframe with header and raw_df
         self.raw_df = None
         self.raw_df_header = None
         self.num_meas_freqs = 0
@@ -487,6 +499,10 @@ class ACGui(QMainWindow):
         self.help_about_menu.setShortcut("F10")
         self.help_menu.addAction(self.help_about_menu)
         
+        #Makes "Table of Data" tab
+        self.widget_table = Datatabletab(self)
+        self.all_the_tabs.addTab(self.widget_table, "Table of Data")
+
         # Showing the GUI
         self.load_t_tau_data()
         
@@ -624,7 +640,7 @@ class ACGui(QMainWindow):
     
         filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.last_loaded_file)
         filename = filename_info[0]
-        
+
         try:
             f = open(filename, 'r')
             d = f.readlines()
@@ -907,6 +923,7 @@ class ACGui(QMainWindow):
         filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.last_loaded_file)
         filename = filename_info[0]
         
+        
         try:
             # FileNotFoundError and UnicodeDecodeError will be raised here
             potential_header, potential_df = read_ppms_file(filename)
@@ -939,6 +956,7 @@ class ACGui(QMainWindow):
             # Now that everything has been seen to work,
             # save potential header and potential df as actual header and df
             self.last_loaded_file = os.path.split(filename)[0]
+            self.current_file = filename
             self.raw_df = potential_df
             self.raw_df_header = potential_header
             
@@ -961,7 +979,11 @@ class ACGui(QMainWindow):
             
             # Updating analysis combos, which will automatically draw the new data
             self.update_analysis_combos()
- 
+            #Updates "Table of Data" tab with the loaded data
+            self.widget_table.updatetable()
+
+
+
     def update_meas_temps(self):
         
         meas_temps = []
