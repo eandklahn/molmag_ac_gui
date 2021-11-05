@@ -1,14 +1,32 @@
 {
-"Xd_sample":
-"Enter the diamagnetic susceptibility of the sample.\nIf set to 0, the value will be replaced by -6e-7*M_sample internally.\nLook up values in units of emu/mol ~ emu/(Oe*mol) in DOI: 10.1021/ed085p532.\n(right-click the link in the box label)\nKeyword: 'Xd_sample'",
-"Xd_link":
-"https://pubs.acs.org/doi/10.1021/ed085p532",
-"M_sample":
-"Enter the molar mass of the sample in g/mol\nKeyword: 'M_sample'",
-"const_terms":
-"Insert constant terms as 'val1,val2,val3,...'\nKeyword: 'constants'",
-"var_amounts":
-"Insert variable amount terms as 'sus1,amount1,sus2,amount2,sus3,amount3,...'\nKeyword: 'var_amount'",
-"m_sample":
-"Enter a sample mass in mg\nKeyword: 'm_sample'"
+"English":
+    {
+        "Xd_sample":
+        "Enter the diamagnetic susceptibility of the sample.\nIf set to 0, the value will be replaced by -6e-7*M_sample internally.\nLook up values in units of emu/mol ~ emu/(Oe*mol) in DOI: 10.1021/ed085p532 (label of the box)\nKeyword: 'Xd_sample'",
+        "Xd_link":
+        "https://pubs.acs.org/doi/10.1021/ed085p532",
+        "M_sample":
+        "Enter the molar mass of the sample in g/mol\nKeyword: 'M_sample'",
+        "const_terms":
+        "Insert constant terms as 'val1,val2,val3,...'\nKeyword: 'constants'",
+        "var_amounts":
+        "Insert variable amount terms as 'sus1,amount1,sus2,amount2,sus3,amount3,...'\nKeyword: 'var_amount'",
+        "m_sample":
+        "Enter a sample mass in mg\nKeyword: 'm_sample'"
+    },
+"Dansk":
+    {
+        "Xd_sample":
+        "Indtast den diamagnetiske susceptibilitet af prøven.\nHvis den sættes til 0, erstattes værdien internt af -6e-7*M_sample.\nVærdier kan slås op i enheden emu/mol ~ emu/(Oe*mol) i DOI: 10.1021/ed085p532 (boksens label)\nVariabel: 'Xd_sample'",
+        "Xd_link":
+        "https://pubs.acs.org/doi/10.1021/ed085p532",
+        "M_sample":
+        "Indtast den molære masse af prøven i g/mol. Variabel 'M_sample'",
+        "const_terms":
+        "Indtast de konstante susceptibilitetsværdier som 'værdi1,værdi2,værdi3,...'\nVariabel: 'constants'",
+        "var_amounts":
+        "Indtast de variable susceptibilitetsværdier som 'værdi1,mængde1,værdi2,mængde2,værdi3,mængde3,...'\nVariabel: 'var_amount'",
+        "m_sample":
+        "Indtast en prøvemasse i mg\nVariabel: 'm_sample'"
+    }
 }

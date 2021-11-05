@@ -17,13 +17,21 @@ def read_ppms_file(filename):
             found_data = True
     
     if (found_header and found_data):
+        
         header = d[header_start:data_start-1]
         header = [h.strip().split(',') for h in header if not h.startswith(';') and h.startswith('INFO')]
-        header = {h[2]: h[1] for h in header}
+        header_dict = {}
+        for h in header:
+            try:
+                header_dict[h[2]] = h[1]
+            except IndexError:
+                continue
+        header = header_dict
         
         df = pd.read_csv(filename,
-                        header=data_start,
-                        engine='python')
+                         header=data_start,
+                         engine='python',
+                         skip_blank_lines=False)
     else:
         header, df = None, None
     
@@ -41,12 +49,6 @@ def get_ppms_column_name_matches(columns, options):
     
     return count, name
    
-if __name__ == '__main__':
-    
-    filename = input()
-    h, df = read_ppms_file(filename)
-    print(h)
-    
 def update_data_names(df, options):
     """
     # This function is supposed to update the names of the columns in raw_df, so that
@@ -63,4 +65,9 @@ def update_data_names(df, options):
         summary[key] = count
     
     return summary
+
+if __name__ == '__main__':
     
+    filename = input()
+    h, df = read_ppms_file(filename)
+    print(h)
