@@ -34,13 +34,10 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton,
                              QScrollArea, QStatusBar, QInputDialog,
                              QActionGroup)
 
-<<<<<<< HEAD
 
 #local imports: Hvorfor punktum ved local imports?
-=======
 #local imports
 from .__init__ import __version__
->>>>>>> 7cb4c1130206623e0b85bb6ea35ed462eb067e52
 from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset,
                          getParameterGuesses, getStartParams,
                          getFittingFunction, readPopt, addPartialModel,
@@ -526,13 +523,10 @@ class ACGui(QMainWindow):
         self.help_about_menu.triggered.connect(self.show_about_dialog)
         self.help_about_menu.setShortcut("F10")
         self.help_menu.addAction(self.help_about_menu)
-<<<<<<< HEAD
         
         #Makes "Table of Data" tab
         self.widget_table = Datatabletab(self)
         self.all_the_tabs.addTab(self.widget_table, "Table of Data")
-=======
->>>>>>> 7cb4c1130206623e0b85bb6ea35ed462eb067e52
 
         # Showing the GUI
         self.load_t_tau_data()
