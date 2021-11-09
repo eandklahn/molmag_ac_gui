@@ -5,6 +5,7 @@ dist/*
 build/*
 docs/*
 ac_gui_venv/*
+prototyping/*
 
 #Files
 .pypirc
