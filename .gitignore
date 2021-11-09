@@ -3,6 +3,7 @@
 molmag_ac_gui.egg-info/*
 dist/*
 build/*
+prototyping/*
 docs/*
 ac_gui_venv/*
 prototyping/*

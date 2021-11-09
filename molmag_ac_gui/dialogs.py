@@ -18,6 +18,15 @@ from matplotlib.backends.backend_qt5agg import FigureCanvas, NavigationToolbar2Q
 #set constants
 kB = sc.Boltzmann
 
+class MagMessage(QMessageBox):
+
+    def __init__(self, title, message):
+
+        super(MagMessage, self).__init__()
+
+        self.setWindowTitle(title)
+        self.setText(message)
+
 class PlottingWindow(QWidget):
 
     def __init__(self, make_cax=False):

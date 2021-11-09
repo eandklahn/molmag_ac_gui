@@ -35,7 +35,6 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton,
                              QActionGroup)
 
 
-#local imports: Hvorfor punktum ved local imports?
 #local imports
 from .__init__ import __version__
 from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset,
@@ -44,7 +43,7 @@ from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset,
                          tau_err_RC, diamag_correction, fit_Xp_Xpp_genDebye,
                          _QT, _R, _O)
 from .dialogs import (GuessDialog, SimulationDialog, AboutDialog, ParamDialog,
-                      FitResultPlotStatus, PlottingWindow)
+                      FitResultPlotStatus, PlottingWindow, MagMessage)
 from .utility import (read_ppms_file, get_ppms_column_name_matches,
                       update_data_names)
 from .exceptions import FileFormatError, NoGuessExistsError
@@ -59,7 +58,7 @@ kB = sc.Boltzmann
 
 
 
-"""08 >
+"""
 MAIN GUI WINDOW
 """
 
@@ -147,7 +146,7 @@ class ACGui(QMainWindow):
         self.tooltips_dict = json.loads(read_text(pkg_static_data,
                                                   'tooltips.json'))
 
-        self.setStyleSheet(read_text(pkg_static_data, 'styles.qss'))
+        #self.setStyleSheet(read_text(pkg_static_data, 'styles.qss'))
 
         #Creates dataframe with header and raw_df
         self.raw_df = None
@@ -810,6 +809,10 @@ class ACGui(QMainWindow):
             
             self.update_temp_subsets()
             self.update_analysis_combos()
+            self.widget_table.updatetable()
+
+            w = MagMessage('Diamagnetic correction',
+                          'Diamagnetic correction successful!').exec_()
     
     def update_itemdict(self, item, itemdict):
         
@@ -958,7 +961,6 @@ class ACGui(QMainWindow):
         filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.last_loaded_file)
         filename = filename_info[0]
         
-        
         try:
             # FileNotFoundError and UnicodeDecodeError will be raised here
             potential_header, potential_df = read_ppms_file(filename)
@@ -992,6 +994,7 @@ class ACGui(QMainWindow):
             # save potential header and potential df as actual header and df
             self.last_loaded_file = os.path.split(filename)[0]
             self.current_file = filename
+            
             self.raw_df = potential_df
             self.raw_df_header = potential_header
             
@@ -1016,8 +1019,6 @@ class ACGui(QMainWindow):
             self.update_analysis_combos()
             #Updates "Table of Data" tab with the loaded data
             self.widget_table.updatetable()
-
-
 
     def update_meas_temps(self):
         

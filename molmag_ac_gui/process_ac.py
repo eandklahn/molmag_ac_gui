@@ -38,7 +38,7 @@ def fit_Xp_Xpp_genDebye(v, Xp_data, Xpp_data):
     fit_params.add('Xs', value=Xp_data[-1], min=0, max=np.inf)
     fit_params.add('Xt', value=Xp_data[0], min=0, max=np.inf)
     fit_params.add('tau', value=tau_init, min=0, max=np.inf)
-    fit_params.add('alpha', value=0.1, min=0, max=np.inf)
+    fit_params.add('alpha', value=0.1, min=0, max=1)
     
     out = lmfit_minimize(genDebye_objective, fit_params, args=(v, data))
     
