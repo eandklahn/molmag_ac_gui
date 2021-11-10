@@ -158,7 +158,6 @@ class GuessDialog(QDialog):
         self.layout.addWidget(accept_btn)
 
         self.setLayout(self.layout)
-        #self.show()
     
     def fit_history_element_repr(self, e):
         
@@ -415,82 +414,47 @@ class AboutDialog(QDialog):
 class ParamDialog(QDialog):
 
     def __init__(self,
-                 fit_history,
-                 parent=None):
+                 parent,
+                 fit_history):
                  
         super(ParamDialog, self).__init__()
         
-        self.setWindowTitle('Fitted parameters')
-        self.layout = QVBoxLayout()
-
+        self.parent = parent
         self.fit_history = fit_history
         
-        self.parameter_labels = OrderedDict()
-        self.parameter_labels['tQT']=QLabel()
-        self.parameter_labels['Cr']=QLabel()
-        self.parameter_labels['n']=QLabel()
-        self.parameter_labels['t0']=QLabel()
-        self.parameter_labels['Ueff']=QLabel()
+        self.setWindowTitle('Fitted parameters')
         
-        self.fit_history_combo = QComboBox()
-        for e in self.fit_history:
-            rep = self.fit_history_element_repr(e)
-            self.fit_history_combo.addItem(rep)
-        self.fit_history_combo.activated.connect(self.show_fit)
-        self.layout.addWidget(self.fit_history_combo)
+        self.initUI()
+        self.update_fit_combo()
         
-        for key, val in self.parameter_labels.items():
-            self.layout.addWidget(val)        
-            
-        self.fit_history_combo.setCurrentIndex(0)
-        self.show_fit()
+    def initUI(self):
+        
+        self.layout = QVBoxLayout()
+
+        self.choose_fit_combo = QComboBox()
+        self.choose_fit_combo.currentIndexChanged.connect(
+                                                  self.show_MinimizerResult)
+        self.layout.addWidget(self.choose_fit_combo)
+
+        self.fit_title = QLabel()
+        self.fit_title.setFont(self.parent.headline_font)
+        self.layout.addWidget(self.fit_title)    
+
         self.setLayout(self.layout)
-        #self.show()
 
-    def show_fit(self):
-        
-        fit_idx = self.fit_history_combo.currentIndex()
-        fit = self.fit_history[fit_idx]
-        
-        quants = fit[1]['quantities']
-        params = fit[1]['params']
-        sigmas = fit[1]['sigmas']
-        
-        for key, val in self.parameter_labels.items():
-            if key in quants:
-                key_idx = quants.index(key)
-                key_param = params[key_idx]
-                key_sigma = sigmas[key_idx]
-                if key=='Ueff':
-                    key_param /= kB
-                    key_sigma /= kB
-                val.setText(f'{key} = {key_param:.6e} +- {key_sigma:.6e}')
-            else:
-                val.setText(f'{key} = None')
-        
-    def fit_history_element_repr(self, e):
-        
-        fit_type = e[0]
-        fit_dict = e[1]
-        params = fit_dict['params']
-        quants = fit_dict['quantities']
-        
-        rep = []
-        for key in self.parameter_labels.keys():
-            if key in quants:
-                idx = quants.index(key)
-                param_val = params[idx]
-                if key=='Ueff':
-                    param_val /= kB
-                rep.append(f'{key}: {param_val:.2e}')
-            else:
-                rep.append(f'{key}: None')
-                
-        rep = f'Fit type: {fit_type}'+'\n'+'\n'.join(rep)    
-        
-        return rep
-    
+    def update_fit_combo(self):
 
+        for fit in self.fit_history:
+            name, res, time = fit
+            self.choose_fit_combo.addItem(f'{time}: {name}')
+
+    def show_MinimizerResult(self):
+        
+        fit_idx = self.choose_fit_combo.currentIndex()
+        name, res, time = self.fit_history[fit_idx]
+        title = f'{time}: {name}'
+
+        self.fit_title.setText(title)
 
 class FitResultPlotStatus(QDialog):
 

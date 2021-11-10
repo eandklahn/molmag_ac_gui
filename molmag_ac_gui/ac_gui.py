@@ -8,6 +8,7 @@ import json
 from importlib.resources import read_text
 from multiprocessing import Pool
 from collections import deque
+import datetime
 
 #third-party packages
 import numpy as np
@@ -41,7 +42,8 @@ from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset,
                          getParameterGuesses, getStartParams,
                          getFittingFunction, readPopt, addPartialModel,
                          tau_err_RC, diamag_correction, fit_Xp_Xpp_genDebye,
-                         _QT, _R, _O)
+                         _QT, _R, _O, general_relaxation, relaxation_dataset,
+                         fit_relaxation)
 from .dialogs import (GuessDialog, SimulationDialog, AboutDialog, ParamDialog,
                       FitResultPlotStatus, PlottingWindow, MagMessage)
 from .utility import (read_ppms_file, get_ppms_column_name_matches,
@@ -129,8 +131,6 @@ class ACGui(QMainWindow):
         self.used_dtau = None
         self.not_used_dtau = None
         
-        self.fitted_params_dialog = None
-                
         # Data containers for treatment
         self.read_options = json.loads(read_text(pkg_static_data,
                                                 'read_options.json'))
@@ -1081,16 +1081,12 @@ class ACGui(QMainWindow):
         
         try:
             fit = self.fit_history[0]
-            assert self.fitted_params_dialog is None
-            
-        except IndexError:
-            pass
-        except AssertionError:
-            self.fitted_params_dialog.show()
-            self.fitted_params_dialog.activateWindow()
+        except (IndexError, TypeError):
+            w = MagMessage('Fit history error', 'There is no fit history yet!')
+            w.exec_()
         else:
-            self.fitted_params_dialog = ParamDialog(fit_history=self.fit_history)
-            finished = self.fitted_params_dialog.exec_()
+            w = ParamDialog(self, self.fit_history)
+            finished = w.exec_()
         
     def edit_simulation_from_list(self):
     
@@ -1416,68 +1412,6 @@ class ACGui(QMainWindow):
         
         return fn
         
-    def fit_relaxation_lmfit(self, guess, perform_this_fit):
-
-        fn = self.make_fitting_function(perform_this_fit)
-        
-        def objective(params, T, tau_obs, err=None):
-            
-            tQT = params['tQT']
-            Cr = params['Cr']
-            n = params['n']
-            t0 = params['t0']
-            Ueff = params['Ueff']
-            
-            tau_calc = fn(T, tQT, Cr, n, t0, Ueff)
-
-            residuals = tau_calc - tau_obs
-            
-            if err is not None:
-                residuals = residuals/err
-                
-            return residuals
-        
-        def iter_cb(params, iter, resid, *args, **kwargs):
-        
-            print(f'---------- {iter}')
-            print(f'Residual is {np.sum(resid**2)}')
-            for p in params:
-                print(f'{p}: {params[p].value:.2e}')
-        
-        params = Parameters()
-        params.add('tQT', value=guess['tQT'], vary=('QT' in perform_this_fit), min=0)
-        params.add('Cr', value=guess['Cr'], vary=('R' in perform_this_fit),min=0)
-        params.add('n', value=guess['n'], vary=('R' in perform_this_fit), min=0)
-        params.add('t0', value=guess['t0'], vary=('O' in perform_this_fit), min=0)
-        params.add('Ueff', value=guess['Ueff'], vary=('O' in perform_this_fit))
-
-        user_args = (self.used_T, np.log(self.used_tau))
-
-        if self.used_tau is None:
-            user_kws = None
-        else:
-            user_kws = {'err': np.log(self.used_dtau)}
-        
-        m = Minimizer(objective,
-                      params,
-                      fcn_args=user_args,
-                      fcn_kws=user_kws,
-                      reduce_fcn=None,
-                      nan_policy='raise',
-                      iter_cb=iter_cb)
-        
-        result = m.minimize()
-        
-        pars = [result.params[p].value for p in result.params if result.params[p].vary]
-        sigs = [result.params[p].stderr for p in result.params if result.params[p].vary]
-        nams = [result.params[p].name for p in result.params if result.params[p].vary]
-        
-        p_fit = {'params': pars,
-                 'sigmas': sigs,
-                 'quantities': nams}
-
-        return p_fit
-        
     def fit_relaxation(self, guess, perform_this_fit):
         """
         First function used to fit t-tau-data, but this function uses curve_fit,
@@ -1535,7 +1469,20 @@ class ACGui(QMainWindow):
             # and the GuessDialog was accepted, get the
             # guess and perform fitting
             guess = guess_dialog.return_guess
-            p_fit = self.fit_relaxation(guess, perform_this_fit)
+
+            fitwith = perform_this_fit
+            
+            params = Parameters()
+            params.add(name='tQT', value=1e-4, vary='QT' in fitwith, min=0)
+            params.add(name='Cr', value=1e-3, vary='R' in fitwith, min=0)
+            params.add(name='n', value=4, vary='R' in fitwith, min=0, max=20)
+            params.add(name='t0', value=1e-7, vary='O' in fitwith, min=0)
+            params.add(name='Ueff', value=47*kB, vary='O' in fitwith)
+            params.add(name='useQT', value=int('QT' in fitwith), vary=False)
+            params.add(name='useR', value=int('R' in fitwith), vary=False)
+            params.add(name='useO', value=int('O' in fitwith), vary=False)
+            
+            minimize_res = fit_relaxation(self.used_T, self.used_tau, params)
             
         except (AssertionError, IndexError):
             msg_text = 'Bad temperature or fit settings'
@@ -1548,7 +1495,8 @@ class ACGui(QMainWindow):
         except ValueError as e:
             print(e)
             msg_text = 'No file has been loaded'
-        except TypeError:    
+        except TypeError as e:
+            print(e)    
             msg_text = 'No data has been selected'
         except NoGuessExistsError:
             msg_text = 'Made no guess for initial parameters'
@@ -1557,7 +1505,7 @@ class ACGui(QMainWindow):
             window_title = 'Fit successful!'
             msg_text = 'Congratulations'
             
-            self.add_to_history(p_fit, perform_this_fit)
+            self.add_to_history(minimize_res, perform_this_fit)
             
         finally:
             msg = QMessageBox()
@@ -1568,8 +1516,11 @@ class ACGui(QMainWindow):
             msg.exec_()        
     
     def add_to_history(self, p_fit, perform_this_fit):
-    
+        
+        now = datetime.datetime.now()
+        now = now.strftime("%d.%m %H:%M:%S")
+
         if len(self.fit_history)>9:
             self.fit_history.pop()
-        self.fit_history.insert(0, (perform_this_fit, p_fit))
+        self.fit_history.insert(0, (perform_this_fit, p_fit, now))
         

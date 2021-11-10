@@ -495,4 +495,37 @@ def addPartialModel(fig, Tmin, Tmax, p_fit, plotType='O', *args, **kwargs):
     line, = ax.plot(1/T_space, np.ones(T_space.shape)*f(T_space, *p), *args, **kwargs)
     
     return line
+
+def general_relaxation(T, tQT, Cr, n, t0, Ueff, useQT, useR, useO):
+
+    tauQT = _QT(T, tQT)
+    tauO = _O(T, t0, Ueff)
+    tauR = _R(T, Cr, n)
+
+    rate = useQT*(1/tauQT)+useO*(1/tauO)+useR*(1/tauR)
+    tau = 1/rate
+
+    return tau
+
+def relaxation_dataset(params, T):
     
+    tQT = params['tQT']
+    Cr = params['Cr']
+    n = params['n']
+    t0 = params['t0']
+    Ueff = params['Ueff']
+    useQT = params['useQT']
+    useR = params['useR']
+    useO = params['useO']
+
+    return general_relaxation(T, tQT, Cr, n, t0, Ueff, useQT, useR, useO)
+
+def fit_relaxation(T, tau_data, params):
+
+    def objective(params, T, tau_data):
+
+        return tau_data - relaxation_dataset(params, T)
+
+    out = lmfit_minimize(objective, params, args=(T, tau_data))
+
+    return out
