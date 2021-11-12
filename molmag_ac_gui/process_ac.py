@@ -12,6 +12,8 @@ from scipy.optimize import curve_fit
 
 from lmfit import Parameters, minimize as lmfit_minimize
 
+kB = sc.Boltzmann
+
 """
 HELPER FUNCTIONS FOR PROCESSING AC-DATA
 """
@@ -529,3 +531,20 @@ def fit_relaxation(T, tau_data, params):
     out = lmfit_minimize(objective, params, args=(T, tau_data))
 
     return out
+
+def default_parameters(fitwith):
+
+    if fitwith == 'all':
+        fitwith = 'QTRO'
+
+    params = Parameters()
+    params.add(name='tQT', value=1e-4, vary='QT' in fitwith, min=0)
+    params.add(name='Cr', value=1e-3, vary='R' in fitwith, min=0)
+    params.add(name='n', value=4, vary='R' in fitwith, min=0, max=20)
+    params.add(name='t0', value=1e-7, vary='O' in fitwith, min=0)
+    params.add(name='Ueff', value=50*kB, vary='O' in fitwith)
+    params.add(name='useQT', value=int('QT' in fitwith), vary=False)
+    params.add(name='useR', value=int('R' in fitwith), vary=False)
+    params.add(name='useO', value=int('O' in fitwith), vary=False)
+
+    return params

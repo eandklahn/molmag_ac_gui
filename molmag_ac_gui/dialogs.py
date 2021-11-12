@@ -5,7 +5,7 @@ from collections import OrderedDict
 import scipy.constants as sc
 
 from PyQt5.QtGui import QIcon, QFont, QDoubleValidator
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton, QLabel, QAction, QComboBox, QStackedWidget,
+from PyQt5.QtWidgets import (QFrame, QMainWindow, QWidget, QApplication, QPushButton, QLabel, QAction, QComboBox, QStackedWidget,
                              QDoubleSpinBox, QFormLayout, QCheckBox, QVBoxLayout, QMessageBox, QSplitter, QGridLayout,
                              QHBoxLayout, QFileDialog, QDialog, QLineEdit, QListWidget, QListWidgetItem, QTabWidget,
                              QScrollArea, QStatusBar)
@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.qt_compat import QtCore, QtWidgets
 from matplotlib.backends.backend_qt5agg import FigureCanvas, NavigationToolbar2QT as NavigationToolbar
+
+from .process_ac import default_parameters
 
 #set constants
 kB = sc.Boltzmann
@@ -109,99 +111,154 @@ class PlottingWindow(QWidget):
 class GuessDialog(QDialog):
 
     def __init__(self,
-                 parent=None,
-                 guess=None,
-                 fit_history=None):
+                 parent,
+                 guess,
+                 fitwith):
         
         super(GuessDialog, self).__init__()
         
-        self.layout = QVBoxLayout()
-        self.setWindowTitle('Guess parameters')
-
+        self.setWindowTitle('Initial fit parameters')
         self.validator = QDoubleValidator()
         self.validator.setNotation(QDoubleValidator.ScientificNotation)
         
-        self.fit_history = fit_history
+        self.parent = parent
+        self.fit_history = parent.fit_history
+        self.fitwith = fitwith
         self.init_guess = guess
-        self.values = []
         
-        self.parameter_inputs = OrderedDict()
-        self.parameter_inputs['tQT']=None
-        self.parameter_inputs['Cr']=None
-        self.parameter_inputs['n']=None
-        self.parameter_inputs['t0']=None
-        self.parameter_inputs['Ueff']=None
+        self.init_params = default_parameters(self.fitwith)
+        self.set_init_params()
+
+        self.final_params = default_parameters(self.fitwith)
         
-        self.fit_history_lbl = QLabel('Fit history (latest first)')
+        self.current_choice = self.init_params
+
+        self.initUI()
+
+    def initUI(self):
+
+        self.layout = QVBoxLayout()
+
+        self.fit_history_lbl = QLabel('Fit history')
+        self.fit_history_lbl.setFont(self.parent.headline_font)
         self.layout.addWidget(self.fit_history_lbl)
+
+        self.choose_fit_combo = QComboBox()
+        self.update_fit_combo()
+        self.choose_fit_combo.activated.connect(self.use_fit)
+        self.layout.addWidget(self.choose_fit_combo)
         
-        self.fit_history_combo = QComboBox()
-        for e in self.fit_history:
-            rep = self.fit_history_element_repr(e)
-            self.fit_history_combo.addItem(rep)
-        self.layout.addWidget(self.fit_history_combo)
-        self.fit_history_combo.activated.connect(self.fit_take_control)
-        
-        self.sim_vals_layout = QFormLayout()
-        for key in self.parameter_inputs.keys():
-            self.parameter_inputs[key] = QLineEdit()
-            self.parameter_inputs[key].setValidator(self.validator)
-            if key=='Ueff':
-                self.parameter_inputs[key].setText(str(self.init_guess[key]/kB))
-            else:
-                self.parameter_inputs[key].setText(str(self.init_guess[key]))
-            self.sim_vals_layout.addRow(key, self.parameter_inputs[key])
-        self.layout.addLayout(self.sim_vals_layout)
-        
-        accept_btn = QPushButton('Fit')
-        accept_btn.clicked.connect(self.on_close)
-        self.layout.addWidget(accept_btn)
+        self.make_value_frame()
+        self.set_params()
+
+        self.accept_btn = QPushButton('Accept')
+        self.accept_btn.clicked.connect(self.onclose)
+        self.layout.addWidget(self.accept_btn)
 
         self.setLayout(self.layout)
     
-    def fit_history_element_repr(self, e):
+    def make_value_frame(self):
+
+        w = QFrame()
+        layout = QHBoxLayout()
+        w.setStyleSheet('background-color: rgb(240,240,240)')
         
-        fit_type = e[0]
-        fit_dict = e[1]
-        params = fit_dict['params']
-        quants = fit_dict['quantities']
+        name = ['0']
+        lbls = [QLabel('Name')]
+        vals = [QLabel('Value')]
+        mins = [QLabel('Min.')]
+        maxs = [QLabel('Max.')]
+
+        for p in [p for p in self.init_params if not 'use' in p]:
+            newlbl = QLabel(p)
+            newval = QLineEdit()
+            newmin = QLineEdit()
+            newmax = QLineEdit()
+
+            newval.setValidator(self.validator)
+            newmin.setValidator(self.validator)
+            newmax.setValidator(self.validator)
+
+            lbls.append(newlbl)
+            vals.append(newval)
+            mins.append(newmin)
+            maxs.append(newmax)
+
+        columns = [lbls, vals, mins, maxs]
+        for items in columns:
+            lo = QVBoxLayout()
+            for item in items:
+                lo.addWidget(item)
+            layout.addLayout(lo)
+
+        w.setLayout(layout)
+        self.layout.addWidget(w)
+
+        self.value_frame = {'lbls': lbls,
+                            'vals': vals,
+                            'mins': mins,
+                            'maxs': maxs}
+
+    def set_init_params(self):
         
-        rep = []
-        for key in self.parameter_inputs.keys():
-            if key in quants:
-                idx = quants.index(key)
-                param_val = params[idx]
-                if key=='Ueff':
-                    param_val /= kB
-                rep.append(f'{key}: {param_val:.2e}')
-            else:
-                rep.append(f'{key}: None')
-                
-        rep = f'Fit type: {fit_type}'+'\n'+'\n'.join(rep)    
+        for key, val in self.init_guess.items():
+            self.init_params[key].set(value=val)
+
+    def set_params(self):
         
-        return rep    
+        params = self.current_choice
+
+        for i, p in enumerate(self.value_frame['lbls'][1:]):
+            i += 1
+            name = p.text()
+            param = params[name]
+            vary = param.vary
+            val = param.value
+            min_val = param.min
+            max_val = param.max
+
+            if vary:
+                self.value_frame['vals'][i].setText(str(val))
+                self.value_frame['mins'][i].setText(str(min_val))
+                self.value_frame['maxs'][i].setText(str(max_val))
+
+    def use_fit(self):
+        
+        idx = self.choose_fit_combo.currentIndex()
+        name, res, time = self.fit_history[idx]
+        self.current_choice = res.params
+        self.set_params()
+
+    def update_fit_combo(self):
+
+        for fit in self.fit_history:
+            name, res, time = fit
+            params = res.params
+            repr = f'{time}: {name}'
+            L = [p for p in params if not ('use' in p or params[p].vary==False)]
+            for p in L:
+                param = params[p]
+                repr += f'\n{param.name}: {param.value}'
+            self.choose_fit_combo.addItem(repr)
     
-    def fit_take_control(self):
+    def set_final_params(self):
+
+        names = [lbl.text() for lbl in self.value_frame['lbls']]
         
-        idx = self.fit_history_combo.currentIndex()
-        fit = self.fit_history[idx]
-        
-        fit_dict = fit[1]
-        params = fit_dict['params']
-        quants = fit_dict['quantities']
-        
-        for key, val in self.parameter_inputs.items():
-            if key in quants:
-                key_idx = quants.index(key)
-                new_val = params[key_idx]
-                if key == 'Ueff':
-                    new_val /= kB
-                val.setText(str(new_val))
-                
-    def on_close(self):
-        
-        self.return_guess = {key: float(val.text()) for key, val in self.parameter_inputs.items()}
-        self.return_guess['Ueff'] = self.return_guess['Ueff']*kB
+        for p in self.final_params:
+            param = self.final_params[p]
+            if param.vary:
+                idx = names.index(p)
+                val = float(self.value_frame['vals'][idx].text())
+                val_min = float(self.value_frame['mins'][idx].text())
+                val_max = float(self.value_frame['maxs'][idx].text())
+                param.set(value=val,
+                          min=val_min,
+                          max=val_max)
+
+    def onclose(self):
+
+        self.set_final_params()
         self.accept()
 
 class SimulationDialog(QDialog):
@@ -438,7 +495,7 @@ class ParamDialog(QDialog):
 
         self.fit_title = QLabel()
         self.fit_title.setFont(self.parent.headline_font)
-        self.layout.addWidget(self.fit_title)    
+        self.layout.addWidget(self.fit_title)
 
         self.setLayout(self.layout)
 

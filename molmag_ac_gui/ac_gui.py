@@ -43,7 +43,7 @@ from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset,
                          getFittingFunction, readPopt, addPartialModel,
                          tau_err_RC, diamag_correction, fit_Xp_Xpp_genDebye,
                          _QT, _R, _O, general_relaxation, relaxation_dataset,
-                         fit_relaxation)
+                         fit_relaxation, default_parameters)
 from .dialogs import (GuessDialog, SimulationDialog, AboutDialog, ParamDialog,
                       FitResultPlotStatus, PlottingWindow, MagMessage)
 from .utility import (read_ppms_file, get_ppms_column_name_matches,
@@ -1460,28 +1460,17 @@ class ACGui(QMainWindow):
             assert Tmin != Tmax
             assert perform_this_fit != ''
             
-            guess_dialog = GuessDialog(guess=guess,
-                                       fit_history=self.fit_history)
+            guess_dialog = GuessDialog(self,
+                                       guess,
+                                       perform_this_fit)
             accepted = guess_dialog.exec_()
             if not accepted: raise NoGuessExistsError
             
             # If both fit and temperature setting are good,
             # and the GuessDialog was accepted, get the
             # guess and perform fitting
-            guess = guess_dialog.return_guess
-
-            fitwith = perform_this_fit
             
-            params = Parameters()
-            params.add(name='tQT', value=1e-4, vary='QT' in fitwith, min=0)
-            params.add(name='Cr', value=1e-3, vary='R' in fitwith, min=0)
-            params.add(name='n', value=4, vary='R' in fitwith, min=0, max=20)
-            params.add(name='t0', value=1e-7, vary='O' in fitwith, min=0)
-            params.add(name='Ueff', value=47*kB, vary='O' in fitwith)
-            params.add(name='useQT', value=int('QT' in fitwith), vary=False)
-            params.add(name='useR', value=int('R' in fitwith), vary=False)
-            params.add(name='useO', value=int('O' in fitwith), vary=False)
-            
+            params = guess_dialog.final_params
             minimize_res = fit_relaxation(self.used_T, self.used_tau, params)
             
         except (AssertionError, IndexError):
