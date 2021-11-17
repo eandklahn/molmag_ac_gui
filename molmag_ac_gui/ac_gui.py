@@ -18,6 +18,10 @@ import matplotlib as mpl
 from matplotlib import cm
 from matplotlib.colors import LinearSegmentedColormap, to_hex
 from matplotlib._color_data import TABLEAU_COLORS
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+
+
 
 import scipy.constants as sc
 from scipy.optimize import minimize, curve_fit
@@ -55,7 +59,6 @@ from .Datatabletab import Datatabletab
 
 #set constants
 kB = sc.Boltzmann
-
 
 
 """
@@ -303,7 +306,7 @@ class ACGui(QMainWindow):
         self.raw_data_plot_lo.addWidget(self.analysis_plot_type_header)
         
         self.analysis_plot_type_combo = QComboBox()
-        self.analysis_plot_type_combo.addItems(['Raw data', 'Fitted'])
+        self.analysis_plot_type_combo.addItems(['Raw data', 'Fitted', '3D plot'])
         self.analysis_plot_type_combo.currentIndexChanged.connect(self.switch_analysis_view)
         self.raw_data_plot_lo.addWidget(self.analysis_plot_type_combo)
         
@@ -318,6 +321,7 @@ class ACGui(QMainWindow):
         
         self.analysis_x_combo = QComboBox()
         self.analysis_x_combo.currentIndexChanged.connect(self.plot_from_combo)
+        self.analysis_x_combo.currentIndexChanged.connect(self.plot_from_combo_3D)
         self.data_ana_x_lo.addWidget(self.analysis_x_combo)
         self.raw_data_plot_lo.addLayout(self.data_ana_x_lo)
         
@@ -328,6 +332,7 @@ class ACGui(QMainWindow):
         
         self.analysis_y_combo = QComboBox()
         self.analysis_y_combo.currentIndexChanged.connect(self.plot_from_combo)
+        self.analysis_y_combo.currentIndexChanged.connect(self.plot_from_combo_3D)
         self.data_ana_y_lo.addWidget(self.analysis_y_combo)
         self.raw_data_plot_lo.addLayout(self.data_ana_y_lo)
         
@@ -340,6 +345,8 @@ class ACGui(QMainWindow):
         self.fit_data_plot_combo.addItems(['ColeCole', 'FreqVSXp', 'FreqVSXpp'])
         self.fit_data_plot_combo.currentIndexChanged.connect(self.plot_from_itemlist)
         self.raw_data_plot_lo.addWidget(self.fit_data_plot_combo)
+
+
         
         # Checkbox for coloring measured points
         self.fit_data_color_cb_lo = QHBoxLayout()
@@ -352,6 +359,22 @@ class ACGui(QMainWindow):
         
         self.raw_data_plot_lo.addLayout(self.fit_data_color_cb_lo)
         
+
+        #3D plot options 
+        self.threeD_plot_header = QLabel('3D plot options')
+        self.threeD_plot_header.setFont(self.headline_font)
+        self.raw_data_plot_lo.addWidget(self.threeD_plot_header)
+
+        #Constructing the z combobox
+        self.data_ana_z_lo = QHBoxLayout()
+        self.analysis_z_combo_lbl = QLabel('z')
+        self.data_ana_z_lo.addWidget(self.analysis_z_combo_lbl)
+        
+        self.analysis_z_combo = QComboBox()
+        self.analysis_z_combo.currentIndexChanged.connect(self.plot_from_combo_3D)
+        self.data_ana_z_lo.addWidget(self.analysis_z_combo)
+        self.raw_data_plot_lo.addLayout(self.data_ana_z_lo)
+
         # Finalizing the raw data layout
         self.data_layout.addLayout(self.raw_data_plot_lo)
         
@@ -363,10 +386,12 @@ class ACGui(QMainWindow):
         self.treat_sw = QStackedWidget()
         
         self.treat_raw_plot = PlottingWindow()
-        self.treat_fit_plot = PlottingWindow(make_cax=True)
-        
+        self.treat_fit_plot = PlottingWindow(make_ax="cax")
+        self.treat_3Dplot = PlottingWindow(make_ax = "z") 
+
         self.treat_sw.addWidget(self.treat_raw_plot)
         self.treat_sw.addWidget(self.treat_fit_plot)
+        self.treat_sw.addWidget(self.treat_3Dplot)
         
         ## Making the right column (parameter controls)
         self.param_wdgt = QWidget()
@@ -526,6 +551,8 @@ class ACGui(QMainWindow):
         #Makes "Table of Data" tab
         self.widget_table = Datatabletab(self)
         self.all_the_tabs.addTab(self.widget_table, "Table of Data")
+
+
 
         # Showing the GUI
         self.load_t_tau_data()
@@ -806,13 +833,14 @@ class ACGui(QMainWindow):
                     
                     Xpp_idx = self.raw_df.columns.get_loc('Xpp (emu/Oe)')
                     self.raw_df.insert(Xpp_idx+1, column="Xpp_m (emu/(Oe*mol))", value=Xpp_molar)
-            
-            self.update_temp_subsets()
-            self.update_analysis_combos()
-            self.widget_table.updatetable()
 
-            w = MagMessage('Diamagnetic correction',
-                          'Diamagnetic correction successful!').exec_()
+                self.update_temp_subsets()
+                self.update_analysis_combos()
+                self.widget_table.updatetable()
+                w = MagMessage('Diamagnetic correction',
+                               'Diamagnetic correction successful!').exec_()
+
+
     
     def update_itemdict(self, item, itemdict):
         
@@ -936,6 +964,41 @@ class ACGui(QMainWindow):
         self.treat_raw_plot.ax.set_ylabel(y_label)
         
         self.treat_raw_plot.canvas.draw()
+
+    def plot_from_combo_3D(self):
+        
+        self.treat_3Dplot.ax.clear()
+        
+        idx_x = self.analysis_x_combo.currentIndex()
+        idx_y = self.analysis_y_combo.currentIndex()
+        idx_z = self.analysis_z_combo.currentIndex()
+        
+        x_label = self.raw_df.columns[idx_x]
+        y_label = self.raw_df.columns[idx_y]
+        z_label = self.raw_df.columns[idx_z]
+        
+        print("xlabel = {}, ylabel = {}, z = {}".format(x_label, y_label, z_label))
+                        
+        if y_label == "AC Frequency (Hz)": 
+            def log_tick_formatter(val, pos=None):
+                return f"$10^{{{int(val)}}}$"  # remove int() if you don't use MaxNLocator
+            self.treat_3Dplot.ax.yaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
+            self.treat_3Dplot.ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+            self.treat_3Dplot.ax.scatter3D(self.raw_df[x_label],
+                                    np.log10(self.raw_df[y_label]),
+                                    self.raw_df[z_label]
+                                    )
+        else: 
+            self.treat_3Dplot.ax.scatter3D(self.raw_df[x_label],
+                            self.raw_df[y_label],
+                            self.raw_df[z_label]
+                            )
+        
+        self.treat_3Dplot.ax.set_xlabel(x_label)
+        self.treat_3Dplot.ax.set_ylabel(y_label)
+        self.treat_3Dplot.ax.set_zlabel(z_label)            
+        
+        self.treat_3Dplot.canvas.draw()
     
     def fill_df_data_values(self):
     
@@ -994,7 +1057,7 @@ class ACGui(QMainWindow):
             # save potential header and potential df as actual header and df
             self.last_loaded_file = os.path.split(filename)[0]
             self.current_file = filename
-            
+            print(self.current_file)
             self.raw_df = potential_df
             self.raw_df_header = potential_header
             
@@ -1019,6 +1082,7 @@ class ACGui(QMainWindow):
             self.update_analysis_combos()
             #Updates "Table of Data" tab with the loaded data
             self.widget_table.updatetable()
+            
 
     def update_meas_temps(self):
         
@@ -1076,6 +1140,10 @@ class ACGui(QMainWindow):
         
         self.analysis_y_combo.clear()
         self.analysis_y_combo.addItems(self.raw_df.columns)
+        
+        self.analysis_z_combo.clear()
+        self.analysis_z_combo.addItems(self.raw_df.columns)
+
     
     def show_fitted_params(self):
         
@@ -1572,4 +1640,9 @@ class ACGui(QMainWindow):
         if len(self.fit_history)>9:
             self.fit_history.pop()
         self.fit_history.insert(0, (perform_this_fit, p_fit))
+
+
         
+        
+
+

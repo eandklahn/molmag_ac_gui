@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget, QTableWidget,QTableWidgetItem
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget, QTableWidget,QTableWidgetItem
 import pandas as pd
 
 
@@ -10,14 +10,30 @@ class Datatabletab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
         self.initUI() 
     
     def initUI(self): 
+        self.path_to_export = ""
+    
         self.layout = QVBoxLayout() #Vertical box layout. Første ting øverst, så nedenunder osv. 
-        
+        self.layoutH = QHBoxLayout() #Vertical box layout. Første ting øverst, så nedenunder osv. 
+
         self.line_edit = QLabel("When a file is loaded in the \"Data Treatment\" tab, a table of the loaded data will be shown here")
 
         self.tableWidget = QTableWidget() 
+        
+        self.export_table_excel_btn = QPushButton('Export table to Excel (.xlsx file)')
+        self.export_table_excel_btn.clicked.connect(self.export_table_excel)
+
+        self.export_table_csv_btn = QPushButton('Export table to .csv file')
+        self.export_table_csv_btn.clicked.connect(self.export_table_csv)
+
         self.layout.addWidget(self.line_edit)     
         self.layout.addWidget(self.tableWidget)
+        self.layoutH.addWidget(self.export_table_excel_btn)
+        self.layoutH.addWidget(self.export_table_csv_btn)
+
         self.setLayout(self.layout) 
+        self.layout.addLayout(self.layoutH)
+
+        
         self.show()
     
     def updatetable(self):
@@ -48,4 +64,22 @@ class Datatabletab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
         self.tableWidget.resizeColumnsToContents()
 
 
-        
+    def findnewpath(self): 
+        #Finds path for datatable csv or excel file to be stored
+        splitpath = self.parent.current_file.split('/')
+        newpath = ""
+        for element in splitpath[:-1]: 
+            newpath += element + '/'
+        newpath += splitpath[-1] + "_datatable"    
+        self.path_to_export = newpath
+    
+    def export_table_excel(self):
+        self.findnewpath()
+        self.parent.raw_df.to_excel(r'{}.xlsx'.format(self.path_to_export), index=False)
+
+
+    def export_table_csv(self):
+        self.findnewpath()
+        self.parent.raw_df.to_csv(r'{}.csv'.format(self.path_to_export), index = False)
+
+      

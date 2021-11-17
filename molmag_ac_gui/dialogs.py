@@ -29,7 +29,7 @@ class MagMessage(QMessageBox):
 
 class PlottingWindow(QWidget):
 
-    def __init__(self, make_cax=False):
+    def __init__(self, make_ax = False):
     
         super(PlottingWindow, self).__init__()
         
@@ -38,11 +38,14 @@ class PlottingWindow(QWidget):
         self.fig = Figure()
         self.canvas = FigureCanvas(self.fig)
         self.tools = NavigationToolbar(self.canvas, self)
-        if make_cax:
+        if make_ax == "cax":
             self.grid = plt.GridSpec(20,1)
             self.ax = self.fig.add_subplot(self.grid[:17,0])
             self.cax = self.fig.add_subplot(self.grid[-1,0])
             self.cax.set_yticklabels([])
+        elif make_ax == "z": 
+            self.ax = self.fig.add_subplot(111, projection = '3d')
+
         else:
             self.ax = self.fig.add_subplot(111)
         
