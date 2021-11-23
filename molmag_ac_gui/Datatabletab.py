@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget, QTableWidget,QTableWidgetItem
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget, QTableWidget,QTableWidgetItem, QMessageBox
 import pandas as pd
 
 
@@ -74,12 +74,31 @@ class Datatabletab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
         self.path_to_export = newpath
     
     def export_table_excel(self):
-        self.findnewpath()
-        self.parent.raw_df.to_excel(r'{}.xlsx'.format(self.path_to_export), index=False)
-
+        try: 
+            self.findnewpath()
+            self.parent.raw_df.to_excel(r'{}.xlsx'.format(self.path_to_export), index=False)
+            msg = QMessageBox()
+            msg.setWindowTitle('The data is successfully exported')
+            msg.setText("The data is saved as a .xlsx file at: {}.xlsx".format(self.path_to_export))
+            msg.exec_()            
+        except: 
+            msg = QMessageBox()
+            msg.setWindowTitle('Error')
+            msg.setText("Cannot export .xlsx file. No data is loaded in the data treatment tab.")
+            msg.exec_()
 
     def export_table_csv(self):
-        self.findnewpath()
-        self.parent.raw_df.to_csv(r'{}.csv'.format(self.path_to_export), index = False)
+        try: 
+            self.findnewpath()
+            self.parent.raw_df.to_csv(r'{}.csv'.format(self.path_to_export), index = False)
+            msg = QMessageBox()
+            msg.setWindowTitle('The data is successfully exported')
+            msg.setText("The data is saved as a .csv file at: {}.csv".format(self.path_to_export))
+            msg.exec_()            
+        except: 
+            msg = QMessageBox()
+            msg.setWindowTitle('Error')
+            msg.setText("Cannot export .csv file. No data is loaded in the data treatment tab.")
+            msg.exec_()
 
       

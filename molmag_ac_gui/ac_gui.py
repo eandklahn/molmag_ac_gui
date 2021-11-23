@@ -306,7 +306,7 @@ class ACGui(QMainWindow):
         self.raw_data_plot_lo.addWidget(self.analysis_plot_type_header)
         
         self.analysis_plot_type_combo = QComboBox()
-        self.analysis_plot_type_combo.addItems(['Raw data', 'Fitted', '3D plot'])
+        self.analysis_plot_type_combo.addItems(['Raw data', 'Fitted', 'TempvsFreqvsXpp'])
         self.analysis_plot_type_combo.currentIndexChanged.connect(self.switch_analysis_view)
         self.raw_data_plot_lo.addWidget(self.analysis_plot_type_combo)
         
@@ -321,7 +321,6 @@ class ACGui(QMainWindow):
         
         self.analysis_x_combo = QComboBox()
         self.analysis_x_combo.currentIndexChanged.connect(self.plot_from_combo)
-        self.analysis_x_combo.currentIndexChanged.connect(self.plot_from_combo_3D)
         self.data_ana_x_lo.addWidget(self.analysis_x_combo)
         self.raw_data_plot_lo.addLayout(self.data_ana_x_lo)
         
@@ -332,7 +331,6 @@ class ACGui(QMainWindow):
         
         self.analysis_y_combo = QComboBox()
         self.analysis_y_combo.currentIndexChanged.connect(self.plot_from_combo)
-        self.analysis_y_combo.currentIndexChanged.connect(self.plot_from_combo_3D)
         self.data_ana_y_lo.addWidget(self.analysis_y_combo)
         self.raw_data_plot_lo.addLayout(self.data_ana_y_lo)
         
@@ -364,16 +362,6 @@ class ACGui(QMainWindow):
         self.threeD_plot_header = QLabel('3D plot options')
         self.threeD_plot_header.setFont(self.headline_font)
         self.raw_data_plot_lo.addWidget(self.threeD_plot_header)
-
-        #Constructing the z combobox
-        self.data_ana_z_lo = QHBoxLayout()
-        self.analysis_z_combo_lbl = QLabel('z')
-        self.data_ana_z_lo.addWidget(self.analysis_z_combo_lbl)
-        
-        self.analysis_z_combo = QComboBox()
-        self.analysis_z_combo.currentIndexChanged.connect(self.plot_from_combo_3D)
-        self.data_ana_z_lo.addWidget(self.analysis_z_combo)
-        self.raw_data_plot_lo.addLayout(self.data_ana_z_lo)
 
         # Finalizing the raw data layout
         self.data_layout.addLayout(self.raw_data_plot_lo)
@@ -593,6 +581,8 @@ class ACGui(QMainWindow):
         
         idx = self.analysis_plot_type_combo.currentIndex()
         self.treat_sw.setCurrentIndex(idx)
+        if idx == 2: 
+            self.plot_from_combo_3D() 
         
     def update_treat_raw_fit_list(self):
         
@@ -947,7 +937,6 @@ class ACGui(QMainWindow):
         
         idx_x = self.analysis_x_combo.currentIndex()
         idx_y = self.analysis_y_combo.currentIndex()
-        
         x_label = self.raw_df.columns[idx_x]
         y_label = self.raw_df.columns[idx_y]
         
@@ -968,36 +957,43 @@ class ACGui(QMainWindow):
     def plot_from_combo_3D(self):
         
         self.treat_3Dplot.ax.clear()
+
+        x_label = 'Temperature (K)'
+        y_label = "AC Frequency (Hz)"
+        z_label = "Xpp (emu/Oe)"
+    
+                     
+        def log_tick_formatter(val, pos=None):
+            return f"$10^{{{int(val)}}}$" 
         
-        idx_x = self.analysis_x_combo.currentIndex()
-        idx_y = self.analysis_y_combo.currentIndex()
-        idx_z = self.analysis_z_combo.currentIndex()
-        
-        x_label = self.raw_df.columns[idx_x]
-        y_label = self.raw_df.columns[idx_y]
-        z_label = self.raw_df.columns[idx_z]
-        
-        print("xlabel = {}, ylabel = {}, z = {}".format(x_label, y_label, z_label))
-                        
-        if y_label == "AC Frequency (Hz)": 
-            def log_tick_formatter(val, pos=None):
-                return f"$10^{{{int(val)}}}$"  # remove int() if you don't use MaxNLocator
-            self.treat_3Dplot.ax.yaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
-            self.treat_3Dplot.ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-            self.treat_3Dplot.ax.scatter3D(self.raw_df[x_label],
-                                    np.log10(self.raw_df[y_label]),
-                                    self.raw_df[z_label]
-                                    )
-        else: 
-            self.treat_3Dplot.ax.scatter3D(self.raw_df[x_label],
-                            self.raw_df[y_label],
-                            self.raw_df[z_label]
-                            )
-        
+        self.treat_3Dplot.ax.yaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
+        self.treat_3Dplot.ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
         self.treat_3Dplot.ax.set_xlabel(x_label)
         self.treat_3Dplot.ax.set_ylabel(y_label)
         self.treat_3Dplot.ax.set_zlabel(z_label)            
         
+        for row in range(self.num_meas_temps):      
+            T = self.meas_temps[row]
+            rgb = self.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))                        
+            self.treat_3Dplot.ax.scatter3D(self.temp_subsets[row][x_label],
+                                    np.log10(self.temp_subsets[row][y_label]),
+                                    self.temp_subsets[row][z_label], 
+                                    color = rgb
+                                    )
+            #print(self.temp_subsets[row]) Det er nogle små df
+            #print("længde = ", len(self.temp_subsets[row]))
+
+        
+        
+        
+        norm = mpl.colors.Normalize(vmin=self.Tmin, vmax=self.Tmax)
+        self.treat_3Dplot.fig.colorbar(
+            mpl.cm.ScalarMappable(norm=norm,
+                                  cmap=self.temperature_cmap),
+                                orientation='horizontal',
+                                  cax=self.treat_3Dplot.cax)
+        
+
         self.treat_3Dplot.canvas.draw()
     
     def fill_df_data_values(self):
@@ -1057,7 +1053,6 @@ class ACGui(QMainWindow):
             # save potential header and potential df as actual header and df
             self.last_loaded_file = os.path.split(filename)[0]
             self.current_file = filename
-            print(self.current_file)
             self.raw_df = potential_df
             self.raw_df_header = potential_header
             
@@ -1140,9 +1135,7 @@ class ACGui(QMainWindow):
         
         self.analysis_y_combo.clear()
         self.analysis_y_combo.addItems(self.raw_df.columns)
-        
-        self.analysis_z_combo.clear()
-        self.analysis_z_combo.addItems(self.raw_df.columns)
+
 
     
     def show_fitted_params(self):
