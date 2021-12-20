@@ -38,6 +38,8 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton,
                              QScrollArea, QStatusBar, QInputDialog,
                              QActionGroup)
 
+from molmag_ac_gui.DataTreatmentTab import DataTreatmentTab
+
 
 #local imports
 from .__init__ import __version__
@@ -534,7 +536,9 @@ class ACGui(QMainWindow):
         self.widget_table = Datatabletab(self)
         self.all_the_tabs.addTab(self.widget_table, "Table of Data")
 
-
+        #Makes "Data Treatment, v2" tab    
+        self.DataTreat_tab = DataTreatmentTab(self)        
+        self.all_the_tabs.addTab(self.DataTreat_tab, "Data treatment, v2")
 
         # Showing the GUI
         self.load_t_tau_data()
