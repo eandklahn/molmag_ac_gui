@@ -306,7 +306,7 @@ class ACGui(QMainWindow):
         self.raw_data_plot_lo.addWidget(self.analysis_plot_type_header)
         
         self.analysis_plot_type_combo = QComboBox()
-        self.analysis_plot_type_combo.addItems(['Raw data', 'Fitted'])
+        self.analysis_plot_type_combo.addItems(['Raw data', 'Fitted', 'Temp VS Freq VS Xpp'])
         self.analysis_plot_type_combo.currentIndexChanged.connect(self.switch_analysis_view)
         self.raw_data_plot_lo.addWidget(self.analysis_plot_type_combo)
         
@@ -356,8 +356,7 @@ class ACGui(QMainWindow):
         self.fit_data_color_cb_lo.addWidget(self.fit_data_color_cb)
         
         self.raw_data_plot_lo.addLayout(self.fit_data_color_cb_lo)
-        
-
+    
         # Finalizing the raw data layout
         self.data_layout.addLayout(self.raw_data_plot_lo)
         
@@ -370,10 +369,12 @@ class ACGui(QMainWindow):
         
         self.treat_raw_plot = PlottingWindow()
         self.treat_fit_plot = PlottingWindow(make_ax="cax")
+        self.treat_3Dplot = PlottingWindow(make_ax = "z") 
 
         self.treat_sw.addWidget(self.treat_raw_plot)
         self.treat_sw.addWidget(self.treat_fit_plot)
-        
+        self.treat_sw.addWidget(self.treat_3Dplot)
+
         ## Making the right column (parameter controls)
         self.param_wdgt = QWidget()
         self.param_layout = QVBoxLayout()
@@ -574,18 +575,20 @@ class ACGui(QMainWindow):
         
         idx = self.analysis_plot_type_combo.currentIndex()
         self.treat_sw.setCurrentIndex(idx)
-        
+        if idx == 2: 
+            self.plot3D() 
+
     def update_treat_raw_fit_list(self):       
         self.treat_raw_fit_list.clear()
         for i in range(self.num_meas_temps):
             T = self.meas_temps[i]
             newitem = QListWidgetItem()
-            newitem.setText('{:<6.2f} K, {}, {}'.format(round(T,2),True, True))
+            newitem.setText('T = {:<6.2f} K, Show raw data: {}, Show fit: {}'.format(round(T,2),True, True)) #Text for Fitted Parameters box
             plotting_dict = {'temp': self.meas_temps[i],
                              'raw': True,
                              'fit': True}
             newitem.setData(32, plotting_dict)
-            t_float = (T-self.Tmin)/(self.Tmax-self.Tmin)
+            t_float = (T-self.Tmin)/(self.Tmax-self.Tmin) #Makes t_float scaled by temperature from 0 to 1 for colormap
             newitem.setBackground(QColor(to_hex(self.temperature_cmap(t_float))))
             self.treat_raw_fit_list.addItem(newitem)
     
@@ -677,7 +680,7 @@ class ACGui(QMainWindow):
                               float_format='%20.10e')
     
     def load_sample_data(self):
-    
+        #Set like this so I dont have to open it each time: 
         filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.last_loaded_file)
         filename = filename_info[0]
 
@@ -824,7 +827,7 @@ class ACGui(QMainWindow):
     def update_itemdict(self, item, itemdict):
         
         item.setData(32, itemdict)
-        item.setText('{:<6.2f} K, {}, {}'.format(round(itemdict['temp'],2),
+        item.setText('T = {:<6.2f} K, Show raw data: {}, Show fit: {}'.format(round(itemdict['temp'],2),
                                          itemdict['raw'],
                                          itemdict['fit']))
     
@@ -836,7 +839,6 @@ class ACGui(QMainWindow):
             pass
         else:
             final_states = w.checked_items
-            
             for i, boxes in enumerate(final_states):
                 item = self.treat_raw_fit_list.item(i)
                 item_data = item.data(32)
@@ -845,8 +847,10 @@ class ACGui(QMainWindow):
                 self.update_itemdict(item, item_data)
             
         self.plot_from_itemlist()
+        self.plot3D() 
         self.treat_fit_plot.canvas.draw()
     
+
     def plot_from_itemlist(self):
         
         if self.treat_raw_fit_list.count()==0:
@@ -890,7 +894,6 @@ class ACGui(QMainWindow):
                 
             item = self.treat_raw_fit_list.item(row)
             itemdict = item.data(32)
-            
             if itemdict['raw']:
                 self.treat_fit_plot.ax.plot(self.temp_subsets[row][x_name],
                                             self.temp_subsets[row][y_name],
@@ -943,7 +946,61 @@ class ACGui(QMainWindow):
         
         self.treat_raw_plot.canvas.draw()
 
+    def plot3D(self):
+        
+        if self.treat_raw_fit_list.count()==0:
+            return
+
+        self.treat_3Dplot.ax.clear()
+
+        x_label = 'Temperature (K)'
+        y_label = "AC Frequency (Hz)"
+        z_label = "Xpp_m (emu/(Oe*mol))"
     
+                     
+        def log_tick_formatter(val, pos=None):
+            return f"$10^{{{int(val)}}}$" 
+        
+        self.treat_3Dplot.ax.yaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
+        self.treat_3Dplot.ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+        self.treat_3Dplot.ax.set_xlabel(x_label)
+        self.treat_3Dplot.ax.set_ylabel(y_label)
+        self.treat_3Dplot.ax.set_zlabel(z_label)            
+        
+        for row in range(self.num_meas_temps):      
+            T = self.meas_temps[row]
+            rgb = self.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))           
+                         
+            item = self.treat_raw_fit_list.item(row)
+            itemdict = item.data(32)
+            if itemdict['raw']:
+                self.treat_3Dplot.ax.scatter3D(self.temp_subsets[row][x_label],
+                                        np.log10(self.temp_subsets[row][y_label]),
+                                        self.temp_subsets[row][z_label], 
+                                        color = rgb
+                                        )
+
+            if itemdict['fit']:       
+                self.treat_3Dplot.ax.plot(self.temp_subsets[row][x_label], 
+                                            np.log10(self.temp_subsets[row][y_label]),
+                                            Xpp_(self.temp_subsets[row]['AC Frequency (Hz)'],
+                                                  self.raw_data_fit['ChiS'].iloc[row],
+                                                  self.raw_data_fit['ChiT'].iloc[row],
+                                                  self.raw_data_fit['Tau'].iloc[row],
+                                                  self.raw_data_fit['Alpha'].iloc[row]),
+                                            c=rgb)  
+
+        norm = mpl.colors.Normalize(vmin=self.Tmin, vmax=self.Tmax)
+        self.treat_3Dplot.fig.colorbar(
+            mpl.cm.ScalarMappable(norm=norm,
+                                  cmap=self.temperature_cmap),
+                                        orientation='horizontal',
+            cax=self.treat_3Dplot.cax)
+
+
+
+        self.treat_3Dplot.canvas.draw()
+        
     def fill_df_data_values(self):
     
         if ('Xp (emu/Oe)' in self.raw_df.columns and not ('Mp (emu)' in self.raw_df.columns)):
@@ -967,7 +1024,6 @@ class ACGui(QMainWindow):
         open_file_dialog = QFileDialog()
         filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.last_loaded_file)
         filename = filename_info[0]
-        
         try:
             # FileNotFoundError and UnicodeDecodeError will be raised here
             potential_header, potential_df = read_ppms_file(filename)

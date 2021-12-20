@@ -44,7 +44,12 @@ class PlottingWindow(QWidget):
             self.cax = self.fig.add_subplot(self.grid[-1,0])
             self.cax.set_yticklabels([])
         elif make_ax == "z": 
-            self.ax = self.fig.add_subplot(111, projection = '3d')
+            self.grid = plt.GridSpec(2,1, height_ratios=[13,1])
+            self.ax = self.fig.add_subplot(self.grid[0], projection = '3d')
+            self.cax = self.fig.add_subplot(self.grid[1])
+            self.cax.set_yticklabels([])
+            self.cax.get_yaxis().labelpad = 15
+            self.cax.set_ylabel("Temperature (K)")
 
         else:
             self.ax = self.fig.add_subplot(111)
@@ -57,11 +62,12 @@ class PlottingWindow(QWidget):
         self.tool_lo.addWidget(self.tools)
         self.tool_lo.addStretch()
         
-        self.reset_axes_btn = QPushButton('Reset axes')
-        self.reset_axes_btn.clicked.connect(self.reset_axes)
-        self.tool_lo.addWidget(self.reset_axes_btn)
-        self.layout.addLayout(self.tool_lo)
+        if make_ax != "z": #Reset axes btn does not work for the 3D plot and is therefore not shown in this case
+            self.reset_axes_btn = QPushButton('Reset axes')
+            self.reset_axes_btn.clicked.connect(self.reset_axes)
+            self.tool_lo.addWidget(self.reset_axes_btn)
         
+        self.layout.addLayout(self.tool_lo)
         self.setLayout(self.layout)
     
     def clear_canvas(self):
@@ -77,6 +83,7 @@ class PlottingWindow(QWidget):
            
             lines_to_manage = []
             for line in self.ax.lines:
+                print(line)
                 if len(line.get_xdata())<1: pass
                 elif not line._visible: pass
                 else: lines_to_manage.append(line)
@@ -502,7 +509,7 @@ class FitResultPlotStatus(QDialog):
         super(FitResultPlotStatus, self).__init__()
         
         self.layout = QVBoxLayout()
-        
+        self.setWindowTitle("Pick which temperature subsets to be shown in plotting window")
         self.scroll = QScrollArea(self)
         self.scroll.setWidgetResizable(True)
         self.layout.addWidget(self.scroll)
@@ -524,8 +531,8 @@ class FitResultPlotStatus(QDialog):
             item_raw_bool = item_data['raw']
             item_txt = item_data['temp']
             
-            raw_checked = QCheckBox('R')
-            fit_checked = QCheckBox('F')
+            raw_checked = QCheckBox('Raw data points')
+            fit_checked = QCheckBox('Fitted line')
             temp = QLabel('{:5.2f}K'.format(item_data['temp']))
             
             item_lo.addWidget(temp)
@@ -552,6 +559,7 @@ class FitResultPlotStatus(QDialog):
         
         self.layout.addLayout(self.state_btn_lo)
         
+    
         self.judge_btn_lo = QHBoxLayout()
         
         self.states_reject_btn = QPushButton('Cancel')
@@ -563,7 +571,8 @@ class FitResultPlotStatus(QDialog):
         self.judge_btn_lo.addWidget(self.states_accept_btn)
         
         self.layout.addLayout(self.judge_btn_lo)
-        
+        self.resize(500,700)
+
         self.setLayout(self.layout)
         #self.show()
         
