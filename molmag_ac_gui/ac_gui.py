@@ -306,7 +306,7 @@ class ACGui(QMainWindow):
         self.raw_data_plot_lo.addWidget(self.analysis_plot_type_header)
         
         self.analysis_plot_type_combo = QComboBox()
-        self.analysis_plot_type_combo.addItems(['Raw data', 'Fitted', 'TempvsFreqvsXpp'])
+        self.analysis_plot_type_combo.addItems(['Raw data', 'Fitted'])
         self.analysis_plot_type_combo.currentIndexChanged.connect(self.switch_analysis_view)
         self.raw_data_plot_lo.addWidget(self.analysis_plot_type_combo)
         
@@ -358,11 +358,6 @@ class ACGui(QMainWindow):
         self.raw_data_plot_lo.addLayout(self.fit_data_color_cb_lo)
         
 
-        #3D plot options 
-        self.threeD_plot_header = QLabel('3D plot options')
-        self.threeD_plot_header.setFont(self.headline_font)
-        self.raw_data_plot_lo.addWidget(self.threeD_plot_header)
-
         # Finalizing the raw data layout
         self.data_layout.addLayout(self.raw_data_plot_lo)
         
@@ -375,11 +370,9 @@ class ACGui(QMainWindow):
         
         self.treat_raw_plot = PlottingWindow()
         self.treat_fit_plot = PlottingWindow(make_ax="cax")
-        self.treat_3Dplot = PlottingWindow(make_ax = "z") 
 
         self.treat_sw.addWidget(self.treat_raw_plot)
         self.treat_sw.addWidget(self.treat_fit_plot)
-        self.treat_sw.addWidget(self.treat_3Dplot)
         
         ## Making the right column (parameter controls)
         self.param_wdgt = QWidget()
@@ -581,13 +574,9 @@ class ACGui(QMainWindow):
         
         idx = self.analysis_plot_type_combo.currentIndex()
         self.treat_sw.setCurrentIndex(idx)
-        if idx == 2: 
-            self.plot_from_combo_3D() 
         
-    def update_treat_raw_fit_list(self):
-        
+    def update_treat_raw_fit_list(self):       
         self.treat_raw_fit_list.clear()
-        
         for i in range(self.num_meas_temps):
             T = self.meas_temps[i]
             newitem = QListWidgetItem()
@@ -954,47 +943,6 @@ class ACGui(QMainWindow):
         
         self.treat_raw_plot.canvas.draw()
 
-    def plot_from_combo_3D(self):
-        
-        self.treat_3Dplot.ax.clear()
-
-        x_label = 'Temperature (K)'
-        y_label = "AC Frequency (Hz)"
-        z_label = "Xpp (emu/Oe)"
-    
-                     
-        def log_tick_formatter(val, pos=None):
-            return f"$10^{{{int(val)}}}$" 
-        
-        self.treat_3Dplot.ax.yaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
-        self.treat_3Dplot.ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-        self.treat_3Dplot.ax.set_xlabel(x_label)
-        self.treat_3Dplot.ax.set_ylabel(y_label)
-        self.treat_3Dplot.ax.set_zlabel(z_label)            
-        
-        for row in range(self.num_meas_temps):      
-            T = self.meas_temps[row]
-            rgb = self.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))                        
-            self.treat_3Dplot.ax.scatter3D(self.temp_subsets[row][x_label],
-                                    np.log10(self.temp_subsets[row][y_label]),
-                                    self.temp_subsets[row][z_label], 
-                                    color = rgb
-                                    )
-            #print(self.temp_subsets[row]) Det er nogle små df
-            #print("længde = ", len(self.temp_subsets[row]))
-
-        
-        
-        
-        norm = mpl.colors.Normalize(vmin=self.Tmin, vmax=self.Tmax)
-        self.treat_3Dplot.fig.colorbar(
-            mpl.cm.ScalarMappable(norm=norm,
-                                  cmap=self.temperature_cmap),
-                                orientation='horizontal',
-                                  cax=self.treat_3Dplot.cax)
-        
-
-        self.treat_3Dplot.canvas.draw()
     
     def fill_df_data_values(self):
     
