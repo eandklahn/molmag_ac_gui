@@ -1,6 +1,11 @@
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget, QTableWidget,QTableWidgetItem, QMessageBox
-import pandas as pd
+#std packages
 import os
+
+#third-party packages
+import pandas as pd
+from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QPushButton, 
+                             QVBoxLayout, QWidget, QTableWidget,
+                             QTableWidgetItem, QMessageBox) 
 
 class Datatabletab(QWidget): #First tab er Qwidget, så nu er det self.layout fx i stedet for self.widget.layout
 
@@ -41,7 +46,7 @@ class Datatabletab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
         
         self.line_edit.setText("The data is loaded from the file located at: {}".format(self.parent.current_file))
 
-        df = self.parent.raw_df
+        df = self.parent.data_treat.raw_df
         self.tableWidget.setRowCount(len(df))
         self.tableWidget.setColumnCount(len(df.columns))
             
@@ -93,18 +98,18 @@ class Datatabletab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
                 ans = qm.question(self,'', "File already exists. Do you want to overwrite existing file?", qm.Yes | qm.No)
                 if ans == qm.Yes: 
                     if filetype == "csv": 
-                        self.parent.raw_df.to_csv(r'{}.csv'.format(self.path_to_export), index = False)
+                        self.parent.data_treat.raw_df.to_csv(r'{}.csv'.format(self.path_to_export), index = False)
                     if filetype == "xlsl": 
-                        self.parent.raw_df.to_xlsx(r'{}.xlsx'.format(self.path_to_export), index = False)
+                        self.parent.data_treat.raw_df.to_xlsx(r'{}.xlsx'.format(self.path_to_export), index = False)
                     msg.setWindowTitle('The data is successfully exported')
                     msg.setText("The data is saved as a .{} file at: {}.{}".format(filetype, self.path_to_export, filetype))  
                 if ans == qm.No: 
                     msg.setText("File not saved")
             else: 
                 if filetype == "csv": 
-                    self.parent.raw_df.to_csv(r'{}.csv'.format(self.path_to_export), index = False)
+                    self.parent.data_treat.raw_df.to_csv(r'{}.csv'.format(self.path_to_export), index = False)
                 if filetype == "xlsl": 
-                    self.parent.raw_df.to_xlsx(r'{}.xlsx'.format(self.path_to_export), index = False)                
+                    self.parent.data_treat.raw_df.to_xlsx(r'{}.xlsx'.format(self.path_to_export), index = False)                
                 msg.setWindowTitle('The data is successfully exported')
                 msg.setText("The data is saved as a .{} file at: {}.{}".format(filetype, self.path_to_export, filetype))  
             msg.exec_()           

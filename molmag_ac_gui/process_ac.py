@@ -490,9 +490,12 @@ def addPartialModel(fig, Tmin, Tmax, p_fit, plotType='O', *args, **kwargs):
     
     f = getFittingFunction(fitType=plotType)
     p = readPFITinOrder(p_fit, plotType=plotType)
+
+    #Quickfix for zero division when calculating: line = ax.plot(1/T_space ...) 
+    if Tmin == 0: 
+        Tmin = 0.00001 
     
     T_space = np.linspace(Tmin, Tmax, 101)
     line, = ax.plot(1/T_space, np.ones(T_space.shape)*f(T_space, *p), *args, **kwargs)
-    
     return line
     
