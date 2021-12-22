@@ -1,14 +1,16 @@
 #std packages
 from collections import OrderedDict
+import os 
 
 #third-party packages
 import scipy.constants as sc
 
 from PyQt5.QtGui import QIcon, QFont, QDoubleValidator
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton, QLabel, QAction, QComboBox, QStackedWidget,
+from PyQt5.QtWidgets import (QInputDialog, QMainWindow, QWidget, QApplication, QPushButton, QLabel, QAction, QComboBox, QStackedWidget,
                              QDoubleSpinBox, QFormLayout, QCheckBox, QVBoxLayout, QMessageBox, QSplitter, QGridLayout,
                              QHBoxLayout, QFileDialog, QDialog, QLineEdit, QListWidget, QListWidgetItem, QTabWidget,
                              QScrollArea, QStatusBar)
+from PyQt5.QtCore import Qt
 
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
@@ -509,7 +511,7 @@ class FitResultPlotStatus(QDialog):
         super(FitResultPlotStatus, self).__init__()
         
         self.layout = QVBoxLayout()
-        self.setWindowTitle("Pick which temperature subsets to be shown in plotting window")
+        self.setWindowTitle("Temperature subsets to be shown")
         self.scroll = QScrollArea(self)
         self.scroll.setWidgetResizable(True)
         self.layout.addWidget(self.scroll)
@@ -587,3 +589,230 @@ class FitResultPlotStatus(QDialog):
         for sublist in self.checked_items:
             sublist[0].setChecked(False)
             sublist[1].setChecked(False)
+
+class SampleInformation(QDialog): 
+    def __init__(self, parent):
+    
+        super(SampleInformation, self).__init__()
+        self.parent = parent 
+        self.layout = QVBoxLayout()
+        self.setWindowTitle("Input sample information (used for diamagnetic correction)")
+
+        #Hides Help button
+        self.setWindowFlag(Qt.WindowContextHelpButtonHint,False)  
+
+        ## SAMPLE INFO
+        self.sample_info_layout = QVBoxLayout()
+        self.sample_info_header = QLabel('Sample information')
+        self.sample_info_header.setFont(self.parent.headline_font)
+        self.sample_info_layout.addWidget(self.sample_info_header)
+        
+        ## Sample mass edit
+        self.sample_mass_layout = QHBoxLayout()
+        self.sample_info_layout.addLayout(self.sample_mass_layout)
+        
+        self.sample_mass_lbl = QLabel('m (sample) [mg]')
+        self.sample_mass_layout.addWidget(self.sample_mass_lbl)
+        
+        self.sample_mass_inp = QLineEdit()
+        self.sample_mass_inp.setValidator(QDoubleValidator())
+        self.sample_mass_layout.addWidget(self.sample_mass_inp)
+
+        ## Sample molar mass edit
+        self.molar_mass_lo = QHBoxLayout()
+        self.sample_info_layout.addLayout(self.molar_mass_lo)
+        
+        self.molar_mass_lbl = QLabel('M (sample) [g/mol]')
+        self.molar_mass_lo.addWidget(self.molar_mass_lbl)
+        
+        self.molar_mass_inp = QLineEdit()
+        self.molar_mass_inp.setValidator(QDoubleValidator())
+        self.molar_mass_lo.addWidget(self.molar_mass_inp)
+
+
+        ## Sample Xd edit
+        self.sample_xd_lo = QHBoxLayout()
+        self.sample_info_layout.addLayout(self.sample_xd_lo)
+        
+
+        self.sample_xd_lbl = QLabel(u"<a href={}>X\u1D05</a>".format(
+                                    self.parent.tooltips_dict['English']['Xd_link'])
+                                    +' (sample) [emu/(Oe*mol)]')
+        self.sample_xd_lbl.setOpenExternalLinks(True)
+        self.sample_xd_lo.addWidget(self.sample_xd_lbl)
+        
+        self.sample_xd_inp = QLineEdit()
+        self.sample_xd_inp.setValidator(QDoubleValidator())
+        self.sample_xd_lo.addWidget(self.sample_xd_inp)
+        
+        # Constant terms edit
+        self.constant_terms_layout = QHBoxLayout()
+        self.sample_info_layout.addLayout(self.constant_terms_layout)
+        
+        self.constant_terms_lbl = QLabel('Constant terms')
+        self.constant_terms_layout.addWidget(self.constant_terms_lbl)
+             
+        self.constant_terms_inp = QLineEdit()
+        self.constant_terms_layout.addWidget(self.constant_terms_inp)
+        
+        # Variable amount edit
+        self.var_amount_layout = QHBoxLayout()
+        self.sample_info_layout.addLayout(self.var_amount_layout)
+        
+        self.var_amount_lbl = QLabel('Variable amounts')
+        self.var_amount_layout.addWidget(self.var_amount_lbl)
+        
+        self.var_amount_inp = QLineEdit()
+        self.var_amount_layout.addWidget(self.var_amount_inp)
+        
+        #Insert values to the QLineEdits if known: 
+        self.insert_values() 
+
+        # Mass load button
+        self.sample_data_lo = QHBoxLayout()
+        self.sample_info_layout.addLayout(self.sample_data_lo)
+        
+        self.load_sample_data_btn = QPushButton('Load sample data from file')
+        self.load_sample_data_btn.clicked.connect(self.load_sample_data)
+        self.sample_data_lo.addWidget(self.load_sample_data_btn)
+        
+        self.save_sample_data_btn = QPushButton('Save sample data in file')
+        self.save_sample_data_btn.clicked.connect(self.save_sample_data)
+        self.sample_data_lo.addWidget(self.save_sample_data_btn)
+        
+        self.done_sample_data_btn = QPushButton('Done')
+        self.done_sample_data_btn.clicked.connect(self.save_sample_data_for_diamag)
+        self.sample_data_lo.addWidget(self.done_sample_data_btn)
+
+        #Sets gui langugage for tooltips
+        self.set_gui_language() 
+
+        #Finalizing layout
+        self.sample_data_lo.addStretch()
+        self.setLayout(self.sample_info_layout)
+
+
+    def load_sample_data(self):
+        filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        filename = filename_info[0]
+
+        try:
+            f = open(filename, 'r')
+            d = f.readlines()
+            f.close()
+            
+            assert all([len(line.split())>=2 for line in d])
+            
+        except FileNotFoundError:
+            print('File was not selected')
+        except UnicodeDecodeError:
+            print('Cant open a binary file')
+        except AssertionError:
+            print('Some of the lines have lengths less than two')
+        else:
+            
+            # These are the default values that are "read" if nothing else is
+            # seen in the file
+            m_sample = '0'
+            M_sample = '0'
+            Xd_sample = '0'
+            constant_terms = '0'
+            var_amount = '0,0'
+            
+            self.parent.last_loaded_file = os.path.split(filename)[0]
+            for line in d:
+                line = line.split()
+                if line[0] == 'm_sample':
+                    m_sample = line[1]
+                elif line[0] == 'M_sample':
+                    M_sample = line[1]
+                elif line[0] == 'Xd_sample':
+                    Xd_sample = line[1]
+                elif line[0] == 'constants':
+                    constant_terms = line[1]
+                elif line[0] == 'var_amount':
+                    var_amount = line[1]
+            
+            self.sample_mass_inp.setText(m_sample)
+            self.molar_mass_inp.setText(M_sample)
+            self.sample_xd_inp.setText(Xd_sample)
+            self.constant_terms_inp.setText(constant_terms)
+            self.var_amount_inp.setText(var_amount)
+    
+    def save_sample_data(self):
+    
+        filename_info = QFileDialog.getSaveFileName(self,
+                                                   'Save sample file',
+                                                   self.parent.last_loaded_file)
+        filename = filename_info[0]
+        
+        try:
+            assert filename != ''
+            self.parent.last_loaded_file = os.path.split(filename)[0]
+            filename, ext = os.path.splitext(filename)
+            if ext == '':
+                ext = '.dat'
+            
+            comment, ok = QInputDialog.getText(self,
+                                              'Comment',
+                                              'Comment for saved sample data')
+
+            fc = ''
+            fc += '# ' + comment + '\n'
+            fc += 'm_sample ' + self.sample_mass_inp.text() + '\n'
+            fc += 'M_sample ' + self.molar_mass_inp.text() + '\n'
+            fc += 'Xd_sample ' + self.sample_xd_inp.text() + '\n'
+            fc += 'constants ' + self.constant_terms_inp.text() + '\n'
+            fc += 'var_amount ' + self.var_amount_inp.text() + '\n'
+            
+            f = open(filename+ext, 'w')
+            f.write(fc)
+            f.close()
+            
+        except AssertionError:
+            pass
+            
+    def save_sample_data_for_diamag(self): 
+        self.parent.data_treat.m_sample = self.sample_mass_inp.text()
+        self.parent.data_treat.M_sample = self.molar_mass_inp.text()
+        self.parent.data_treat.Xd_sample = self.sample_xd_inp.text()
+        self.parent.data_treat.constant_terms = self.constant_terms_inp.text()
+        self.parent.data_treat.var_am = self.var_amount_inp.text()
+        self.accept()
+    
+    def insert_values(self): 
+        try: 
+            self.sample_mass_inp.setText(str(self.parent.data_treat.m_sample))
+        except AttributeError: 
+            pass
+        try: 
+            self.molar_mass_inp.setText(str(self.parent.data_treat.M_sample))
+        except AttributeError: 
+            pass
+        try: 
+            self.sample_xd_inp.setText(str(self.parent.data_treat.Xd_sample))
+        except AttributeError: 
+            pass
+        try: 
+            self.constant_terms_inp.setText(str(self.parent.data_treat.constant_terms))
+        except AttributeError: 
+            pass
+        try: 
+            self.var_amount_inp.setText(str(self.parent.data_treat.var_am))
+        except AttributeError: 
+            pass
+    
+    def set_gui_language(self): 
+        language = self.parent.gui_language 
+        try: 
+            self.sample_mass_inp.setToolTip(self.parent.tooltips_dict[language]['m_sample'])
+            self.molar_mass_inp.setToolTip(self.parent.tooltips_dict[language]['M_sample'])
+            self.sample_xd_inp.setToolTip(self.parent.tooltips_dict[language]['Xd_sample'])
+            self.constant_terms_inp.setToolTip(self.parent.tooltips_dict[language]['const_terms'])
+            self.var_amount_inp.setToolTip(self.parent.tooltips_dict[language]['var_amounts'])
+        except: 
+            pass 
+
+
+
+

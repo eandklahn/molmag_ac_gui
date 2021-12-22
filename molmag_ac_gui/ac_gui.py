@@ -1,29 +1,22 @@
 #std packages
+from importlib.resources import read_text
 import sys
 import os
-from importlib.resources import read_text
-from multiprocessing import Pool
+import json
 
 #third-party packages
 from PyQt5.QtGui import QIcon, QFont
 from PyQt5.QtWidgets import (QMainWindow, QAction, QTabWidget, QStatusBar,
                              QActionGroup)
+from matplotlib.colors import LinearSegmentedColormap
 
 #local imports
 from .__init__ import __version__
-#from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset,
-#                         getParameterGuesses, getStartParams,
-#                         getFittingFunction, readPopt, addPartialModel,
-#                         tau_err_RC, diamag_correction, fit_Xp_Xpp_genDebye,
-#                         _QT, _R, _O)
 from .dialogs import  AboutDialog
-#from .utility import (read_ppms_file, get_ppms_column_name_matches,
-#                      update_data_names)
-
-#Datatabletab import:
 from .Datatabletab import Datatabletab 
 from .DataAnalysisTab import DataAnalysisTab
 from .DataTreatmentTab import DataTreatmentTab
+from . import data as pkg_static_data
 
 
 """
@@ -53,6 +46,7 @@ class ACGui(QMainWindow):
         self.last_loaded_file = os.getcwd() #Remember the last used folder.
         self.current_file = ''
 
+
         """ Things to do with how the window is shown """
         self.setWindowTitle('Molmag AC GUI v{}'.format(__version__))
         self.setWindowIcon(QIcon('double_well_potential_R6p_icon.ico'))
@@ -61,6 +55,20 @@ class ACGui(QMainWindow):
         self.headline_font = QFont() #Defines headline font
         self.headline_font.setBold(True) #Makes it bold
         
+        # Data containers for treatment
+        self.read_options = json.loads(read_text(pkg_static_data,
+                                                'read_options.json'))
+        
+        self.diamag_constants = json.loads(read_text(pkg_static_data,
+                                                    'diamag_constants.json'))
+        
+        self.temperature_cmap = LinearSegmentedColormap.from_list(
+            'temp_colormap',
+            json.loads(read_text(pkg_static_data, 'default_colormap.json')))
+        
+        self.tooltips_dict = json.loads(read_text(pkg_static_data,
+                                                  'tooltips.json'))
+
         """ Setting up the main tab widget """
         self.all_the_tabs = QTabWidget() 
         self.setCentralWidget(self.all_the_tabs)
@@ -68,7 +76,7 @@ class ACGui(QMainWindow):
         self.setStatusBar(self.statusBar)
         #self.setStyleSheet(read_text(pkg_static_data, 'styles.qss')
         
-        """ Adding all the tabs"""
+        """ Adding all the tabs"""        
         #Makes "Data treatment" tab    
         self.data_treat = DataTreatmentTab(self)        
         self.all_the_tabs.addTab(self.data_treat, "Data treatment")
@@ -136,22 +144,14 @@ class ACGui(QMainWindow):
 
         # Showing the GUI
         self.data_ana.load_t_tau_data()
-        
-        self.help_lang_eng.trigger()
+        self.help_lang_eng.trigger()        
         self.showMaximized()
         self.show()
-    
-    def set_gui_language(self):
 
-        language = self.sender().text()
-        self.data_treat.sample_mass_inp.setToolTip(self.data_treat.tooltips_dict[language]['m_sample'])
-        self.data_treat.molar_mass_inp.setToolTip(self.data_treat.tooltips_dict[language]['M_sample'])
-        self.data_treat.sample_xd_inp.setToolTip(self.data_treat.tooltips_dict[language]['Xd_sample'])
-        self.data_treat.constant_terms_inp.setToolTip(self.data_treat.tooltips_dict[language]['const_terms'])
-        self.data_treat.var_amount_inp.setToolTip(self.data_treat.tooltips_dict[language]['var_amounts'])
+    def set_gui_language(self): 
+        self.gui_language = self.sender().text()
 
     def show_about_dialog(self):
-
         w = AboutDialog(info=self.about_information)
         w.exec_()
     

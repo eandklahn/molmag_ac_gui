@@ -1,6 +1,5 @@
 #std packages
 import os
-import json
 from importlib.resources import read_text
 from multiprocessing import Pool
 
@@ -9,17 +8,18 @@ import numpy as np
 import pandas as pd
 import matplotlib as mpl
 from matplotlib import cm
-from matplotlib.colors import LinearSegmentedColormap, to_hex
+from matplotlib.colors import to_hex
 import matplotlib.ticker as mticker
-from PyQt5.QtWidgets import (QFileDialog, QInputDialog, QListWidgetItem, 
+from PyQt5.QtWidgets import (QFileDialog, QFormLayout, QInputDialog, QListWidgetItem, 
                              QWidget, QVBoxLayout, QPushButton, QLabel, 
                              QHBoxLayout, QComboBox, QStackedWidget, 
-                             QCheckBox, QLineEdit, QListWidget, QSplitter)
+                             QCheckBox, QLineEdit, QListWidget, QSplitter,
+                             QGridLayout)
 from PyQt5.QtGui import  QDoubleValidator, QColor
 
 
 #local imports
-from .dialogs import PlottingWindow, MagMessage, FitResultPlotStatus
+from .dialogs import PlottingWindow, MagMessage, FitResultPlotStatus, SampleInformation
 from .utility import read_ppms_file, update_data_names
 from .exceptions import FileFormatError
 from .process_ac import (diamag_correction, fit_Xp_Xpp_genDebye, tau_err_RC, 
@@ -34,20 +34,6 @@ class DataTreatmentTab(QSplitter):
         self.initUI() 
     
     def initUI(self): 
-        # Data containers for treatment
-        self.read_options = json.loads(read_text(pkg_static_data,
-                                                'read_options.json'))
-        
-        self.diamag_constants = json.loads(read_text(pkg_static_data,
-                                                    'diamag_constants.json'))
-        
-        self.temperature_cmap = LinearSegmentedColormap.from_list(
-            'temp_colormap',
-            json.loads(read_text(pkg_static_data, 'default_colormap.json')))
-        
-        self.tooltips_dict = json.loads(read_text(pkg_static_data,
-                                                  'tooltips.json'))
-
         #Creates dataframe with header and raw_df
         self.raw_df = None
         self.raw_df_header = None
@@ -59,7 +45,7 @@ class DataTreatmentTab(QSplitter):
         
         self.raw_data_fit = None
         """Constructing the full layout of tab"""
-        ## Making the left column (data loading, fitting and visualization controls)
+        ## Making the left column (data loading, fitting, visualization controls and show/hide option)
         self.data_layout = QVBoxLayout()
         self.data_loading_wdgt = QWidget()
 
@@ -67,22 +53,30 @@ class DataTreatmentTab(QSplitter):
         self.load_btn.clicked.connect(self.load_ppms_data)
         self.data_layout.addWidget(self.load_btn)
         
-        self.diamag_correction_btn = QPushButton("(2) Diamagnetic correction")
+        self.sample_info_btn = QPushButton("(2) Load Sample Information")
+        self.sample_info_btn.clicked.connect(self.update_sample_info)
+        self.data_layout.addWidget(self.sample_info_btn)
+
+        self.diamag_correction_btn = QPushButton("(3) Diamagnetic correction")
         self.diamag_correction_btn.clicked.connect(self.make_diamag_correction_calculation)
         self.data_layout.addWidget(self.diamag_correction_btn)
         
-        self.fit_Xp_Xpp_btn = QPushButton("(3) Fit X', X''")
+        self.fit_Xp_Xpp_btn = QPushButton("(4) Fit X', X''")
         self.fit_Xp_Xpp_btn.clicked.connect(self.fit_Xp_Xpp_standalone)
         self.data_layout.addWidget(self.fit_Xp_Xpp_btn)
         
-        self.copy_fit_to_ana_btn = QPushButton('(4) Copy for analysis')
+        self.copy_save_layout = QHBoxLayout()
+
+        self.copy_fit_to_ana_btn = QPushButton('Copy fit to Data analysis')
         self.copy_fit_to_ana_btn.clicked.connect(self.copy_fit_to_analysis)
-        self.data_layout.addWidget(self.copy_fit_to_ana_btn)
+        self.copy_save_layout.addWidget(self.copy_fit_to_ana_btn)
         
-        self.save_fit_to_file_btn = QPushButton('(5) Save fit to file')
+        self.save_fit_to_file_btn = QPushButton('Save fit to file')
         self.save_fit_to_file_btn.clicked.connect(self.save_fit_to_file)
-        self.data_layout.addWidget(self.save_fit_to_file_btn)
+        self.copy_save_layout.addWidget(self.save_fit_to_file_btn)
         
+        self.data_layout.addLayout(self.copy_save_layout)
+
         ### Constructing data plotting layout
         self.plot_lo = QVBoxLayout()
         
@@ -99,25 +93,27 @@ class DataTreatmentTab(QSplitter):
         self.raw_data_plot_header.setFont(self.parent.headline_font)
         self.plot_lo.addWidget(self.raw_data_plot_header)
         
-        ## Constructing the x combobox
-        self.x_lo = QHBoxLayout()
-        self.x_combo_lbl = QLabel('x')
-        self.x_lo.addWidget(self.x_combo_lbl)
-        
+        ## Constructing the x and y comboboxes
+        self.xy_lo = QFormLayout() 
+
         self.x_combo = QComboBox()
-        self.x_combo.currentIndexChanged.connect(self.plot_from_combo)
-        self.x_lo.addWidget(self.x_combo)
-        self.plot_lo.addLayout(self.x_lo)
-        
-        ## Constructing the y combobox
-        self.y_lo = QHBoxLayout()
-        self.y_combo_lbl = QLabel('y')
-        self.y_lo.addWidget(self.y_combo_lbl)
-        
+        self.x_combo.currentIndexChanged.connect(self.plot_from_combo)        
         self.y_combo = QComboBox()
         self.y_combo.currentIndexChanged.connect(self.plot_from_combo)
-        self.y_lo.addWidget(self.y_combo)
-        self.plot_lo.addLayout(self.y_lo)
+        
+        self.xy_lo.addRow("x: ", self.x_combo) 
+        self.xy_lo.addRow("y: ", self.y_combo) 
+
+        self.plot_lo.addLayout(self.xy_lo)
+
+        self.xy_options_lo = QHBoxLayout()
+        self.xy_options_header = QLabel('Show additional options for x and y')
+        self.xy_options_lo.addWidget(self.xy_options_header)
+        
+        self.xy_options_cb = QCheckBox()
+        self.xy_options_cb.stateChanged.connect(self.update_analysis_combos)
+        self.xy_options_lo.addWidget(self.xy_options_cb)
+        self.plot_lo.addLayout(self.xy_options_lo)
         
         ## Constructing a combobox for plotting fitted data
         self.fitted_header = QLabel('Fit data plotting')
@@ -125,7 +121,7 @@ class DataTreatmentTab(QSplitter):
         self.plot_lo.addWidget(self.fitted_header)
         
         self.fit_combo = QComboBox()
-        self.fit_combo.addItems(['ColeCole', 'FreqVSXp', 'FreqVSXpp'])
+        self.fit_combo.addItems(['ColeCole', 'Freq VS Xp', 'Freq VS Xpp'])
         self.fit_combo.currentIndexChanged.connect(self.plot_from_itemlist)
         self.plot_lo.addWidget(self.fit_combo)
         
@@ -141,11 +137,12 @@ class DataTreatmentTab(QSplitter):
 
         ## Finalizing the raw data layout
         self.data_layout.addLayout(self.plot_lo)
-        
+
         ### Finalizing the data loading widget
         self.data_layout.addStretch()
         self.data_loading_wdgt.setLayout(self.data_layout)
-        
+        self.data_loading_wdgt.resize(10,10)
+
         ## Making the middle of the tab (data visualization)
         self.sw = QStackedWidget()
         
@@ -158,108 +155,30 @@ class DataTreatmentTab(QSplitter):
         self.sw.addWidget(self.threeD_plot)
 
         ### Making the right column (parameter controls)
+        
         self.param_wdgt = QWidget()
         self.param_layout = QVBoxLayout()
-        
-        ## SAMPLE INFO
-        self.sample_info_layout = QVBoxLayout()
-        
-        self.sample_info_header = QLabel('Sample information')
-        self.sample_info_header.setFont(self.parent.headline_font)
-        self.sample_info_layout.addWidget(self.sample_info_header)
-        
-        ## Sample mass edit
-        self.sample_mass_layout = QHBoxLayout()
-        self.sample_info_layout.addLayout(self.sample_mass_layout)
-        
-        self.sample_mass_lbl = QLabel('m (sample) [mg]')
-        self.sample_mass_layout.addWidget(self.sample_mass_lbl)
-        
-        self.sample_mass_inp = QLineEdit()
-        self.sample_mass_inp.setValidator(QDoubleValidator())
-        self.sample_mass_layout.addWidget(self.sample_mass_inp)
-
-        ## Sample molar mass edit
-        self.molar_mass_lo = QHBoxLayout()
-        self.sample_info_layout.addLayout(self.molar_mass_lo)
-        
-        self.molar_mass_lbl = QLabel('M (sample) [g/mol]')
-        self.molar_mass_lo.addWidget(self.molar_mass_lbl)
-        
-        self.molar_mass_inp = QLineEdit()
-        self.molar_mass_inp.setValidator(QDoubleValidator())
-        self.molar_mass_lo.addWidget(self.molar_mass_inp)
-
-        ## Sample Xd edit
-        self.sample_xd_lo = QHBoxLayout()
-        self.sample_info_layout.addLayout(self.sample_xd_lo)
-        
-
-        self.sample_xd_lbl = QLabel(u"<a href={}>X\u1D05</a>".format(
-                                    self.tooltips_dict['English']['Xd_link'])
-                                    +' (sample) [emu/(Oe*mol)]')
-        self.sample_xd_lbl.setOpenExternalLinks(True)
-        self.sample_xd_lo.addWidget(self.sample_xd_lbl)
-        
-        self.sample_xd_inp = QLineEdit()
-        self.sample_xd_inp.setValidator(QDoubleValidator())
-        self.sample_xd_lo.addWidget(self.sample_xd_inp)
-        
-        # Constant terms edit
-        self.constant_terms_layout = QHBoxLayout()
-        self.sample_info_layout.addLayout(self.constant_terms_layout)
-        
-        self.constant_terms_lbl = QLabel('Constant terms')
-        self.constant_terms_layout.addWidget(self.constant_terms_lbl)
-             
-        self.constant_terms_inp = QLineEdit()
-        self.constant_terms_layout.addWidget(self.constant_terms_inp)
-        
-        # Variable amount edit
-        self.var_amount_layout = QHBoxLayout()
-        self.sample_info_layout.addLayout(self.var_amount_layout)
-        
-        self.var_amount_lbl = QLabel('Variable amounts')
-        self.var_amount_layout.addWidget(self.var_amount_lbl)
-        
-        self.var_amount_inp = QLineEdit()
-        self.var_amount_layout.addWidget(self.var_amount_inp)
-        
-        
-        # Mass load button
-        self.sample_data_lo = QHBoxLayout()
-        self.sample_info_layout.addLayout(self.sample_data_lo)
-        
-        self.load_sample_data_btn = QPushButton('Load sample data')
-        self.load_sample_data_btn.clicked.connect(self.load_sample_data)
-        self.sample_data_lo.addWidget(self.load_sample_data_btn)
-        
-        self.save_sample_data_btn = QPushButton('Save sample data')
-        self.save_sample_data_btn.clicked.connect(self.save_sample_data)
-        self.sample_data_lo.addWidget(self.save_sample_data_btn)
-        
-        self.sample_data_lo.addStretch()
-        
-        self.param_layout.addLayout(self.sample_info_layout)
-        
-        # List of fitted raw data
-        self.fit_headline = QLabel('Fitted parameters')
+    
+        #List of fitted raw data
+        self.fit_headline = QLabel('Hide/show fitted lines and raw data')
         self.fit_headline.setFont(self.parent.headline_font)
         self.param_layout.addWidget(self.fit_headline)
+
+        self.fit_headline_info = QLabel("Double click to edit list")
+        self.param_layout.addWidget(self.fit_headline_info)
+
         
         self.raw_fit_list = QListWidget()
         self.param_layout.addWidget(self.raw_fit_list)
         self.raw_fit_list.doubleClicked.connect(self.update_raw_plot)
         
         ## Finalizing layout
-        
         self.param_layout.addStretch()
-        self.param_wdgt.setLayout(self.param_layout)
-        
+        self.plot_lo.addLayout(self.param_layout)
+        self.plot_lo.addWidget(self.param_wdgt)
+
         self.addWidget(self.data_loading_wdgt)
         self.addWidget(self.sw)
-        self.addWidget(self.param_wdgt)
-
         self.show()
 
         """End of layout construction"""
@@ -332,26 +251,40 @@ class DataTreatmentTab(QSplitter):
         self.Tmax = self.meas_temps.max()
 
     def update_analysis_combos(self):
-    
-        self.x_combo.clear()
-        self.x_combo.addItems(self.raw_df.columns)
         
+        self.x_combo.clear()
         self.y_combo.clear()
-        self.y_combo.addItems(self.raw_df.columns)
+
+        chosenlabels = ["Temperature (K)", "AC Frequency (Hz)", "AC Amplitude (Oe)", "Magnetic Field (Oe)", "Mp (emu)",\
+                           "Mpp (emu)", "Xp (emu/Oe)", "Xpp (emu/Oe)"]
+        
+        molarlabels = ["Mp_m (emu/mol)", "Mpp_m (emu/mol)", "Xp_m (emu/(Oe*mol))", "Xpp_m (emu/(Oe*mol))"]
+        
+        if self.xy_options_cb.isChecked():
+            self.y_combo.addItems(self.raw_df.columns)
+            self.x_combo.addItems(self.raw_df.columns)
+        elif all([label in self.raw_df for label in chosenlabels + molarlabels]): 
+            self.x_combo.addItems(chosenlabels + molarlabels)
+            self.y_combo.addItems(chosenlabels + molarlabels)
+        elif all([label in self.raw_df for label in chosenlabels]): 
+            self.x_combo.addItems(chosenlabels)
+            self.y_combo.addItems(chosenlabels)
+        else: 
+            self.y_combo.addItems(self.raw_df.columns)
+            self.x_combo.addItems(self.raw_df.columns)
+
 
     def load_ppms_data(self):
         
-        #open_file_dialog = QFileDialog()
-        #filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.last_loaded_file)
-        #print("filename_info = ", filename_info)
-        filename_info =  ('C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/20180209DyII_1000.dat', 'All Files (*)')
+        open_file_dialog = QFileDialog()
+        filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
         filename = filename_info[0]
         try:
             # FileNotFoundError and UnicodeDecodeError will be raised here
             potential_header, potential_df = read_ppms_file(filename)
             if potential_header is None:
                 raise FileFormatError(filename)
-            summary = update_data_names(potential_df, self.read_options)
+            summary = update_data_names(potential_df, self.parent.read_options)
             counts = [val>1 for key, val in summary.items()]
             # To make sure that none of the names in read_options were matched more than once.
             assert not any(counts)
@@ -370,14 +303,14 @@ class DataTreatmentTab(QSplitter):
             print('Trying to read a file that does not look correct')
         except AssertionError:
             # The data names could not be mapped correctly
-            print('A data name from self.read_options is showing up more than once in the columns')
+            print('A data name from self.parent.read_options is showing up more than once in the columns')
             print('OR')
             print('both Mp and Xp are unexpectedly both showing up in the data names')
         
         else:
             # Now that everything has been seen to work,
             # save potential header and potential df as actual header and df
-            self.last_loaded_file = os.path.split(filename)[0]
+            self.parent.last_loaded_file = os.path.split(filename)[0]
             self.parent.current_file = filename
             self.raw_df = potential_df
             self.raw_df_header = potential_header
@@ -413,11 +346,11 @@ class DataTreatmentTab(QSplitter):
         
         else:
             try:
-                m_sample = float(self.sample_mass_inp.text())
-                M_sample = float(self.molar_mass_inp.text())
-                Xd_sample = float(self.sample_xd_inp.text())
-                constant_terms = [float(x) for x in self.constant_terms_inp.text().split(',')]
-                var_am = [float(x) for x in self.var_amount_inp.text().split(',')]
+                m_sample = float(self.m_sample)
+                M_sample = float(self.M_sample)
+                Xd_sample = float(self.Xd_sample)
+                constant_terms = [float(x) for x in self.constant_terms.split(',')]
+                var_am = [float(x) for x in self.var_am.split(',')]
                 
                 assert len(var_am)%2==0
                 paired_terms = [(var_am[n], var_am[n+1]) for n in range(0,len(var_am),2)]
@@ -425,7 +358,7 @@ class DataTreatmentTab(QSplitter):
                 if Xd_sample == 0:
                     Xd_sample = -6e-7*M_sample
                 
-            except (ValueError, AssertionError):
+            except (ValueError, AssertionError, AttributeError):
                 MagMessage('Error', 'Something wrong in "Sample information"\n').exec_()
             else:
                 H = self.raw_df['AC Amplitude (Oe)']
@@ -463,56 +396,7 @@ class DataTreatmentTab(QSplitter):
                 MagMessage('Diamagnetic correction',
                                'Diamagnetic correction successful!').exec_()
 
-    def load_sample_data(self):
-        #Set like this so I dont have to open it each time: 
-        #filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.last_loaded_file)
-        filename_info =  ('C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/dbm_sample_data.dat', 'All Files (*)')
-        
-        #print("filename_info = ", filename_info)
-        filename = filename_info[0]
 
-        try:
-            f = open(filename, 'r')
-            d = f.readlines()
-            f.close()
-            
-            assert all([len(line.split())>=2 for line in d])
-            
-        except FileNotFoundError:
-            print('File was not selected')
-        except UnicodeDecodeError:
-            print('Cant open a binary file')
-        except AssertionError:
-            print('Some of the lines have lengths less than two')
-        else:
-            
-            # These are the default values that are "read" if nothing else is
-            # seen in the file
-            m_sample = '0'
-            M_sample = '0'
-            Xd_sample = '0'
-            constant_terms = '0'
-            var_amount = '0,0'
-            
-            self.last_loaded_file = os.path.split(filename)[0]
-            for line in d:
-                line = line.split()
-                if line[0] == 'm_sample':
-                    m_sample = line[1]
-                elif line[0] == 'M_sample':
-                    M_sample = line[1]
-                elif line[0] == 'Xd_sample':
-                    Xd_sample = line[1]
-                elif line[0] == 'constants':
-                    constant_terms = line[1]
-                elif line[0] == 'var_amount':
-                    var_amount = line[1]
-            
-            self.sample_mass_inp.setText(m_sample)
-            self.molar_mass_inp.setText(M_sample)
-            self.sample_xd_inp.setText(Xd_sample)
-            self.constant_terms_inp.setText(constant_terms)
-            self.var_amount_inp.setText(var_amount)
     
     def update_raw_fit_list(self):       
         self.raw_fit_list.clear()
@@ -525,7 +409,7 @@ class DataTreatmentTab(QSplitter):
                              'fit': True}
             newitem.setData(32, plotting_dict)
             t_float = (T-self.Tmin)/(self.Tmax-self.Tmin) #Makes t_float scaled by temperature from 0 to 1 for colormap
-            newitem.setBackground(QColor(to_hex(self.temperature_cmap(t_float))))
+            newitem.setBackground(QColor(to_hex(self.parent.temperature_cmap(t_float))))
             self.raw_fit_list.addItem(newitem)
 
     def plot_from_itemlist(self):
@@ -536,12 +420,12 @@ class DataTreatmentTab(QSplitter):
         self.fit_plot.ax.clear()
         plot_type = self.fit_combo.currentText()
         
-        if plot_type == 'FreqVSXp':
+        if plot_type == 'Freq VS Xp':
             x_name = 'AC Frequency (Hz)'
             y_name = 'Xp_m (emu/(Oe*mol))'
             fcn_y = Xp_
             x_scale = 'log'
-        elif plot_type == 'FreqVSXpp':
+        elif plot_type == 'Freq VS Xpp':
             x_name = 'AC Frequency (Hz)'
             y_name = 'Xpp_m (emu/(Oe*mol))'
             fcn_y = Xpp_
@@ -555,7 +439,7 @@ class DataTreatmentTab(QSplitter):
         for row in range(self.num_meas_temps):
         
             T = self.meas_temps[row]
-            rgb = self.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))
+            rgb = self.parent.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))
             markercolor = 'k'
             if self.fit_data_color_cb.isChecked():
                 markercolor = rgb
@@ -594,7 +478,7 @@ class DataTreatmentTab(QSplitter):
         norm = mpl.colors.Normalize(vmin=self.Tmin, vmax=self.Tmax)
         self.fit_plot.fig.colorbar(
             mpl.cm.ScalarMappable(norm=norm,
-                                  cmap=self.temperature_cmap),
+                                  cmap=self.parent.temperature_cmap),
                                         orientation='horizontal',
             cax=self.fit_plot.cax)
         
@@ -654,10 +538,13 @@ class DataTreatmentTab(QSplitter):
             self.raw_data_fit = fit_result
             self.update_raw_fit_list()
             self.plot_from_itemlist()
+            self.plot3D()
+            self.update_analysis_combos() 
             set_idx = self.plot_type_combo.findText('Fitted')
             self.plot_type_combo.setCurrentIndex(set_idx)
             
             self.parent.statusBar.showMessage("Fit of X' and X'' complete")
+
 
     def save_fit_to_file(self):
         
@@ -704,7 +591,7 @@ class DataTreatmentTab(QSplitter):
         
         for row in range(self.num_meas_temps):      
             T = self.meas_temps[row]
-            rgb = self.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))           
+            rgb = self.parent.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))           
                          
             item = self.raw_fit_list.item(row)
             itemdict = item.data(32)
@@ -728,7 +615,7 @@ class DataTreatmentTab(QSplitter):
         norm = mpl.colors.Normalize(vmin=self.Tmin, vmax=self.Tmax)
         self.threeD_plot.fig.colorbar(
             mpl.cm.ScalarMappable(norm=norm,
-                                  cmap=self.temperature_cmap),
+                                  cmap=self.parent.temperature_cmap),
                                         orientation='horizontal',
             cax=self.threeD_plot.cax)
 
@@ -740,8 +627,6 @@ class DataTreatmentTab(QSplitter):
 
         idx = self.plot_type_combo.currentIndex()
         self.sw.setCurrentIndex(idx)
-        if idx == 2: 
-            self.plot3D() 
 
     def plot_from_combo(self):
         
@@ -765,38 +650,6 @@ class DataTreatmentTab(QSplitter):
         self.raw_plot.ax.set_ylabel(y_label)
         self.raw_plot.canvas.draw()
 
-    def save_sample_data(self):
-    
-        filename_info = QFileDialog.getSaveFileName(self,
-                                                   'Save sample file',
-                                                   self.last_loaded_file)
-        filename = filename_info[0]
-        
-        try:
-            assert filename != ''
-            self.last_loaded_file = os.path.split(filename)[0]
-            filename, ext = os.path.splitext(filename)
-            if ext == '':
-                ext = '.dat'
-            
-            comment, ok = QInputDialog.getText(self,
-                                              'Comment',
-                                              'Comment for saved sample data')
-
-            fc = ''
-            fc += '# ' + comment + '\n'
-            fc += 'm_sample ' + self.sample_mass_inp.text() + '\n'
-            fc += 'M_sample ' + self.molar_mass_inp.text() + '\n'
-            fc += 'Xd_sample ' + self.sample_xd_inp.text() + '\n'
-            fc += 'constants ' + self.constant_terms_inp.text() + '\n'
-            fc += 'var_amount ' + self.var_amount_inp.text() + '\n'
-            
-            f = open(filename+ext, 'w')
-            f.write(fc)
-            f.close()
-            
-        except AssertionError:
-            pass
 
     def update_itemdict(self, item, itemdict):
         
@@ -836,4 +689,8 @@ class DataTreatmentTab(QSplitter):
             self.parent.data_ana.ana_plot.reset_axes()
         except TypeError:
             print('When the fitted data does not yet exist')
-        
+
+    def update_sample_info(self): 
+        w = SampleInformation(self.parent)
+        w.exec_()
+    
