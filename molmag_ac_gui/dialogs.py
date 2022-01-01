@@ -5,10 +5,12 @@ from collections import OrderedDict
 import scipy.constants as sc
 
 from PyQt5.QtGui import QIcon, QFont, QDoubleValidator
-from PyQt5.QtWidgets import (QFrame, QMainWindow, QWidget, QApplication, QPushButton, QLabel, QAction, QComboBox, QStackedWidget,
+from PyQt5.QtWidgets import (QFrame, QMainWindow, QTextEdit, QWidget, QApplication, QPushButton, QLabel, QAction, QComboBox, QStackedWidget,
                              QDoubleSpinBox, QFormLayout, QCheckBox, QVBoxLayout, QMessageBox, QSplitter, QGridLayout,
                              QHBoxLayout, QFileDialog, QDialog, QLineEdit, QListWidget, QListWidgetItem, QTabWidget,
-                             QScrollArea, QStatusBar)
+                             QScrollArea, QStatusBar, QGridLayout)
+
+from lmfit import fit_report
 
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
@@ -124,15 +126,10 @@ class GuessDialog(QDialog):
         self.parent = parent
         self.fit_history = parent.fit_history
         self.fitwith = fitwith
-        self.init_guess = guess
+        self.current_guess = guess
+        self.param_names = [p for p in self.current_guess if not 'use' in p]
+        self.valueedits = None
         
-        self.init_params = default_parameters(self.fitwith)
-        self.set_init_params()
-
-        self.final_params = default_parameters(self.fitwith)
-        
-        self.current_choice = self.init_params
-
         self.initUI()
 
     def initUI(self):
@@ -145,11 +142,11 @@ class GuessDialog(QDialog):
 
         self.choose_fit_combo = QComboBox()
         self.update_fit_combo()
-        self.choose_fit_combo.activated.connect(self.use_fit)
+        self.choose_fit_combo.activated.connect(self.get_values_from_fit)
         self.layout.addWidget(self.choose_fit_combo)
         
         self.make_value_frame()
-        self.set_params()
+        self.write_params()
 
         self.accept_btn = QPushButton('Accept')
         self.accept_btn.clicked.connect(self.onclose)
@@ -160,74 +157,67 @@ class GuessDialog(QDialog):
     def make_value_frame(self):
 
         w = QFrame()
-        layout = QHBoxLayout()
+        layout = QGridLayout()
         w.setStyleSheet('background-color: rgb(240,240,240)')
         
-        name = ['0']
-        lbls = [QLabel('Name')]
-        vals = [QLabel('Value')]
-        mins = [QLabel('Min.')]
-        maxs = [QLabel('Max.')]
+        for idx, rowname in enumerate(self.param_names):
+            lbl = QLabel(rowname)
+            lbl.setFont(self.parent.headline_font)
+            layout.addWidget(lbl, idx+1, 0)
+        for idx, colname in enumerate(['Value', 'Min.', 'Max.']):
+            lbl = QLabel(colname)
+            lbl.setFont(self.parent.headline_font)
+            layout.addWidget(lbl, 0, idx+1)
 
-        for p in [p for p in self.init_params if not 'use' in p]:
-            newlbl = QLabel(p)
-            newval = QLineEdit()
-            newmin = QLineEdit()
-            newmax = QLineEdit()
+        self.valueedits = [None]
+        for row in range(1,6):
+            self.valueedits.append([None])
+            for col in range(1,4):
+                ledit = QLineEdit()
+                ledit.setValidator(self.validator)
+                self.valueedits[-1].append(ledit)
+                layout.addWidget(ledit, row, col)
 
-            newval.setValidator(self.validator)
-            newmin.setValidator(self.validator)
-            newmax.setValidator(self.validator)
-
-            lbls.append(newlbl)
-            vals.append(newval)
-            mins.append(newmin)
-            maxs.append(newmax)
-
-        columns = [lbls, vals, mins, maxs]
-        for items in columns:
-            lo = QVBoxLayout()
-            for item in items:
-                lo.addWidget(item)
-            layout.addLayout(lo)
-
+        self.value_frame = w
         w.setLayout(layout)
         self.layout.addWidget(w)
 
-        self.value_frame = {'lbls': lbls,
-                            'vals': vals,
-                            'mins': mins,
-                            'maxs': maxs}
-
-    def set_init_params(self):
+    def write_params(self):
         
-        for key, val in self.init_guess.items():
-            self.init_params[key].set(value=val)
+        params = self.current_guess
 
-    def set_params(self):
-        
-        params = self.current_choice
-
-        for i, p in enumerate(self.value_frame['lbls'][1:]):
-            i += 1
-            name = p.text()
+        for idx, name in enumerate(self.param_names):
+            idx += 1
             param = params[name]
-            vary = param.vary
-            val = param.value
-            min_val = param.min
-            max_val = param.max
+            if self.current_guess[name].vary:
+                self.valueedits[idx][1].setText(str(param.value))
+                self.valueedits[idx][2].setText(str(param.min))
+                self.valueedits[idx][3].setText(str(param.max))
+                
+    def read_params(self):
 
-            if vary:
-                self.value_frame['vals'][i].setText(str(val))
-                self.value_frame['mins'][i].setText(str(min_val))
-                self.value_frame['maxs'][i].setText(str(max_val))
+        for p in self.current_guess:
+            param = self.current_guess[p]
+            if param.vary:
+                idx = self.param_names.index(p)+1
+                set_val = float(self.valueedits[idx][1].text())
+                val_min = float(self.valueedits[idx][2].text())
+                val_max = float(self.valueedits[idx][3].text())
+                param.set(value=set_val,
+                          min=val_min,
+                          max=val_max)
 
-    def use_fit(self):
+    def get_values_from_fit(self):
         
         idx = self.choose_fit_combo.currentIndex()
         name, res, time = self.fit_history[idx]
-        self.current_choice = res.params
-        self.set_params()
+        potential_guess = res.params
+        for p in potential_guess:
+            current_param = self.current_guess[p]
+            potential_param = potential_guess[p]
+            if (current_param.vary and potential_param.vary):
+                current_param.value = potential_param.value
+        self.write_params()
 
     def update_fit_combo(self):
 
@@ -241,24 +231,9 @@ class GuessDialog(QDialog):
                 repr += f'\n{param.name}: {param.value}'
             self.choose_fit_combo.addItem(repr)
     
-    def set_final_params(self):
-
-        names = [lbl.text() for lbl in self.value_frame['lbls']]
-        
-        for p in self.final_params:
-            param = self.final_params[p]
-            if param.vary:
-                idx = names.index(p)
-                val = float(self.value_frame['vals'][idx].text())
-                val_min = float(self.value_frame['mins'][idx].text())
-                val_max = float(self.value_frame['maxs'][idx].text())
-                param.set(value=val,
-                          min=val_min,
-                          max=val_max)
-
     def onclose(self):
 
-        self.set_final_params()
+        self.read_params()
         self.accept()
 
 class SimulationDialog(QDialog):
@@ -266,98 +241,86 @@ class SimulationDialog(QDialog):
     def __init__(self,
                  parent=None,
                  fit_history=[],
-                 plot_type_list=[],
-                 plot_parameters={'tQT': 0.1, 'Cr': 0.1, 'n': 0.1, 't0': 0.1, 'Ueff': 0.1},
-                 min_and_max_temps=[0]*2):
-    
-        super(SimulationDialog, self).__init__()
-        
-        self.setWindowTitle('Add simulation')
-        self.headline_font = QFont()
-        self.headline_font.setBold(True)
-        
-        # Storing input values
-        self.plot_type_list = plot_type_list
-        self.plot_parameters = plot_parameters
-        self.min_and_max_temps = min_and_max_temps
-        self.fit_history = fit_history
+                 params=default_parameters(),
+                 min_max_T=[0,0]):
 
-        # Abstracting the validator for the QLineEdits
+        super(SimulationDialog, self).__init__()
+
+        self.setWindowTitle('Add/edit simulation')
+        
+        self.parent = parent
+        self.fit_history = fit_history
+        self.params = params
+        self.min_max_T = min_max_T
+        
+        self.use_function_checkboxes = {}
+        self.use_values_edits = {}
+
         self.validator = QDoubleValidator()
         self.validator.setNotation(QDoubleValidator.ScientificNotation)
         
-        # Containers for objects
-        self.parameter_inputs = OrderedDict()
-        self.parameter_inputs['tQT']=None
-        self.parameter_inputs['Cr']=None
-        self.parameter_inputs['n']=None
-        self.parameter_inputs['t0']=None
-        self.parameter_inputs['Ueff']=None
-        
-        self.possible_functions = OrderedDict()
-        self.possible_functions['QT']=['QT',None]
-        self.possible_functions['R']=['Raman',None]
-        self.possible_functions['O']=['Orbach',None]
-        
+        self.initUI()
+
+    def initUI(self):
+
         self.layout = QVBoxLayout()
         
-        self.fit_history_lbl = QLabel('Fit history (latest first)')
-        self.fit_history_lbl.setFont(self.headline_font)
+        self.fit_history_lbl = QLabel('Fit history')
+        self.fit_history_lbl.setFont(self.parent.headline_font)
         self.layout.addWidget(self.fit_history_lbl)
         
-        self.fit_history_combo = QComboBox()
-        for fit in self.fit_history:
-            rep = self.fit_history_element_repr(fit)
-            self.fit_history_combo.addItem(rep)
-        
-        self.fit_history_combo.activated.connect(self.fit_take_control)
-        self.layout.addWidget(self.fit_history_combo)
+        self.choose_fit_combo = QComboBox()
+        self.choose_fit_combo.activated.connect(self.use_fitted_values)
+        self.layout.addWidget(self.choose_fit_combo)
+        self.update_fit_combo()
         
         # Controls to play with temperature
         self.temp_headline = QLabel('Temperature')
-        self.temp_headline.setFont(self.headline_font)
+        self.temp_headline.setFont(self.parent.headline_font)
         self.layout.addWidget(self.temp_headline)
         
         self.temp_hbl = QHBoxLayout()
         
         self.temp_min = QDoubleSpinBox()
-        self.temp_min.setValue(min_and_max_temps[0])
-        self.temp_min.editingFinished.connect(self.temp_interval_changed)
+        self.temp_min.setValue(self.min_max_T[0])
         self.temp_hbl.addWidget(self.temp_min)
         
         self.temp_max = QDoubleSpinBox()
-        self.temp_max.setValue(min_and_max_temps[1])
-        self.temp_max.editingFinished.connect(self.temp_interval_changed)
+        self.temp_max.setValue(self.min_max_T[1])
         self.temp_hbl.addWidget(self.temp_max)
         
         self.temp_hbl.addStretch()
-        
         self.layout.addLayout(self.temp_hbl)
         
         # Controls for which type of plot to consider
-        self.plot_headline = QLabel('Plot type to make')
-        self.plot_headline.setFont(self.headline_font)
+        self.plot_headline = QLabel('Plot type')
+        self.plot_headline.setFont(self.parent.headline_font)
         self.layout.addWidget(self.plot_headline)
         
         self.plot_type_hbl = QHBoxLayout()
-        for key, val in reversed(self.possible_functions.items()):
-            shorthand = key
-            fullname = val[0]
-            val[1] = QCheckBox(fullname)
-            val[1].clicked.connect(self.plot_type_changed)
-            if key in self.plot_type_list: val[1].setChecked(True)
-            self.plot_type_hbl.addWidget(val[1])
-            
+        functions = [p for p in self.params if 'use' in p]
+        for p in functions:
+            name = p[3:]
+            use = bool(self.params[p].value)
+            self.use_function_checkboxes[p] = QCheckBox(name)
+            self.use_function_checkboxes[p].setChecked(use)
+            self.plot_type_hbl.addWidget(self.use_function_checkboxes[p])
+
         self.plot_type_hbl.addStretch()
         self.layout.addLayout(self.plot_type_hbl)
         
         # Values to use
+        self.parameter_headline = QLabel('Parameter values')
+        self.parameter_headline.setFont(self.parent.headline_font)
+        self.layout.addWidget(self.parameter_headline)
+
         self.sim_vals_layout = QFormLayout()
-        for key in self.parameter_inputs.keys():
-            self.parameter_inputs[key] = QLineEdit()
-            self.parameter_inputs[key].setValidator(self.validator)
-            self.parameter_inputs[key].setText(str(self.plot_parameters[key]))
-            self.sim_vals_layout.addRow(key, self.parameter_inputs[key])
+        params = [p for p in self.params if not 'use' in p]
+        for p in params:
+            self.use_values_edits[p] = QLineEdit()
+            self.use_values_edits[p].setValidator(self.validator)
+            self.use_values_edits[p].setText(str(self.params[p].value))
+            self.sim_vals_layout.addRow(p, self.use_values_edits[p])
         self.layout.addLayout(self.sim_vals_layout)
         
         # Making control buttons at the end
@@ -377,72 +340,65 @@ class SimulationDialog(QDialog):
         
         self.setLayout(self.layout)
         
-        #self.show()
-    
-    def fit_history_element_repr(self, e):
-        
-        fit_type = e[0]
-        fit_dict = e[1]
-        params = fit_dict['params']
-        quants = fit_dict['quantities']
-        
-        rep = []
-        for key in self.parameter_inputs.keys():
-            if key in quants:
-                idx = quants.index(key)
-                param_val = params[idx]
-                if key=='Ueff':
-                    param_val /= kB
-                rep.append(f'{key}: {param_val:.2e}')
-            else:
-                rep.append(f'{key}: None')
-                
-        rep = f'Fit type: {fit_type}'+'\n'+'\n'.join(rep)    
-        
-        return rep
-    
-    def fit_take_control(self):
-        
-        idx = self.fit_history_combo.currentIndex()
-        fit = self.fit_history[idx]
-        
-        fit_dict = fit[1]
-        params = fit_dict['params']
-        quants = fit_dict['quantities']
-        
-        for key, val in self.parameter_inputs.items():
-            if key in quants:
-                key_idx = quants.index(key)
-                new_val = params[key_idx]
-                if key == 'Ueff':
-                    new_val /= kB
-                val.setText(str(new_val))
-            
-    def param_values_changed(self):
+    def update_fit_combo(self):
 
-        for key, val in self.parameter_inputs.items():
-            self.plot_parameters[key] = float(val.text())
-    
-    def plot_type_changed(self):
+        for fit in self.fit_history:
+            name, res, time = fit
+            params = res.params
+            repr = f'{time}: {name}'
+            L = [p for p in params if not ('use' in p or params[p].vary==False)]
+            for p in L:
+                param = params[p]
+                repr += f'\n{param.name}: {param.value}'
+            self.choose_fit_combo.addItem(repr)
 
-        self.plot_type_list = []
-        for key in self.possible_functions.keys():
-            val = self.possible_functions[key]
-            if val[1].isChecked(): self.plot_type_list.append(key)
-
-    def temp_interval_changed(self):
+    def use_fitted_values(self):
         
+        idx = self.choose_fit_combo.currentIndex()
+        name, res, time = self.fit_history[idx]
+        
+        new_params = res.params
+        param_names = [p for p in new_params if not 'use' in p]
+        for p in param_names:
+            self.use_values_edits[p].setText(str(new_params[p].value))
+
+    def read_param_values(self):
+        
+        param_names = [p for p in self.params if not 'use' in p]
+        for p in param_names:
+            self.params[p].value = float(self.use_values_edits[p].text())
+    
+    def read_plot_type(self):
+        
+        function_names = [p for p in self.params if 'use' in p]
+        for p in function_names:
+            self.params[p].value = int(self.use_function_checkboxes[p].isChecked())
+
+    def check_temperature(self):
+        
+        self.min_max_T[0] = self.temp_min.value()
+        self.min_max_T[1] = self.temp_max.value()
         try:
-            self.min_and_max_temps[0] = self.temp_min.value()
-            self.min_and_max_temps[1] = self.temp_max.value()
-            assert self.min_and_max_temps[0]<=self.min_and_max_temps[1]
+            assert self.min_max_T[0]>0
+            assert self.min_max_T[0]<self.min_max_T[1]
         except AssertionError:
-            pass
+            w = MagMessage("Wrong temperatures",
+                           "The minimum must be larger than 0 and lower than the maximum")
+            w.exec_()
+            return False
+        else:
+            return True
             
     def replace_and_accept(self):
         
-        self.param_values_changed()
-        self.accept()
+        try:
+            assert self.check_temperature()
+        except AssertionError:
+            pass
+        else:
+            self.read_plot_type()
+            self.read_param_values()
+            self.accept()
 
 class AboutDialog(QDialog):
     
@@ -497,6 +453,9 @@ class ParamDialog(QDialog):
         self.fit_title.setFont(self.parent.headline_font)
         self.layout.addWidget(self.fit_title)
 
+        self.fit_summary = QTextEdit()
+        self.layout.addWidget(self.fit_summary)
+
         self.setLayout(self.layout)
 
     def update_fit_combo(self):
@@ -510,6 +469,8 @@ class ParamDialog(QDialog):
         fit_idx = self.choose_fit_combo.currentIndex()
         name, res, time = self.fit_history[fit_idx]
         title = f'{time}: {name}'
+
+        self.fit_summary.setText(fit_report(res))
 
         self.fit_title.setText(title)
 

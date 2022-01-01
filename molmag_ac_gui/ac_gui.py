@@ -9,6 +9,7 @@ from importlib.resources import read_text
 from multiprocessing import Pool
 from collections import deque
 import datetime
+from random import randint
 
 #third-party packages
 import numpy as np
@@ -38,7 +39,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton,
 
 #local imports
 from .__init__ import __version__
-from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset,
+from .process_ac import (Xp_, Xpp_, Xp_dataset, Xpp_dataset, add_partial_model,
                          getParameterGuesses, getStartParams,
                          getFittingFunction, readPopt, addPartialModel,
                          tau_err_RC, diamag_correction, fit_Xp_Xpp_genDebye,
@@ -1083,10 +1084,10 @@ class ACGui(QMainWindow):
             fit = self.fit_history[0]
         except (IndexError, TypeError):
             w = MagMessage('Fit history error', 'There is no fit history yet!')
-            w.exec_()
         else:
             w = ParamDialog(self, self.fit_history)
-            finished = w.exec_()
+        finally:
+            w.exec_()
         
     def edit_simulation_from_list(self):
     
@@ -1105,91 +1106,87 @@ class ACGui(QMainWindow):
             try:
                 sim_item = self.list_of_simulations.selectedItems()[0]
             except IndexError:
-                print('Did not find any selected line')
+                w = MagMessage("Did not find any selected line",
+                               "Select a line first to edit it")
+                w.exec_()
                 return
             else:
-
-                # Reading off information from the selected item
-                old_data = sim_item.data(32)
-                old_plot_type_list = old_data['plot_type']
-                old_p_fit = old_data['p_fit']
-                old_T_vals = old_data['T_vals']
-                old_line = old_data['line']
-                old_color = old_line._color
-                old_label = old_line._label
+                data = sim_item.data(32)
+                params = data['params']
+                T_vals = data['T_vals']
+                line = data['line']
+                color = line._color
+                label = line._label
         
         elif action == 'New':
             
-            old_plot_type_list = []
-            old_p_fit = {'tQT': 0.1, 'Cr': 0.1, 'n': 0.1, 't0': 0.1, 'Ueff': 0.1}
-            old_T_vals = [0,0]
-            old_line = False
-            old_label = None
-            old_color = None
+            params = default_parameters()
+            T_vals = [1,3]
+            line = False
+            label = None
+            color = None
             if len(self.simulation_colors)<1:
                 self.statusBar.showMessage("ERROR: can't make any more simulations")
                 return
             
-        sim_dialog = SimulationDialog(fit_history=self.fit_history,
-                                      plot_type_list=old_plot_type_list,
-                                      plot_parameters=old_p_fit,
-                                      min_and_max_temps=old_T_vals)
+        sim_dialog = SimulationDialog(parent=self,
+                                      fit_history=self.fit_history,
+                                      params = params,
+                                      min_max_T=T_vals)
         finished_value = sim_dialog.exec_()
+        functions = [bool(sim_dialog.params[p].value)
+                     for p in sim_dialog.params if 'use' in p]
         
         try:
             assert finished_value
-            
-            new_plot_type = sim_dialog.plot_type_list
-            assert len(new_plot_type)>0
-            
+            assert(any(functions))
         except AssertionError:
             pass
-            
         else:
+            params = sim_dialog.params
+            T_vals = sim_dialog.min_max_T
             
-            new_p_fit = sim_dialog.plot_parameters
-            new_T_vals = sim_dialog.min_and_max_temps
-            plot_to_make = ''.join(new_plot_type)
-            
-            if old_line:
-                self.ana_plot.ax.lines.remove(old_line)
+            if line:
+                self.ana_plot.ax.lines.remove(line)
             else:
                 # In this case, there was no old line and therefore also no sim_item
-                
                 """https://stackoverflow.com/questions/55145390/pyqt5-qlistwidget-with-checkboxes-and-drag-and-drop"""
                 sim_item = QListWidgetItem()
                 sim_item.setFlags( sim_item.flags() | Qt.ItemIsUserCheckable )
                 sim_item.setCheckState(Qt.Checked)
                 
                 self.list_of_simulations.addItem(sim_item)
-                old_color = self.simulation_colors.pop()
-                old_label = names.get_first_name()
+                color = self.simulation_colors.pop()
+                label = names.get_first_name()
             
-            new_line = addPartialModel(self.ana_plot.fig,
-                                       new_T_vals[0],
-                                       new_T_vals[1],
-                                       self.prepare_sim_dict_for_plotting(new_p_fit),
-                                       plotType=plot_to_make,
-                                       c=old_color,
-                                       label=old_label)
+            line = add_partial_model(self.ana_plot.fig,
+                                     T_vals[0],
+                                     T_vals[1],
+                                     params,
+                                     c=color,
+                                     label=label)
             
-            list_item_data = {'plot_type': new_plot_type,
-                              'p_fit': new_p_fit,
-                              'T_vals': new_T_vals,
-                              'line': new_line,
-                              'color': old_color}
+            list_item_data = {'params': params,
+                              'T_vals': T_vals,
+                              'line': line,
+                              'color': color}
             
-            new_item_text = f"{old_label},\n({new_T_vals[0]:.1f},{new_T_vals[1]:.1f}),\n"
-            new_item_text += f"tQT: {new_p_fit['tQT']:.2e}, Cr: {new_p_fit['Cr']:.2e}, "
-            new_item_text += f"n: {new_p_fit['n']:.2e}, t0: {new_p_fit['t0']:.2e}, "
-            new_item_text += f"Ueff: {new_p_fit['Ueff']:.2e}"
+            new_item_text = self.represent_simulation(T_vals, params)
             
             sim_item.setData(32, list_item_data)
             sim_item.setText(new_item_text)
-            sim_item.setBackground(QColor(to_hex(old_color)))
+            sim_item.setBackground(QColor(to_hex(color)))
             
             self.redraw_simulation_lines()
-            
+
+    def represent_simulation(self, T_vals, params):
+        
+        fs = [p for p in params if 'use' in p]
+        used = [bool(params[p].value) for p in fs]
+        text = ['Using QT: {}, Raman: {}, Orbach: {}\n'.format(*used),
+                'to plot between {} K and {} K\n'.format(*T_vals)]
+        return ''.join(text)
+
     def delete_sim(self):
         
         try:
@@ -1451,18 +1448,17 @@ class ACGui(QMainWindow):
             
             # This will raise TypeError and IndexError first
             # to warn that no data was loaded
-            guess = getParameterGuesses(self.used_T, self.used_tau)
+            fitwith = self.read_fit_type_cbs()
+            assert fitwith != ''
+            guess = getParameterGuesses(self.used_T, self.used_tau, fitwith)
             
             Tmin = self.temp_line[1].value()
             Tmax = self.temp_line[3].value()
-            perform_this_fit = self.read_fit_type_cbs()
-            
             assert Tmin != Tmax
-            assert perform_this_fit != ''
             
             guess_dialog = GuessDialog(self,
                                        guess,
-                                       perform_this_fit)
+                                       fitwith)
             accepted = guess_dialog.exec_()
             if not accepted: raise NoGuessExistsError
             
@@ -1470,7 +1466,7 @@ class ACGui(QMainWindow):
             # and the GuessDialog was accepted, get the
             # guess and perform fitting
             
-            params = guess_dialog.final_params
+            params = guess_dialog.current_guess
             minimize_res = fit_relaxation(self.used_T, self.used_tau, params)
             
         except (AssertionError, IndexError):
@@ -1482,11 +1478,10 @@ class ACGui(QMainWindow):
         except RuntimeError:
             msg_text = 'This fit cannot be made within the set temperatures'
         except ValueError as e:
-            print(e)
             msg_text = 'No file has been loaded'
         except TypeError as e:
-            print(e)    
             msg_text = 'No data has been selected'
+            print(e)
         except NoGuessExistsError:
             msg_text = 'Made no guess for initial parameters'
         
@@ -1494,7 +1489,7 @@ class ACGui(QMainWindow):
             window_title = 'Fit successful!'
             msg_text = 'Congratulations'
             
-            self.add_to_history(minimize_res, perform_this_fit)
+            self.add_to_history(minimize_res, fitwith)
             
         finally:
             msg = QMessageBox()
