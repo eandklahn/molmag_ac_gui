@@ -1,15 +1,11 @@
 #std packages
-import ctypes
 import sys
-import re
 import os
-import time
 import json
 from importlib.resources import read_text
 from multiprocessing import Pool
 from collections import deque
 import datetime
-from random import randint
 
 #third-party packages
 import numpy as np
@@ -53,13 +49,11 @@ from .exceptions import FileFormatError, NoGuessExistsError
 from . import data as pkg_static_data
 
 #Datatabletab import:
-from .Datatabletab import Datatabletab 
+from .DataTableTab import DataTableTab 
 
 
 #set constants
 kB = sc.Boltzmann
-
-
 
 """
 MAIN GUI WINDOW
@@ -100,7 +94,7 @@ class ACGui(QMainWindow):
         """ Setting up the main tab widget """
         self.all_the_tabs = QTabWidget() 
         self.setCentralWidget(self.all_the_tabs)
-        self.statusBar = QStatusBar() #A statusbar in the buttom of the window
+        self.statusBar = QStatusBar() #A statusbar in the bottom of the window
         self.setStatusBar(self.statusBar)
         
         """ Constructing the data analysis tab """
@@ -525,7 +519,7 @@ class ACGui(QMainWindow):
         self.help_menu.addAction(self.help_about_menu)
         
         #Makes "Table of Data" tab
-        self.widget_table = Datatabletab(self)
+        self.widget_table = DataTableTab(self)
         self.all_the_tabs.addTab(self.widget_table, "Table of Data")
 
         # Showing the GUI
@@ -584,6 +578,10 @@ class ACGui(QMainWindow):
             newitem.setBackground(QColor(to_hex(self.temperature_cmap(t_float))))
             self.treat_raw_fit_list.addItem(newitem)
     
+    def set_fit_message_on_statusbar(self, n, N):
+
+        self.statusBar.showMessage('Fitted {}/{} curves'.format(n,N))
+
     def fit_Xp_Xpp_standalone(self):
         
         try:
@@ -603,11 +601,6 @@ class ACGui(QMainWindow):
         else:
             self.statusBar.showMessage('Running fit...')
             
-            # This can't be used currently. Will only work if a separate thread is spawned for fitting.
-            #w = QMessageBox()
-            #w.setText('Running the fit...\nPlease wait!')
-            #w.exec_()
-            
             T = [x for x in self.meas_temps]
             Xs, Xt, tau, alpha, resid, tau_fit_err = [],[],[],[],[],[]
             
@@ -617,10 +610,20 @@ class ACGui(QMainWindow):
             
             inputs = tuple(zip(v_all, Xp_all, Xpp_all))
             
+            #thread = QThread()
+            #worker = FitWorker(inputs)
+            #worker.moveToThread(thread)
+            #thread.started.connect(worker.run)
+            #worker.finished.connect(thread.quit)
+            #worker.finished.connect(worker.deleteLater)
+            #thread.finished.connect(thread.deleteLater)
+            #worker.progress.connect(self.set_fit_message_on_statusbar)
+
+            #thread.start()
+            #res = worker.res
+
             with Pool() as pool:
                 res = pool.starmap(fit_Xp_Xpp_genDebye, inputs)
-            
-            #w.close()
             
             tau = [e[0] for e in res]
             tau_fit_err = [e[1] for e in res]

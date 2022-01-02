@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 import scipy.constants as sc
-from scipy.optimize import curve_fit
 
 from lmfit import Parameters, minimize as lmfit_minimize
 
