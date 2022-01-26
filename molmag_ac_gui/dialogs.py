@@ -553,15 +553,26 @@ class FitResultPlotStatus(QDialog):
         self.check_all_btn = QPushButton('Check all')
         self.check_all_btn.clicked.connect(self.check_all_function)
         
-        self.uncheck_all_btn = QPushButton('Uncheck all')
-        self.uncheck_all_btn.clicked.connect(self.uncheck_all_function)
-        
-        self.state_btn_lo.addWidget(self.uncheck_all_btn)
         self.state_btn_lo.addWidget(self.check_all_btn)
-        
+
         self.layout.addLayout(self.state_btn_lo)
         
-    
+
+        self.uncheck_lo = QHBoxLayout() 
+
+        self.uncheck_raw_btn = QPushButton('Uncheck all raw data')
+        self.uncheck_raw_btn.clicked.connect(self.uncheck_all_raw)
+
+        self.uncheck_fit_btn = QPushButton('Uncheck all fitted lines')
+        self.uncheck_fit_btn.clicked.connect(self.uncheck_all_fit)
+
+        self.uncheck_lo.addWidget(self.uncheck_raw_btn)
+        self.uncheck_lo.addWidget(self.uncheck_fit_btn)
+        
+        self.layout.addLayout(self.uncheck_lo)
+
+
+
         self.judge_btn_lo = QHBoxLayout()
         
         self.states_reject_btn = QPushButton('Cancel')
@@ -583,11 +594,16 @@ class FitResultPlotStatus(QDialog):
         for sublist in self.checked_items:
             sublist[0].setChecked(True)
             sublist[1].setChecked(True)
+
+
+    def uncheck_all_raw(self): 
         
-    def uncheck_all_function(self):
-    
-        for sublist in self.checked_items:
+        for sublist in self.checked_items: 
             sublist[0].setChecked(False)
+    
+    def uncheck_all_fit(self): 
+        
+        for sublist in self.checked_items: 
             sublist[1].setChecked(False)
 
 class SampleInformation(QDialog): 
@@ -693,9 +709,9 @@ class SampleInformation(QDialog):
 
 
     def load_sample_data(self):
-        filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        #filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        filename_info =  ('C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/dbm_sample_data.dat', 'All Files (*)')
         filename = filename_info[0]
-
         try:
             f = open(filename, 'r')
             d = f.readlines()

@@ -20,7 +20,7 @@ from PyQt5.QtGui import  QDoubleValidator, QColor
 
 #local imports
 from .dialogs import PlottingWindow, MagMessage, FitResultPlotStatus, SampleInformation
-from .utility import read_ppms_file, update_data_names
+from .utility import read_ppms_file, update_data_names, formatlabel
 from .exceptions import FileFormatError
 from .process_ac import (diamag_correction, fit_Xp_Xpp_genDebye, tau_err_RC, 
                          Xp_, Xpp_)
@@ -37,6 +37,7 @@ class DataTreatmentTab(QSplitter):
         #Creates dataframe with header and raw_df
         self.raw_df = None
         self.raw_df_header = None
+        self.raw_df_reduced = None
         self.num_meas_freqs = 0
         self.num_meas_temps = 0
         self.temp_subsets = []
@@ -121,7 +122,7 @@ class DataTreatmentTab(QSplitter):
         self.plot_lo.addWidget(self.fitted_header)
         
         self.fit_combo = QComboBox()
-        self.fit_combo.addItems(['ColeCole', 'Freq VS Xp', 'Freq VS Xpp'])
+        self.fit_combo.addItems(['Cole-Cole', 'Freq VS Xp', 'Freq VS Xpp'])
         self.fit_combo.currentIndexChanged.connect(self.plot_from_itemlist)
         self.plot_lo.addWidget(self.fit_combo)
         
@@ -251,7 +252,7 @@ class DataTreatmentTab(QSplitter):
         self.Tmax = self.meas_temps.max()
 
     def update_analysis_combos(self):
-        
+
         self.x_combo.clear()
         self.y_combo.clear()
 
@@ -260,24 +261,40 @@ class DataTreatmentTab(QSplitter):
         
         molarlabels = ["Mp_m (emu/mol)", "Mpp_m (emu/mol)", "Xp_m (emu/(Oe*mol))", "Xpp_m (emu/(Oe*mol))"]
         
-        if self.xy_options_cb.isChecked():
+        if not self.xy_options_cb.isChecked():
+            if all([label in self.raw_df for label in chosenlabels + molarlabels]): #if molar properties have been calculated
+                self.x_combo.addItems(chosenlabels + molarlabels)
+                self.y_combo.addItems(chosenlabels + molarlabels)
+                self.update_reduced_df() 
+            elif all([label in self.raw_df for label in chosenlabels]): #If no molar properties has been calculated
+                self.update_reduced_df() 
+                self.x_combo.addItems(chosenlabels)
+                self.y_combo.addItems(chosenlabels)
+            else: 
+                self.y_combo.addItems(self.raw_df.columns)
+                self.x_combo.addItems(self.raw_df.columns)
+        else:  #If all properties in chosen labels are not there, show all labels from input file 
             self.y_combo.addItems(self.raw_df.columns)
             self.x_combo.addItems(self.raw_df.columns)
-        elif all([label in self.raw_df for label in chosenlabels + molarlabels]): 
-            self.x_combo.addItems(chosenlabels + molarlabels)
-            self.y_combo.addItems(chosenlabels + molarlabels)
-        elif all([label in self.raw_df for label in chosenlabels]): 
-            self.x_combo.addItems(chosenlabels)
-            self.y_combo.addItems(chosenlabels)
-        else: 
-            self.y_combo.addItems(self.raw_df.columns)
-            self.x_combo.addItems(self.raw_df.columns)
+        
 
+
+    def update_reduced_df(self): 
+        chosenlabels = ["Temperature (K)", "AC Frequency (Hz)", "AC Amplitude (Oe)", "Magnetic Field (Oe)", "Mp (emu)",\
+                           "Mpp (emu)", "Xp (emu/Oe)", "Xpp (emu/Oe)"]        
+        molarlabels = ["Mp_m (emu/mol)", "Mpp_m (emu/mol)", "Xp_m (emu/(Oe*mol))", "Xpp_m (emu/(Oe*mol))"]
+        
+        if not self.xy_options_cb.isChecked():
+            if all([label in self.raw_df for label in chosenlabels + molarlabels]): #if molar properties have been calculated
+                self.raw_df_reduced = self.raw_df[chosenlabels + molarlabels]
+            elif all([label in self.raw_df for label in chosenlabels]): #If no molar properties has been calculated
+                self.raw_df_reduced = self.raw_df[chosenlabels]
 
     def load_ppms_data(self):
         
-        open_file_dialog = QFileDialog()
-        filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        #open_file_dialog = QFileDialog()
+        #filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        filename_info = ('C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/20180209DyII_1000.dat', 'All Files (*)') 
         filename = filename_info[0]
         try:
             # FileNotFoundError and UnicodeDecodeError will be raised here
@@ -314,6 +331,7 @@ class DataTreatmentTab(QSplitter):
             self.parent.current_file = filename
             self.raw_df = potential_df
             self.raw_df_header = potential_header
+
             
             # Clear old data and set new names
             self.raw_fit_list.clear()
@@ -337,6 +355,7 @@ class DataTreatmentTab(QSplitter):
             
             #Updates "Table of Data" tab with the loaded data
             self.parent.widget_table.updatetable()
+             
 
     def make_diamag_correction_calculation(self):
         
@@ -430,7 +449,7 @@ class DataTreatmentTab(QSplitter):
             y_name = 'Xpp_m (emu/(Oe*mol))'
             fcn_y = Xpp_
             x_scale = 'log'
-        elif plot_type == 'ColeCole':
+        elif plot_type == 'Cole-Cole':
             x_name = 'Xp_m (emu/(Oe*mol))'
             y_name = 'Xpp_m (emu/(Oe*mol))'
             fcn_y = Xpp_
@@ -444,7 +463,7 @@ class DataTreatmentTab(QSplitter):
             if self.fit_data_color_cb.isChecked():
                 markercolor = rgb
             
-            if plot_type == 'ColeCole':
+            if plot_type == 'Cole-Cole':
                 x_data = Xp_(self.temp_subsets[row]['AC Frequency (Hz)'],
                              self.raw_data_fit['ChiS'].iloc[row],
                              self.raw_data_fit['ChiT'].iloc[row],
@@ -472,8 +491,8 @@ class DataTreatmentTab(QSplitter):
                                             c=rgb)
             
         self.fit_plot.ax.set_xscale(x_scale)
-        self.fit_plot.ax.set_xlabel(x_name)
-        self.fit_plot.ax.set_ylabel(y_name)
+        self.fit_plot.ax.set_xlabel(formatlabel(x_name))
+        self.fit_plot.ax.set_ylabel(formatlabel(y_name))
 
         norm = mpl.colors.Normalize(vmin=self.Tmin, vmax=self.Tmax)
         self.fit_plot.fig.colorbar(
@@ -578,16 +597,15 @@ class DataTreatmentTab(QSplitter):
         x_label = 'Temperature (K)'
         y_label = "AC Frequency (Hz)"
         z_label = "Xpp_m (emu/(Oe*mol))"
-    
-                     
+
         def log_tick_formatter(val, pos=None):
             return f"$10^{{{int(val)}}}$" 
         
         self.threeD_plot.ax.yaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
         self.threeD_plot.ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-        self.threeD_plot.ax.set_xlabel(x_label)
-        self.threeD_plot.ax.set_ylabel(y_label)
-        self.threeD_plot.ax.set_zlabel(z_label)            
+        self.threeD_plot.ax.set_xlabel(formatlabel(x_label))
+        self.threeD_plot.ax.set_ylabel(formatlabel(y_label))
+        self.threeD_plot.ax.set_zlabel(formatlabel(z_label))             
         
         for row in range(self.num_meas_temps):      
             T = self.meas_temps[row]
@@ -599,7 +617,7 @@ class DataTreatmentTab(QSplitter):
                 self.threeD_plot.ax.scatter3D(self.temp_subsets[row][x_label],
                                         np.log10(self.temp_subsets[row][y_label]),
                                         self.temp_subsets[row][z_label], 
-                                        color = rgb
+                                        color = rgb, s = 7
                                         )
 
             if itemdict['fit']:       
@@ -628,14 +646,28 @@ class DataTreatmentTab(QSplitter):
         idx = self.plot_type_combo.currentIndex()
         self.sw.setCurrentIndex(idx)
 
+    def getxylabel(self): 
+        idx_x = self.x_combo.currentIndex()
+        idx_y = self.y_combo.currentIndex()
+        if self.xy_options_cb.isChecked(): #If extra xy_options are chosen with checkbox: Index in raw_df
+            x_label = self.raw_df.columns[idx_x]
+            y_label = self.raw_df.columns[idx_y]
+        else: #If limited xy_options
+            if idx_x < len(self.raw_df_reduced.columns): 
+                x_label = self.raw_df_reduced.columns[idx_x]
+            else: 
+                x_label = self.raw_df_reduced.columns[0]
+            if idx_y < len(self.raw_df_reduced.columns): 
+                y_label = self.raw_df_reduced.columns[idx_y]
+            else: 
+                y_label = self.raw_df_reduced.columns[0]
+        return x_label, y_label 
+
     def plot_from_combo(self):
         
         self.raw_plot.ax.clear()
         
-        idx_x = self.x_combo.currentIndex()
-        idx_y = self.y_combo.currentIndex()
-        x_label = self.raw_df.columns[idx_x]
-        y_label = self.raw_df.columns[idx_y]
+        x_label, y_label = self.getxylabel()
         
         self.raw_plot.ax.plot(self.raw_df[x_label],
                                     self.raw_df[y_label],
@@ -646,8 +678,8 @@ class DataTreatmentTab(QSplitter):
                                     c='k',
                                     linewidth=1,
                                     )
-        self.raw_plot.ax.set_xlabel(x_label)
-        self.raw_plot.ax.set_ylabel(y_label)
+        self.raw_plot.ax.set_xlabel(formatlabel(x_label))
+        self.raw_plot.ax.set_ylabel(formatlabel(y_label))
         self.raw_plot.canvas.draw()
 
 

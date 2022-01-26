@@ -66,6 +66,29 @@ def update_data_names(df, options):
     
     return summary
 
+def formatlabel(label): 
+    #return label
+
+    if label == "Mp (emu)": 
+        return "M' (emu)"
+    elif label == "Mpp (emu)": 
+        return "M'' (emu)"
+    elif label == "Xp (emu/Oe)": 
+        return r"$\chi_m'$ (emu/Oe)"
+    elif label == "Xpp (emu/Oe)": 
+        return r"$\chi_m'$ (emu/Oe)"
+    elif label == "Mp_m (emu/mol)": 
+        return r"$M_m'$ (emu/Oe)"
+    elif label == "Mpp_m (emu/mol)":
+        return r"$M_m''$ (emu/Oe)"
+    elif label ==  "Xp_m (emu/(Oe*mol))":
+        return r"$\chi_m'$ $(emu/(Oe⋅mol))$"
+    elif label ==  "Xpp_m (emu/(Oe*mol))":
+        return r"$\chi_m''$ $(emu/(Oe⋅mol))$"
+    else: 
+        return label
+
+
 if __name__ == '__main__':
     
     filename = input()

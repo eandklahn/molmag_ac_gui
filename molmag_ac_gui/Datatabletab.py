@@ -6,6 +6,7 @@ import pandas as pd
 from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QPushButton, 
                              QVBoxLayout, QWidget, QTableWidget,
                              QTableWidgetItem, QMessageBox) 
+from .dialogs import MagMessage
 
 class Datatabletab(QWidget): #First tab er Qwidget, så nu er det self.layout fx i stedet for self.widget.layout
 
@@ -87,38 +88,26 @@ class Datatabletab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
         self.export_filetype = "csv"
         self.export_table() 
 
+    def savetofile(self): 
+        if self.export_filetype == "csv": 
+            self.parent.data_treat.raw_df.to_csv(r'{}.{}'.format(self.path_to_export, self.export_filetype), index = False)
+        if self.export_filetype == "xlsx": 
+            self.parent.data_treat.raw_df.to_excel(r'{}.{}'.format(self.path_to_export, self.export_filetype), index = False)
+        MagMessage('The data is successfully exported', "The data is saved as a .{} file at: {}.{}".format(self.export_filetype, self.path_to_export, self.export_filetype)).exec_() 
+
     def export_table(self):
         filetype = self.export_filetype
         try: 
             self.findnewpath()
-            msg = QMessageBox()
-            msg.setText("An error occured")
-            if os.path.isfile(r'{}.{}'.format(self.path_to_export,filetype)):
+            if os.path.isfile(r'{}.{}'.format(self.path_to_export,filetype)): #If the file already exist
                 qm = QMessageBox() 
                 ans = qm.question(self,'', "File already exists. Do you want to overwrite existing file?", qm.Yes | qm.No)
-                if ans == qm.Yes: 
-                    if filetype == "csv": 
-                        self.parent.data_treat.raw_df.to_csv(r'{}.csv'.format(self.path_to_export), index = False)
-                    if filetype == "xlsl": 
-                        self.parent.data_treat.raw_df.to_xlsx(r'{}.xlsx'.format(self.path_to_export), index = False)
-                    msg.setWindowTitle('The data is successfully exported')
-                    msg.setText("The data is saved as a .{} file at: {}.{}".format(filetype, self.path_to_export, filetype))  
                 if ans == qm.No: 
-                    msg.setText("File not saved")
-            else: 
-                if filetype == "csv": 
-                    self.parent.data_treat.raw_df.to_csv(r'{}.csv'.format(self.path_to_export), index = False)
-                if filetype == "xlsl": 
-                    self.parent.data_treat.raw_df.to_xlsx(r'{}.xlsx'.format(self.path_to_export), index = False)                
-                msg.setWindowTitle('The data is successfully exported')
-                msg.setText("The data is saved as a .{} file at: {}.{}".format(filetype, self.path_to_export, filetype))  
-            msg.exec_()           
-
+                    MagMessage("File not saved", "Your file has not been saved").exec_()
+                if ans == qm.Yes: 
+                    self.savetofile() 
+            else: #If file does not already exist
+                self.savetofile() 
+                       
         except AttributeError: #If raw_df is empty, it will be NoneType. This type has no attribute "to_csv"
-            msg = QMessageBox()
-            msg.setWindowTitle('Error')
-            msg.setText("Cannot export file. No data is loaded in the data treatment tab.")
-            msg.exec_()
-
-    
-      
+            MagMessage("Error", "Cannot export file. No data is loaded in the data treatment tab.").exec_() 
