@@ -76,7 +76,10 @@ class ACGui(QMainWindow):
         self.setStatusBar(self.statusBar)
         #self.setStyleSheet(read_text(pkg_static_data, 'styles.qss')
         
-        """ Adding all the tabs"""        
+        """ Adding all the tabs"""    
+
+
+
         #Makes "Data treatment" tab    
         self.data_treat = DataTreatmentTab(self)        
         self.all_the_tabs.addTab(self.data_treat, "Data treatment")

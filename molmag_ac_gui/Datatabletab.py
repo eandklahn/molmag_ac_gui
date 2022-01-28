@@ -109,5 +109,5 @@ class Datatabletab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
             else: #If file does not already exist
                 self.savetofile() 
                        
-        except AttributeError: #If raw_df is empty, it will be NoneType. This type has no attribute "to_csv"
+        except AttributeError: #If raw_df is empty, it will be NoneType. This type has no attribute "to_csv" or "to_excel"
             MagMessage("Error", "Cannot export file. No data is loaded in the data treatment tab.").exec_() 

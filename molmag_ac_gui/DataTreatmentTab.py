@@ -17,6 +17,8 @@ from PyQt5.QtWidgets import (QFileDialog, QFormLayout, QInputDialog, QListWidget
                              QGridLayout)
 from PyQt5.QtGui import  QDoubleValidator, QColor
 
+from molmag_ac_gui.layout import make_btn, make_headline, make_line
+
 
 #local imports
 from .dialogs import PlottingWindow, MagMessage, FitResultPlotStatus, SampleInformation
@@ -35,6 +37,48 @@ class DataTreatmentTab(QSplitter):
     
     def initUI(self): 
         #Creates dataframe with header and raw_df
+        self.initialize_attributes()
+
+        """Constructing the full layout of tab"""
+        ## Making the left column (data loading, fitting, visualization controls and show/hide option)
+        self.layout = QVBoxLayout()
+        self.options_wdgt = QWidget()
+        
+        # Making data import and treatment buttons
+        make_headline(self, "Data import and treatment", self.layout)        
+        self.add_data_treatment_buttons() 
+
+        # Making Axis content combobox
+        make_headline(self, "Axis content", self.layout)
+        self.add_plot_type_combobox()
+
+        # Constructing the x and y comboboxes
+        make_headline(self, "Raw data plotting", self.layout)
+        self.add_xy_comboboxes() 
+
+        # Constructing a combobox for plotting fitted data
+        make_headline(self, "Plot type for fitting", self.layout)
+        self.add_fit_combobox() 
+
+        # Making the right column (parameter controls)
+        self.add_parameter_controls() 
+        
+        # Finalizing the data loading widget
+        self.layout.addStretch()
+        self.options_wdgt.setLayout(self.layout)
+        self.addWidget(self.options_wdgt)
+
+        # Making data visualization stacking widget
+        self.add_stackwidget()
+
+        ## Finalizing layout
+        self.setSizes([1,1000])
+        self.show()
+
+        """End of layout construction"""
+
+    def initialize_attributes(self): 
+
         self.raw_df = None
         self.raw_df_header = None
         self.raw_df_reduced = None
@@ -43,58 +87,47 @@ class DataTreatmentTab(QSplitter):
         self.temp_subsets = []
         self.meas_temps = []
         self.Tmin, self.Tmax = 0,0
-        
         self.raw_data_fit = None
-        """Constructing the full layout of tab"""
-        ## Making the left column (data loading, fitting, visualization controls and show/hide option)
-        self.data_layout = QVBoxLayout()
-        self.data_loading_wdgt = QWidget()
 
-        self.load_btn = QPushButton('(1) Load')
-        self.load_btn.clicked.connect(self.load_ppms_data)
-        self.data_layout.addWidget(self.load_btn)
-        
-        self.sample_info_btn = QPushButton("(2) Load Sample Information")
-        self.sample_info_btn.clicked.connect(self.update_sample_info)
-        self.data_layout.addWidget(self.sample_info_btn)
+    def add_plot_type_combobox(self): 
 
-        self.diamag_correction_btn = QPushButton("(3) Diamagnetic correction")
-        self.diamag_correction_btn.clicked.connect(self.make_diamag_correction_calculation)
-        self.data_layout.addWidget(self.diamag_correction_btn)
-        
-        self.fit_Xp_Xpp_btn = QPushButton("(4) Fit X', X''")
-        self.fit_Xp_Xpp_btn.clicked.connect(self.fit_Xp_Xpp_standalone)
-        self.data_layout.addWidget(self.fit_Xp_Xpp_btn)
-        
-        self.copy_save_layout = QHBoxLayout()
-
-        self.copy_fit_to_ana_btn = QPushButton('Copy fit to Data analysis')
-        self.copy_fit_to_ana_btn.clicked.connect(self.copy_fit_to_analysis)
-        self.copy_save_layout.addWidget(self.copy_fit_to_ana_btn)
-        
-        self.save_fit_to_file_btn = QPushButton('Save fit to file')
-        self.save_fit_to_file_btn.clicked.connect(self.save_fit_to_file)
-        self.copy_save_layout.addWidget(self.save_fit_to_file_btn)
-        
-        self.data_layout.addLayout(self.copy_save_layout)
-
-        ### Constructing data plotting layout
-        self.plot_lo = QVBoxLayout()
-        
-        self.plot_type_header = QLabel('Axis content')
-        self.plot_type_header.setFont(self.parent.headline_font)
-        self.plot_lo.addWidget(self.plot_type_header)
-        
         self.plot_type_combo = QComboBox()
         self.plot_type_combo.addItems(['Raw data', 'Fitted', 'Temp VS Freq VS Xpp'])
         self.plot_type_combo.currentIndexChanged.connect(self.switch_analysis_view)
-        self.plot_lo.addWidget(self.plot_type_combo)
+        self.layout.addWidget(self.plot_type_combo)
+
+    def add_fit_combobox(self): 
+
+        self.fit_combo = QComboBox()
+        self.fit_combo.addItems(['Cole-Cole', 'Freq VS Xp', 'Freq VS Xpp'])
+        self.fit_combo.currentIndexChanged.connect(self.plot_from_itemlist)
+        self.layout.addWidget(self.fit_combo)
         
-        self.raw_data_plot_header = QLabel('Raw data plotting')
-        self.raw_data_plot_header.setFont(self.parent.headline_font)
-        self.plot_lo.addWidget(self.raw_data_plot_header)
+        self.fit_color_cb_lo = QHBoxLayout()
+
+        make_line(self, "Use temperature colors", self.fit_color_cb_lo)
         
-        ## Constructing the x and y comboboxes
+        self.fit_data_color_cb = QCheckBox()
+        self.fit_data_color_cb.stateChanged.connect(self.plot_from_itemlist)
+        self.fit_color_cb_lo.addWidget(self.fit_data_color_cb)
+        self.layout.addLayout(self.fit_color_cb_lo)
+
+    def add_data_treatment_buttons(self): 
+
+        make_btn(self, "(1) Load datafile", self.load_ppms_data, self.layout)
+        make_btn(self, "(2) Load sample information", self.update_sample_info, self.layout)
+        make_btn(self, "(3) Diamagnetic correction", self.make_diamag_correction_calculation, self.layout)
+        make_btn(self, "(4) Fit X', X''", self.fit_Xp_Xpp_standalone, self.layout)
+        
+        #Copy fit to data analysis and save fit to file layout
+        self.copy_save_layout = QHBoxLayout()
+
+        make_btn(self, "Copy fit to Data analysis", self.copy_fit_to_analysis, self.copy_save_layout)
+        make_btn(self, "Save fit to file", self.save_fit_to_file, self.copy_save_layout)
+
+        self.layout.addLayout(self.copy_save_layout)
+
+    def add_xy_comboboxes(self): 
         self.xy_lo = QFormLayout() 
 
         self.x_combo = QComboBox()
@@ -105,46 +138,19 @@ class DataTreatmentTab(QSplitter):
         self.xy_lo.addRow("x: ", self.x_combo) 
         self.xy_lo.addRow("y: ", self.y_combo) 
 
-        self.plot_lo.addLayout(self.xy_lo)
+        self.layout.addLayout(self.xy_lo)
 
         self.xy_options_lo = QHBoxLayout()
-        self.xy_options_header = QLabel('Show additional options for x and y')
-        self.xy_options_lo.addWidget(self.xy_options_header)
+
+        make_line(self, "Show additional options for x and y ", self.xy_options_lo)
         
         self.xy_options_cb = QCheckBox()
         self.xy_options_cb.stateChanged.connect(self.update_analysis_combos)
         self.xy_options_lo.addWidget(self.xy_options_cb)
-        self.plot_lo.addLayout(self.xy_options_lo)
-        
-        ## Constructing a combobox for plotting fitted data
-        self.fitted_header = QLabel('Fit data plotting')
-        self.fitted_header.setFont(self.parent.headline_font)
-        self.plot_lo.addWidget(self.fitted_header)
-        
-        self.fit_combo = QComboBox()
-        self.fit_combo.addItems(['Cole-Cole', 'Freq VS Xp', 'Freq VS Xpp'])
-        self.fit_combo.currentIndexChanged.connect(self.plot_from_itemlist)
-        self.plot_lo.addWidget(self.fit_combo)
-        
-        ## Checkbox for coloring measured points
-        self.fit_color_cb_lo = QHBoxLayout()
-        self.fit_color_cb_header = QLabel('Use temp. colors')
-        self.fit_color_cb_lo.addWidget(self.fit_color_cb_header)
-        
-        self.fit_data_color_cb = QCheckBox()
-        self.fit_data_color_cb.stateChanged.connect(self.plot_from_itemlist)
-        self.fit_color_cb_lo.addWidget(self.fit_data_color_cb)
-        self.plot_lo.addLayout(self.fit_color_cb_lo)
+        self.layout.addLayout(self.xy_options_lo)
 
-        ## Finalizing the raw data layout
-        self.data_layout.addLayout(self.plot_lo)
-
-        ### Finalizing the data loading widget
-        self.data_layout.addStretch()
-        self.data_loading_wdgt.setLayout(self.data_layout)
-        self.data_loading_wdgt.resize(10,10)
-
-        ## Making the middle of the tab (data visualization)
+    def add_stackwidget(self): 
+        
         self.sw = QStackedWidget()
         
         self.raw_plot = PlottingWindow()
@@ -155,35 +161,21 @@ class DataTreatmentTab(QSplitter):
         self.sw.addWidget(self.fit_plot)
         self.sw.addWidget(self.threeD_plot)
 
-        ### Making the right column (parameter controls)
+        self.addWidget(self.sw)
+
+
+    def add_parameter_controls(self): 
+            
+        make_headline(self, "Hide/show fitted lines and raw data", self.layout)
+        make_line(self, "Double click to edit list", self.layout)
         
-        self.param_wdgt = QWidget()
-        self.param_layout = QVBoxLayout()
-    
         #List of fitted raw data
-        self.fit_headline = QLabel('Hide/show fitted lines and raw data')
-        self.fit_headline.setFont(self.parent.headline_font)
-        self.param_layout.addWidget(self.fit_headline)
-
-        self.fit_headline_info = QLabel("Double click to edit list")
-        self.param_layout.addWidget(self.fit_headline_info)
-
-        
         self.raw_fit_list = QListWidget()
-        self.param_layout.addWidget(self.raw_fit_list)
+        self.layout.addWidget(self.raw_fit_list)
         self.raw_fit_list.doubleClicked.connect(self.update_raw_plot)
         
-        ## Finalizing layout
-        self.param_layout.addStretch()
-        self.plot_lo.addLayout(self.param_layout)
-        self.plot_lo.addWidget(self.param_wdgt)
 
-        self.addWidget(self.data_loading_wdgt)
-        self.addWidget(self.sw)
-        self.show()
-
-        """End of layout construction"""
-
+    
     def fill_df_data_values(self):
     
         if ('Xp (emu/Oe)' in self.raw_df.columns and not ('Mp (emu)' in self.raw_df.columns)):
@@ -292,9 +284,9 @@ class DataTreatmentTab(QSplitter):
 
     def load_ppms_data(self):
         
-        #open_file_dialog = QFileDialog()
-        #filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
-        filename_info = ('C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/20180209DyII_1000.dat', 'All Files (*)') 
+        open_file_dialog = QFileDialog()
+        filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        #filename_info = ('C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/20180209DyII_1000.dat', 'All Files (*)') 
         filename = filename_info[0]
         try:
             # FileNotFoundError and UnicodeDecodeError will be raised here
@@ -718,11 +710,10 @@ class DataTreatmentTab(QSplitter):
             self.parent.data_ana.set_new_t_tau(D)
             self.parent.data_ana.read_indices_for_used_temps()
             self.parent.data_ana.plot_t_tau_on_axes()
-            self.parent.data_ana.ana_plot.reset_axes()
+            self.parent.data_ana.plot_wdgt.reset_axes()
         except TypeError:
-            print('When the fitted data does not yet exist')
+            MagMessage("Fitted data does not exist", "Fitted data does not yet exist in the Data Treatment tab").exec_() 
 
     def update_sample_info(self): 
         w = SampleInformation(self.parent)
         w.exec_()
-    

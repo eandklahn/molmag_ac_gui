@@ -67,16 +67,15 @@ def update_data_names(df, options):
     return summary
 
 def formatlabel(label): 
-    #return label
 
     if label == "Mp (emu)": 
         return "M' (emu)"
     elif label == "Mpp (emu)": 
         return "M'' (emu)"
     elif label == "Xp (emu/Oe)": 
-        return r"$\chi_m'$ (emu/Oe)"
+        return r"$\chi'$ (emu/Oe)"
     elif label == "Xpp (emu/Oe)": 
-        return r"$\chi_m'$ (emu/Oe)"
+        return r"$\chi''$ (emu/Oe)"
     elif label == "Mp_m (emu/mol)": 
         return r"$M_m'$ (emu/Oe)"
     elif label == "Mpp_m (emu/mol)":

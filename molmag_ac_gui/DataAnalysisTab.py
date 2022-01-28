@@ -12,7 +12,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (QDoubleSpinBox, QFileDialog, QListWidgetItem, 
                              QMessageBox, QWidget, QVBoxLayout, 
-                             QPushButton, QLabel, QHBoxLayout, QCheckBox, 
+                             QLabel, QHBoxLayout, QCheckBox, 
                              QListWidget, QSplitter)
 from scipy.optimize.minpack import curve_fit
 import scipy.constants as sc
@@ -24,6 +24,7 @@ from .process_ac import (addPartialModel, getFittingFunction,
                          tau_err_RC, _QT, _R, _O)
 from .dialogs import (GuessDialog, MagMessage, ParamDialog, 
                       PlottingWindow, SimulationDialog)
+from .layout import make_headline, make_btn, make_line
 
 class DataAnalysisTab(QSplitter): 
     def __init__(self, parent): 
@@ -34,12 +35,65 @@ class DataAnalysisTab(QSplitter):
     def initUI(self): 
         self.startUp = True #Some old stuff about reading a file directly from the terminal. Does not work fully. 
 
-        # Data containers for analysis
+        # Initializes simulations colors and other attributes
+        self.initialize_attributes() 
+
+        # The options widget to the left 
+        self.options_wdgt = QWidget()
+        self.options_layout = QVBoxLayout()
+        
+        # Adding data loading options
+        make_headline(self, "Data loading options", self.options_layout)
+        make_btn(self, "Import current fit from Data Treatment", self.parent.data_treat.copy_fit_to_analysis, self.options_layout)
+        make_btn(self, 'Load file generated in Data Treatment', self.load_t_tau_data, self.options_layout)
+
+        # Adding fit controls with checkboxes
+        make_headline(self, "Fitting options", self.options_layout)
+        make_line(self, "Choose fit types to include: ", self.options_layout)
+        self.add_fit_type_checkboxes()
+
+        # Adding temperature controls
+        make_line(self, "Choose temperature range to fit in: ", self.options_layout)
+        self.add_temp_controls() 
+
+        # Adding a button to run a fit
+        make_btn(self, "Run fit!", self.make_the_fit, self.options_layout)
+        
+        #Adding view fitted parameters button 
+        make_headline(self, "View fitted parameters", self.options_layout)        
+        make_btn(self, "Fitted params", self.show_fitted_params, self.options_layout)
+
+        # Adding a list to hold information about simulations
+        make_headline(self, "Simulations", self.options_layout)
+        self.add_simulations_list()
+
+        # Adding buttons to control simulation list
+        self.sim_btn_layout = QHBoxLayout()
+        make_btn(self, "New", self.edit_simulation_from_list, self.sim_btn_layout)
+        make_btn(self, "Delete", self.delete_sim, self.sim_btn_layout)
+        make_btn(self, "Edit", self.edit_simulation_from_list, self.sim_btn_layout)
+        self.options_layout.addLayout(self.sim_btn_layout)
+        
+        #Setting the layout of the options widget
+        self.options_wdgt.setLayout(self.options_layout)
+        self.options_layout.addStretch() 
+        self.addWidget(self.options_wdgt)
+        
+        #Adding plotting widget
+        self.add_plot_wdgt() 
+
+        # Finalizing layout of the data analysis tab
+        self.setSizes([1,1200])
+        self.show() 
+
+
+
+    def initialize_attributes(self):  
+
         self.simulation_colors = [x for x in TABLEAU_COLORS]
         self.simulation_colors.remove('tab:gray')  
         self.simulation_colors = deque(self.simulation_colors) 
 
-        #Creating all the needed attributes or whatever it is called
         self.fit_history = list()
 
         self.data_T = None
@@ -62,53 +116,13 @@ class DataAnalysisTab(QSplitter):
         self.not_used_dtau = None
         
         self.fitted_params_dialog = None
-        ## Adding load controls
-        self.load_wdgt = QWidget()
-        self.load_layout = QVBoxLayout()
-        self.load_layout.addStretch()
-        
-        self.see_fit_btn = QPushButton('Fitted params')
-        self.see_fit_btn.clicked.connect(self.show_fitted_params)
-        self.load_layout.addWidget(self.see_fit_btn)
-        
-        self.load_btn = QPushButton('Load')
-        self.load_btn.clicked.connect(self.load_t_tau_data)
-        self.load_layout.addWidget(self.load_btn)
-        
-        self.load_wdgt.setLayout(self.load_layout)
-        
-        """ Adding plotting controls """
-        self.ana_plot = PlottingWindow()
-        self.ana_plot.ax.set_xlabel('Temperature [$K^{-1}$]')
-        self.ana_plot.ax.set_ylabel(r'$\ln{\tau}$ [$\ln{s}$]')
-        
-        # Adding fit controls
-        self.fit_wdgt = QWidget()
-        self.fit_layout = QVBoxLayout()
-        
-        self.cb_headline = QLabel('Fit types to consider')
-        self.cb_headline.setFont(self.parent.headline_font)
-        self.fit_layout.addWidget(self.cb_headline)
-        
-        self.orbach_cb = QCheckBox('Orbach')
-        self.orbach_cb.stateChanged.connect(self.read_fit_type_cbs)
-        self.fit_layout.addWidget(self.orbach_cb)
-        
-        self.raman_cb = QCheckBox('Raman')
-        self.raman_cb.stateChanged.connect(self.read_fit_type_cbs)
-        self.fit_layout.addWidget(self.raman_cb)
-        
-        self.qt_cb = QCheckBox('QT')
-        self.qt_cb.stateChanged.connect(self.read_fit_type_cbs)
-        self.fit_layout.addWidget(self.qt_cb)
-        
-        # Adding temperature controls
-        self.temp_headline = QLabel('Temperature interval')
-        self.temp_headline.setFont(self.parent.headline_font)
-        self.fit_layout.addWidget(self.temp_headline)
-        
+
+    def add_temp_controls(self): 
+        """Makes a QHBoxLayout with a two spinboxes where the temperature range is chosen 
+        and adds it to the options layout."""
+
         self.temp_horizontal_layout = QHBoxLayout()
-        self.temp_line = [QLabel('('), QDoubleSpinBox(), QLabel(','),
+        self.temp_line = [QLabel('Temperature range in K: ('), QDoubleSpinBox(), QLabel(','),
                           QDoubleSpinBox(), QLabel(')')]
         
         self.temp_line[1].setRange(0,self.temp_line[3].value())
@@ -120,19 +134,13 @@ class DataAnalysisTab(QSplitter):
         self.temp_line[3].editingFinished.connect(self.set_new_temp_ranges)
         for w in self.temp_line:
             self.temp_horizontal_layout.addWidget(w)
-        
-        self.fit_layout.addLayout(self.temp_horizontal_layout)
-        
-        # Adding a button to run a fit
-        self.run_fit_btn = QPushButton('Run fit!')
-        self.run_fit_btn.clicked.connect(self.make_the_fit)
-        self.fit_layout.addWidget(self.run_fit_btn)
-        
-        # Adding a list to hold information about simulations
-        self.simulations_headline = QLabel('Simulations')
-        self.simulations_headline.setFont(self.parent.headline_font)
-        self.fit_layout.addWidget(self.simulations_headline)
-        
+
+        self.temp_horizontal_layout.setAlignment(Qt.AlignCenter)
+        self.options_layout.addLayout(self.temp_horizontal_layout)
+
+    def add_simulations_list(self): 
+        """Makes a QListWidget with all simulations and adds it to the options layout"""
+
         self.list_of_simulations = QListWidget()
         self.list_of_simulations.setDragDropMode(self.list_of_simulations.InternalMove)
         
@@ -140,31 +148,37 @@ class DataAnalysisTab(QSplitter):
         """https://stackoverflow.com/questions/41353653/how-do-i-get-the-checked-items-in-a-qlistview"""
         self.list_of_simulations.itemChanged.connect(self.redraw_simulation_lines)
         
-        self.fit_layout.addWidget(self.list_of_simulations)
+        self.options_layout.addWidget(self.list_of_simulations)
+
+
+    def add_fit_type_checkboxes(self):
+        """Creates a QHBoxLayout with three checkboxes and adds these to the options layout"""
+
+        self.fit_type_layout = QHBoxLayout() 
         
-        # Adding buttons to control simulation list
-        self.sim_btn_layout = QHBoxLayout()
+        self.orbach_cb = QCheckBox('Orbach')
+        self.orbach_cb.stateChanged.connect(self.read_fit_type_cbs)
+        self.fit_type_layout.addWidget(self.orbach_cb)
         
-        self.delete_sim_btn = QPushButton('Delete')
-        self.delete_sim_btn.clicked.connect(self.delete_sim)
-        self.sim_btn_layout.addWidget(self.delete_sim_btn)
+        self.raman_cb = QCheckBox('Raman')
+        self.raman_cb.stateChanged.connect(self.read_fit_type_cbs)
+        self.fit_type_layout.addWidget(self.raman_cb)
         
-        self.edit_sim_btn = QPushButton('Edit')
-        self.edit_sim_btn.clicked.connect(self.edit_simulation_from_list)
-        self.sim_btn_layout.addWidget(self.edit_sim_btn)
+        self.qt_cb = QCheckBox('QT')
+        self.qt_cb.stateChanged.connect(self.read_fit_type_cbs)
+        self.fit_type_layout.addWidget(self.qt_cb)
         
-        self.new_sim_btn = QPushButton('New')
-        self.new_sim_btn.clicked.connect(self.edit_simulation_from_list)
-        self.sim_btn_layout.addWidget(self.new_sim_btn)
-        
-        self.fit_layout.addLayout(self.sim_btn_layout)
-        
-        self.fit_wdgt.setLayout(self.fit_layout)
-        
-        # Finalizing layout of the data analysis tab
-        self.addWidget(self.load_wdgt)
-        self.addWidget(self.ana_plot)
-        self.addWidget(self.fit_wdgt)
+        self.options_layout.addLayout(self.fit_type_layout)
+
+
+    def add_plot_wdgt(self): 
+        """Adds a plotting widget for 1/T vs ln(tau) plot """
+
+        self.plot_wdgt = PlottingWindow()
+        self.plot_wdgt.ax.set_xlabel('1/T ($K^{-1}$)')
+        self.plot_wdgt.ax.set_ylabel(r'$\ln{\tau}$ ($\ln{s}$)')
+        self.addWidget(self.plot_wdgt)
+
 
     def show_fitted_params(self):
         
@@ -182,6 +196,7 @@ class DataAnalysisTab(QSplitter):
             finished = self.fitted_params_dialog.exec_()
 
     def reset_analysis_containers(self):
+
         self.data_T = None
         self.data_tau = None
         self.data_dtau = None
@@ -194,6 +209,7 @@ class DataAnalysisTab(QSplitter):
         self.not_used_dtau = None
         
         self.used_indices = None
+
 
     def set_new_t_tau(self, D):
         """
@@ -258,19 +274,19 @@ class DataAnalysisTab(QSplitter):
         self.plotted_data_pointers = []
         
         if self.data_dtau is None:
-            used, = self.ana_plot.ax.plot(1/self.used_T, np.log(self.used_tau), 'bo', zorder=0.1)
-            not_used, = self.ana_plot.ax.plot(1/self.not_used_T, np.log(self.not_used_tau), 'ro', zorder=0.1)
+            used, = self.plot_wdgt.ax.plot(1/self.used_T, np.log(self.used_tau), 'bo', zorder=0.1)
+            not_used, = self.plot_wdgt.ax.plot(1/self.not_used_T, np.log(self.not_used_tau), 'ro', zorder=0.1)
             self.plotted_data_pointers.append(used)
             self.plotted_data_pointers.append(not_used)
         else:
-            err_used_point, caplines1, barlinecols1 = self.ana_plot.ax.errorbar(1/self.used_T,
+            err_used_point, caplines1, barlinecols1 = self.plot_wdgt.ax.errorbar(1/self.used_T,
                                                                                 np.log(self.used_tau),
                                                                                 yerr=self.used_dtau,
                                                                                 fmt='bo',
                                                                                 ecolor='b',
                                                                                 label='Data',
                                                                                 zorder=0.1)
-            err_not_used_point, caplines2, barlinecols2 = self.ana_plot.ax.errorbar(1/self.not_used_T,
+            err_not_used_point, caplines2, barlinecols2 = self.plot_wdgt.ax.errorbar(1/self.not_used_T,
                                                                                     np.log(self.not_used_tau),
                                                                                     yerr=self.not_used_dtau,
                                                                                     fmt='ro',
@@ -284,7 +300,7 @@ class DataAnalysisTab(QSplitter):
                 for line in e:
                     self.plotted_data_pointers.append(line)
         
-        self.ana_plot.canvas.draw()
+        self.plot_wdgt.canvas.draw()
 
     def load_t_tau_data(self):
         
@@ -323,7 +339,7 @@ class DataAnalysisTab(QSplitter):
             self.set_new_t_tau(D)
             self.read_indices_for_used_temps()
             self.plot_t_tau_on_axes()
-            self.ana_plot.reset_axes()
+            self.plot_wdgt.reset_axes()
 
     def add_to_history(self, p_fit, perform_this_fit):
     
@@ -493,7 +509,7 @@ class DataAnalysisTab(QSplitter):
             elif item.checkState() == Qt.Unchecked:
                 data['line']._visible = False
         
-        self.ana_plot.canvas.draw()
+        self.plot_wdgt.canvas.draw()
 
     def edit_simulation_from_list(self):
     
@@ -559,7 +575,7 @@ class DataAnalysisTab(QSplitter):
             plot_to_make = ''.join(new_plot_type)
             
             if old_line:
-                self.ana_plot.ax.lines.remove(old_line)
+                self.plot_wdgt.ax.lines.remove(old_line)
             else:
                 # In this case, there was no old line and therefore also no sim_item
                 
@@ -572,7 +588,7 @@ class DataAnalysisTab(QSplitter):
                 old_color = self.simulation_colors.pop()
                 old_label = names.get_first_name()
             
-            new_line = addPartialModel(self.ana_plot.fig,
+            new_line = addPartialModel(self.plot_wdgt.fig,
                                        new_T_vals[0],
                                        new_T_vals[1],
                                        self.prepare_sim_dict_for_plotting(new_p_fit),
@@ -607,8 +623,8 @@ class DataAnalysisTab(QSplitter):
             line_pointer = sim_item.data(32)['line']
             line_color = line_pointer._color
             
-            self.ana_plot.ax.lines.remove(line_pointer)
-            self.ana_plot.canvas.draw()
+            self.plot_wdgt.ax.lines.remove(line_pointer)
+            self.plot_wdgt.canvas.draw()
             
             item_row = self.list_of_simulations.row(sim_item)
             sim_item = self.list_of_simulations.takeItem(item_row)
@@ -616,3 +632,4 @@ class DataAnalysisTab(QSplitter):
             self.simulation_colors.append(line_color)
             
             del sim_item
+

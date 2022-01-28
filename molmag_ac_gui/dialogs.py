@@ -1,6 +1,7 @@
 #std packages
 from collections import OrderedDict
-import os 
+import os
+from re import X 
 
 #third-party packages
 import scipy.constants as sc
@@ -85,7 +86,6 @@ class PlottingWindow(QWidget):
            
             lines_to_manage = []
             for line in self.ax.lines:
-                print(line)
                 if len(line.get_xdata())<1: pass
                 elif not line._visible: pass
                 else: lines_to_manage.append(line)
@@ -696,7 +696,7 @@ class SampleInformation(QDialog):
         self.save_sample_data_btn.clicked.connect(self.save_sample_data)
         self.sample_data_lo.addWidget(self.save_sample_data_btn)
         
-        self.done_sample_data_btn = QPushButton('Done')
+        self.done_sample_data_btn = QPushButton('Ok')
         self.done_sample_data_btn.clicked.connect(self.save_sample_data_for_diamag)
         self.sample_data_lo.addWidget(self.done_sample_data_btn)
 
@@ -709,8 +709,8 @@ class SampleInformation(QDialog):
 
 
     def load_sample_data(self):
-        #filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
-        filename_info =  ('C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/dbm_sample_data.dat', 'All Files (*)')
+        filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        #filename_info =  ('C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/dbm_sample_data.dat', 'All Files (*)')
         filename = filename_info[0]
         try:
             f = open(filename, 'r')
