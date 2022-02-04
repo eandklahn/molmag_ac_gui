@@ -34,13 +34,11 @@ class ACGui(QMainWindow):
         
         """About"""
         self.about_information = {'author':
-                                  'Emil A. Klahn (eklahn@chem.au.dk)',
+                                  '\nEmil A. Klahn (eklahn@chem.au.dk) \nSofie Stampe Leiszner (sofiesl@chem.au.dk)',
                                   'webpage':
-                                  'https://chem.au.dk/en/molmag',
+                                  'https://chem.au.dk/en/research/research-areas-and-research-groups/inorganicchemistrymaterialschemistry/molecular-magnetism',
                                   'personal':
-                                  'https://eandklahn.github.io', 
-                                  'Contributor': 
-                                  'Sofie Stampe Leiszner (sofiesl@chem.au.dk)'
+                                  'https://github.com/eandklahn/molmag_ac_gui'
                                   }
         
         self.last_loaded_file = os.getcwd() #Remember the last used folder.

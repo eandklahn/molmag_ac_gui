@@ -1,6 +1,5 @@
 #std packages
 import os
-from importlib.resources import read_text
 from multiprocessing import Pool
 
 #third-party packages 
@@ -10,12 +9,10 @@ import matplotlib as mpl
 from matplotlib import cm
 from matplotlib.colors import to_hex
 import matplotlib.ticker as mticker
-from PyQt5.QtWidgets import (QFileDialog, QFormLayout, QInputDialog, QListWidgetItem, 
-                             QWidget, QVBoxLayout, QPushButton, QLabel, 
-                             QHBoxLayout, QComboBox, QStackedWidget, 
-                             QCheckBox, QLineEdit, QListWidget, QSplitter,
-                             QGridLayout)
-from PyQt5.QtGui import  QDoubleValidator, QColor
+from PyQt5.QtWidgets import (QFileDialog, QFormLayout, QListWidgetItem, QWidget, 
+                             QVBoxLayout, QHBoxLayout, QComboBox, QStackedWidget, 
+                             QCheckBox, QListWidget, QSplitter)
+from PyQt5.QtGui import QColor
 
 from molmag_ac_gui.layout import make_btn, make_headline, make_line
 
@@ -26,7 +23,6 @@ from .utility import read_ppms_file, update_data_names, formatlabel
 from .exceptions import FileFormatError
 from .process_ac import (diamag_correction, fit_Xp_Xpp_genDebye, tau_err_RC, 
                          Xp_, Xpp_)
-from . import data as pkg_static_data
 
 
 class DataTreatmentTab(QSplitter): 
@@ -39,16 +35,15 @@ class DataTreatmentTab(QSplitter):
         #Creates dataframe with header and raw_df
         self.initialize_attributes()
 
-        """Constructing the full layout of tab"""
-        ## Making the left column (data loading, fitting, visualization controls and show/hide option)
+        ## Making the left column: data loading, fitting, visualization controls and show/hide option
         self.layout = QVBoxLayout()
         self.options_wdgt = QWidget()
         
-        # Making data import and treatment buttons
+        # Constructing data import and treatment buttons
         make_headline(self, "Data import and treatment", self.layout)        
         self.add_data_treatment_buttons() 
 
-        # Making Axis content combobox
+        # Constructing axis content combobox
         make_headline(self, "Axis content", self.layout)
         self.add_plot_type_combobox()
 
@@ -60,7 +55,7 @@ class DataTreatmentTab(QSplitter):
         make_headline(self, "Plot type for fitting", self.layout)
         self.add_fit_combobox() 
 
-        # Making the right column (parameter controls)
+        # Constructing parameter controls
         self.add_parameter_controls() 
         
         # Finalizing the data loading widget
@@ -68,16 +63,17 @@ class DataTreatmentTab(QSplitter):
         self.options_wdgt.setLayout(self.layout)
         self.addWidget(self.options_wdgt)
 
-        # Making data visualization stacking widget
+        ## Making the right columns: data visualization stacking widget  
         self.add_stackwidget()
 
-        ## Finalizing layout
+        ## Finalization 
         self.setSizes([1,1000])
         self.show()
 
-        """End of layout construction"""
+    """ Functions for setting up GUI layout"""
 
     def initialize_attributes(self): 
+        """Initializes attributes such as the raw_df containing all data, temperatures etc."""
 
         self.raw_df = None
         self.raw_df_header = None
@@ -90,14 +86,18 @@ class DataTreatmentTab(QSplitter):
         self.raw_data_fit = None
 
     def add_plot_type_combobox(self): 
+        """ Adds a plot_type combobox such that it is possible to switch between viewing 
+        the raw data, fitted data and the 3D plot in the plotting window on the right """
 
         self.plot_type_combo = QComboBox()
         self.plot_type_combo.addItems(['Raw data', 'Fitted', 'Temp VS Freq VS Xpp'])
-        self.plot_type_combo.currentIndexChanged.connect(self.switch_analysis_view)
+        self.plot_type_combo.currentIndexChanged.connect(self.switch_view)
         self.layout.addWidget(self.plot_type_combo)
 
     def add_fit_combobox(self): 
-
+        """ Adds a combobox to choose which fitted data plot you want to view.
+        Also adds an option to use temperature colors for datapoints."""
+        
         self.fit_combo = QComboBox()
         self.fit_combo.addItems(['Cole-Cole', 'Freq VS Xp', 'Freq VS Xpp'])
         self.fit_combo.currentIndexChanged.connect(self.plot_from_itemlist)
@@ -113,6 +113,8 @@ class DataTreatmentTab(QSplitter):
         self.layout.addLayout(self.fit_color_cb_lo)
 
     def add_data_treatment_buttons(self): 
+        """ Adds the first 6 buttons in the option widget on the left side of the gui window. 
+        and connects these to the corresponding functions. """
 
         make_btn(self, "(1) Load datafile", self.load_ppms_data, self.layout)
         make_btn(self, "(2) Load sample information", self.update_sample_info, self.layout)
@@ -128,12 +130,15 @@ class DataTreatmentTab(QSplitter):
         self.layout.addLayout(self.copy_save_layout)
 
     def add_xy_comboboxes(self): 
+        """Adds an option to show more option for x and y when plotting raw data. 
+        More options will give you all the non-empty datatypes from your datafile. """
+
         self.xy_lo = QFormLayout() 
 
         self.x_combo = QComboBox()
-        self.x_combo.currentIndexChanged.connect(self.plot_from_combo)        
+        self.x_combo.currentIndexChanged.connect(self.plot_raw_data)        
         self.y_combo = QComboBox()
-        self.y_combo.currentIndexChanged.connect(self.plot_from_combo)
+        self.y_combo.currentIndexChanged.connect(self.plot_raw_data)
         
         self.xy_lo.addRow("x: ", self.x_combo) 
         self.xy_lo.addRow("y: ", self.y_combo) 
@@ -141,16 +146,16 @@ class DataTreatmentTab(QSplitter):
         self.layout.addLayout(self.xy_lo)
 
         self.xy_options_lo = QHBoxLayout()
-
         make_line(self, "Show additional options for x and y ", self.xy_options_lo)
-        
         self.xy_options_cb = QCheckBox()
-        self.xy_options_cb.stateChanged.connect(self.update_analysis_combos)
+        self.xy_options_cb.stateChanged.connect(self.update_xy_combos)
         self.xy_options_lo.addWidget(self.xy_options_cb)
+
         self.layout.addLayout(self.xy_options_lo)
 
     def add_stackwidget(self): 
-        
+        """ Adds the stackwidget which is the plotting window on the right side of the gui window"""
+
         self.sw = QStackedWidget()
         
         self.raw_plot = PlottingWindow()
@@ -165,19 +170,24 @@ class DataTreatmentTab(QSplitter):
 
 
     def add_parameter_controls(self): 
-            
+        """ Adds controls for the data plotting where one can pick which datapoints
+        and fits to be visualized. """
+
         make_headline(self, "Hide/show fitted lines and raw data", self.layout)
         make_line(self, "Double click to edit list", self.layout)
         
         #List of fitted raw data
         self.raw_fit_list = QListWidget()
         self.layout.addWidget(self.raw_fit_list)
-        self.raw_fit_list.doubleClicked.connect(self.update_raw_plot)
+        self.raw_fit_list.doubleClicked.connect(self.update_fitted_and_3D_plot)
         
-
+    """ Other functions"""
     
     def fill_df_data_values(self):
-    
+        """ If Xp is in the loaded data, and Mp is not: Mp will be calculated and added to the
+        dataframe. If Mp is in the loaded data and Xp is not, Xp will be calculated and added 
+        to the dataframe. """
+
         if ('Xp (emu/Oe)' in self.raw_df.columns and not ('Mp (emu)' in self.raw_df.columns)):
             # Susceptibility exists in the data frame, but magnetisation does not
             Mp = self.raw_df['Xp (emu/Oe)']*self.raw_df['Magnetic Field (Oe)']
@@ -188,6 +198,7 @@ class DataTreatmentTab(QSplitter):
             
         elif (not 'Xp (emu/Oe)' in self.raw_df.columns and ('Mp (emu)' in self.raw_df.columns)):
             # Magnetisation exists in the data frame, but susceptibility does not
+
             Xp = self.raw_df['Mp (emu)']/self.raw_df['Magnetic Field (Oe)']
             Xpp = self.raw_df['Mpp (emu)']/self.raw_df['Magnetic Field (Oe)']
             Mp_idx = self.raw_df.columns.get_loc('Mp (emu)')
@@ -195,7 +206,9 @@ class DataTreatmentTab(QSplitter):
             self.raw_df.insert(Mp_idx+3, column='Xpp (emu/Oe)', value=Xpp)
 
     def cleanup_loaded_ppms(self):
-        
+        """Cleans up the data that is loaded in by removing all empty columns,
+        removes Comment column and renames the columns if necessary"""
+
         # Drop columns where all values are NaN
         self.raw_df.dropna(axis=1, how='all', inplace=True)
         # Removing instrument comment lines
@@ -212,11 +225,12 @@ class DataTreatmentTab(QSplitter):
                            inplace=True)
 
     def update_temp_subsets(self):
-        
+        """ Splits datasets into one dataset for each temperature. 
+        The dataset it splitted based on when the frequency "restarts". 
+        The function assumes that the frequency is always increasing within a measurement. """
+
         self.temp_subsets = []
         idx_list = [0]
-        # Splits based on where the frequency "restarts"
-        # Assumes that the frequency is always increasing within a measurement
         i=0
         old_val = 0
         while i<self.raw_df.shape[0]:
@@ -233,7 +247,10 @@ class DataTreatmentTab(QSplitter):
             self.temp_subsets.append(self.raw_df.iloc[idx_list[n]:idx_list[n+1]])
 
     def update_meas_temps(self):
-        
+        """ Updates the measured temperatures based on the temperatures on self.temp_subsets.
+        Does this by taking the average of all measured temperatures in that given subset.
+        Also sets a minimum and maximum temperature used for colormapping """
+
         meas_temps = []
         for sub in self.temp_subsets:
             meas_temps.append(sub['Temperature (K)'].mean())
@@ -243,7 +260,12 @@ class DataTreatmentTab(QSplitter):
         self.Tmin = self.meas_temps.min()
         self.Tmax = self.meas_temps.max()
 
-    def update_analysis_combos(self):
+
+
+    def update_xy_combos(self):
+        """ Updates the x and y comboboxes for raw data plotting such that they contain only the desired datatypes. 
+        If the xy_options checkbox is not chekced, fewer datatypes are possible to choose from in the combobox. 
+        If the xy_options checkbox is checked, all datatypes in the dataframe are possible to choose from the combobox. """
 
         self.x_combo.clear()
         self.y_combo.clear()
@@ -270,8 +292,10 @@ class DataTreatmentTab(QSplitter):
             self.x_combo.addItems(self.raw_df.columns)
         
 
-
     def update_reduced_df(self): 
+        """Updates the reduced dataframe such that it only contains the desired datatypes based on whether the 
+        xy_options checkbox is checked or not."""
+
         chosenlabels = ["Temperature (K)", "AC Frequency (Hz)", "AC Amplitude (Oe)", "Magnetic Field (Oe)", "Mp (emu)",\
                            "Mpp (emu)", "Xp (emu/Oe)", "Xpp (emu/Oe)"]        
         molarlabels = ["Mp_m (emu/mol)", "Mpp_m (emu/mol)", "Xp_m (emu/(Oe*mol))", "Xpp_m (emu/(Oe*mol))"]
@@ -283,10 +307,13 @@ class DataTreatmentTab(QSplitter):
                 self.raw_df_reduced = self.raw_df[chosenlabels]
 
     def load_ppms_data(self):
-        
+        """ This function uses subfunctions to perform the following tasks:  
+        Loads the ppms data, clears the dataframe, fills in the dataframe with the loaded raw data, 
+        adds Mp or Xp to the dataframe, cleans up the dataframe, updates temperatures subsets, 
+        clears the raw data and fitted plots for any old data, plots raw data and updates the data table. """
+
         open_file_dialog = QFileDialog()
         filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
-        #filename_info = ('C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/20180209DyII_1000.dat', 'All Files (*)') 
         filename = filename_info[0]
         try:
             # FileNotFoundError and UnicodeDecodeError will be raised here
@@ -300,7 +327,6 @@ class DataTreatmentTab(QSplitter):
             # To make sure that only Mp (and therefore Mpp) OR Xp (and therefore Xpp) can appear at once.
             # In the case that this is ever an error, self.fill_df_data_values will have to be changed.
             assert (summary['Mp (emu)']>0) != (summary['Xp (emu/Oe)']>0)
-        
         except FileNotFoundError:
             # Did not read any file
             pass
@@ -324,7 +350,6 @@ class DataTreatmentTab(QSplitter):
             self.raw_df = potential_df
             self.raw_df_header = potential_header
 
-            
             # Clear old data and set new names
             self.raw_fit_list.clear()
             self.fill_df_data_values()
@@ -334,6 +359,8 @@ class DataTreatmentTab(QSplitter):
             self.update_temp_subsets()
             self.update_meas_temps()
             
+            self.update_reduced_df() 
+
             # Clearing axes of "old" drawings and setting front widget to the raw data
             self.raw_plot.clear_canvas()
             self.fit_plot.clear_canvas()
@@ -343,14 +370,17 @@ class DataTreatmentTab(QSplitter):
             self.plot_type_combo.setCurrentIndex(combo_idx)
             
             # Updating analysis combos, which will automatically draw the new data
-            self.update_analysis_combos()
+            self.update_xy_combos()
             
             #Updates "Table of Data" tab with the loaded data
             self.parent.widget_table.updatetable()
              
 
     def make_diamag_correction_calculation(self):
-        
+        """ Calculates the diamagnetic correction if data is loaded, and 
+        inserts these into the dataframe in their molar form: Mp_m, Mpp_m, Xp_m, Xpp_m.
+        Afterwards, the temperature subsets, xy_combos and the datatable are updated. """
+
         if self.raw_df is None:
             # Don't do the calculation, if there is nothing to calculate on
             pass
@@ -402,14 +432,17 @@ class DataTreatmentTab(QSplitter):
                     self.raw_df.insert(Xpp_idx+1, column="Xpp_m (emu/(Oe*mol))", value=Xpp_molar)
 
                 self.update_temp_subsets()
-                self.update_analysis_combos()
+                self.update_xy_combos()
                 self.parent.widget_table.updatetable()
                 MagMessage('Diamagnetic correction',
                                'Diamagnetic correction successful!').exec_()
 
 
     
-    def update_raw_fit_list(self):       
+    def update_raw_fit_list(self):   
+        """Updates the raw_fit_list in the ListWidget, where it can be chosen which fits and raw 
+        data you want to visualize in the plotting window. Uses colormap. """
+
         self.raw_fit_list.clear()
         for i in range(self.num_meas_temps):
             T = self.meas_temps[i]
@@ -550,7 +583,7 @@ class DataTreatmentTab(QSplitter):
             self.update_raw_fit_list()
             self.plot_from_itemlist()
             self.plot3D()
-            self.update_analysis_combos() 
+            self.update_xy_combos() 
             set_idx = self.plot_type_combo.findText('Fitted')
             self.plot_type_combo.setCurrentIndex(set_idx)
             
@@ -558,6 +591,9 @@ class DataTreatmentTab(QSplitter):
 
 
     def save_fit_to_file(self):
+        """ The fit of χ' and χ'' is saved to a file with columns: 
+        Temp, Tau, dTay, Alpha, ChiS, ChiT, Residual and Tau_err. 
+        This file can be loaded in the data analysis tab. """
         
         name = QFileDialog.getSaveFileName(self, 'Save File')
         filename = name[0]
@@ -580,47 +616,61 @@ class DataTreatmentTab(QSplitter):
                               float_format='%20.10e')
 
     def plot3D(self):
+        """Plots 3D plot with temperature vs. frequency vs. X'' (molar) """
 
         if self.raw_fit_list.count()==0:
             return
-
+        
         self.threeD_plot.ax.clear()
 
-        x_label = 'Temperature (K)'
-        y_label = "AC Frequency (Hz)"
-        z_label = "Xpp_m (emu/(Oe*mol))"
+        self.add_labels_3Dplot()
+        self.plot_each_temp_3D() 
+        self.add_colorbar_3D() 
 
+        self.threeD_plot.canvas.draw()
+
+    def add_labels_3Dplot(self):
+        """ Adds labels to the 3D plot. Logaritmic scale is used for the frequency. """
+        
         def log_tick_formatter(val, pos=None):
             return f"$10^{{{int(val)}}}$" 
         
+        self.x_label_3D = 'Temperature (K)'
+        self.y_label_3D = "AC Frequency (Hz)"
+        self.z_label_3D = "Xpp_m (emu/(Oe*mol))"
+        
         self.threeD_plot.ax.yaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
         self.threeD_plot.ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-        self.threeD_plot.ax.set_xlabel(formatlabel(x_label))
-        self.threeD_plot.ax.set_ylabel(formatlabel(y_label))
-        self.threeD_plot.ax.set_zlabel(formatlabel(z_label))             
+        self.threeD_plot.ax.set_xlabel(formatlabel(self.x_label_3D))
+        self.threeD_plot.ax.set_ylabel(formatlabel(self.y_label_3D))
+        self.threeD_plot.ax.set_zlabel(formatlabel(self.z_label_3D))             
         
+    def plot_each_temp_3D(self): 
+        """ Plots each temperature subset in colors according to the colorbar"""
         for row in range(self.num_meas_temps):      
             T = self.meas_temps[row]
             rgb = self.parent.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))           
-                         
+
             item = self.raw_fit_list.item(row)
             itemdict = item.data(32)
             if itemdict['raw']:
-                self.threeD_plot.ax.scatter3D(self.temp_subsets[row][x_label],
-                                        np.log10(self.temp_subsets[row][y_label]),
-                                        self.temp_subsets[row][z_label], 
+                self.threeD_plot.ax.scatter3D(self.temp_subsets[row][self.x_label_3D],
+                                        np.log10(self.temp_subsets[row][self.y_label_3D]),
+                                        self.temp_subsets[row][self.z_label_3D], 
                                         color = rgb, s = 7
                                         )
-
             if itemdict['fit']:       
-                self.threeD_plot.ax.plot(self.temp_subsets[row][x_label], 
-                                            np.log10(self.temp_subsets[row][y_label]),
+                self.threeD_plot.ax.plot(self.temp_subsets[row][self.x_label_3D], 
+                                            np.log10(self.temp_subsets[row][self.y_label_3D]),
                                             Xpp_(self.temp_subsets[row]['AC Frequency (Hz)'],
                                                   self.raw_data_fit['ChiS'].iloc[row],
                                                   self.raw_data_fit['ChiT'].iloc[row],
                                                   self.raw_data_fit['Tau'].iloc[row],
                                                   self.raw_data_fit['Alpha'].iloc[row]),
                                             c=rgb)  
+
+    def add_colorbar_3D(self): 
+        """ Adds colorbar to the 3D plot"""
 
         norm = mpl.colors.Normalize(vmin=self.Tmin, vmax=self.Tmax)
         self.threeD_plot.fig.colorbar(
@@ -629,16 +679,16 @@ class DataTreatmentTab(QSplitter):
                                         orientation='horizontal',
             cax=self.threeD_plot.cax)
 
-
-
-        self.threeD_plot.canvas.draw()
-
-    def switch_analysis_view(self):
+    def switch_view(self):
+        """ Switches the view of the stackingwidget according to what is chosen 
+        in the axis content combobox """
 
         idx = self.plot_type_combo.currentIndex()
         self.sw.setCurrentIndex(idx)
 
     def getxylabel(self): 
+        """ Gets the x and y labels for plotting raw data. """
+
         idx_x = self.x_combo.currentIndex()
         idx_y = self.y_combo.currentIndex()
         if self.xy_options_cb.isChecked(): #If extra xy_options are chosen with checkbox: Index in raw_df
@@ -653,14 +703,17 @@ class DataTreatmentTab(QSplitter):
                 y_label = self.raw_df_reduced.columns[idx_y]
             else: 
                 y_label = self.raw_df_reduced.columns[0]
+        print("x_label = {}, y_label = {} ".format(x_label, y_label))
+
         return x_label, y_label 
 
-    def plot_from_combo(self):
-        
+    def plot_raw_data(self):
+        """ Plots the raw data based on what is chosen in the xy comboxes"""
+
         self.raw_plot.ax.clear()
         
         x_label, y_label = self.getxylabel()
-        
+          
         self.raw_plot.ax.plot(self.raw_df[x_label],
                                     self.raw_df[y_label],
                                     marker='o',
@@ -670,20 +723,26 @@ class DataTreatmentTab(QSplitter):
                                     c='k',
                                     linewidth=1,
                                     )
+
         self.raw_plot.ax.set_xlabel(formatlabel(x_label))
         self.raw_plot.ax.set_ylabel(formatlabel(y_label))
         self.raw_plot.canvas.draw()
 
 
+
     def update_itemdict(self, item, itemdict):
-        
+        """ Updates a given item in the ListWidget where on can chose which 
+        raw data and fitted data to show. """
+
         item.setData(32, itemdict)
         item.setText('T = {:<6.2f} K, Show raw data: {}, Show fit: {}'.format(round(itemdict['temp'],2),
                                          itemdict['raw'],
                                          itemdict['fit']))
 
-    def update_raw_plot(self):
-        
+    def update_fitted_and_3D_plot(self): #Previously names update_raw_plot
+        """ Updates the fitted plot with the data that has been chosen to be visualized in 
+        the ListWidget """
+
         w = FitResultPlotStatus(list_input=self.raw_fit_list)
         finished_value = w.exec_()
         if not finished_value:
@@ -702,6 +761,8 @@ class DataTreatmentTab(QSplitter):
         self.fit_plot.canvas.draw()
 
     def copy_fit_to_analysis(self):
+        """ Copies the fit of tau obtained after fitting χ' and χ'' 
+        to the data analysis tab. """
     
         try:
             D = np.array(list(zip(self.meas_temps,
@@ -715,5 +776,6 @@ class DataTreatmentTab(QSplitter):
             MagMessage("Fitted data does not exist", "Fitted data does not yet exist in the Data Treatment tab").exec_() 
 
     def update_sample_info(self): 
+        """ Updates the sample information """
         w = SampleInformation(self.parent)
         w.exec_()

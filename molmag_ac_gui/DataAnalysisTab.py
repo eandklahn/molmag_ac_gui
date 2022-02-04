@@ -59,9 +59,6 @@ class DataAnalysisTab(QSplitter):
         # Adding a button to run a fit
         make_btn(self, "Run fit!", self.make_the_fit, self.options_layout)
         
-        #Adding view fitted parameters button 
-        make_headline(self, "View fitted parameters", self.options_layout)        
-        make_btn(self, "Fitted params", self.show_fitted_params, self.options_layout)
 
         # Adding a list to hold information about simulations
         make_headline(self, "Simulations", self.options_layout)
@@ -74,6 +71,10 @@ class DataAnalysisTab(QSplitter):
         make_btn(self, "Edit", self.edit_simulation_from_list, self.sim_btn_layout)
         self.options_layout.addLayout(self.sim_btn_layout)
         
+        #Adding view fitted parameters button 
+        make_headline(self, "View fitted parameters", self.options_layout)        
+        make_btn(self, "Fitted params", self.show_fitted_params, self.options_layout)
+
         #Setting the layout of the options widget
         self.options_wdgt.setLayout(self.options_layout)
         self.options_layout.addStretch() 
@@ -87,9 +88,8 @@ class DataAnalysisTab(QSplitter):
         self.show() 
 
 
-
     def initialize_attributes(self):  
-
+        """ Initializes attributes such as simulation colors, temperature, tau etc."""
         self.simulation_colors = [x for x in TABLEAU_COLORS]
         self.simulation_colors.remove('tab:gray')  
         self.simulation_colors = deque(self.simulation_colors) 

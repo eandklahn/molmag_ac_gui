@@ -6,17 +6,18 @@ from re import X
 #third-party packages
 import scipy.constants as sc
 
-from PyQt5.QtGui import QIcon, QFont, QDoubleValidator
-from PyQt5.QtWidgets import (QInputDialog, QMainWindow, QWidget, QApplication, QPushButton, QLabel, QAction, QComboBox, QStackedWidget,
-                             QDoubleSpinBox, QFormLayout, QCheckBox, QVBoxLayout, QMessageBox, QSplitter, QGridLayout,
-                             QHBoxLayout, QFileDialog, QDialog, QLineEdit, QListWidget, QListWidgetItem, QTabWidget,
-                             QScrollArea, QStatusBar)
+from PyQt5.QtGui import QFont, QDoubleValidator
+from PyQt5.QtWidgets import (QInputDialog, QWidget, QPushButton, QLabel, QComboBox, 
+                             QDoubleSpinBox, QFormLayout, QCheckBox, QVBoxLayout, QMessageBox,
+                             QHBoxLayout, QFileDialog, QDialog, QLineEdit,
+                             QScrollArea)
 from PyQt5.QtCore import Qt
 
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.qt_compat import QtCore, QtWidgets
 from matplotlib.backends.backend_qt5agg import FigureCanvas, NavigationToolbar2QT as NavigationToolbar
+
 
 #set constants
 kB = sc.Boltzmann
@@ -410,19 +411,22 @@ class AboutDialog(QDialog):
         
         self.setWindowTitle('About')
         
-        self.author_lbl = QLabel('Written by {}'.format(info['author']))
+        self.author_lbl = QLabel('Written by: {}'.format(info['author']))
         self.layout.addWidget(self.author_lbl)
         
-        self.web_lbl = QLabel('<a href={}>Molecular magnetism at AU</a>'.format(info['webpage']))
+        self.link_headline = QLabel("Relevant websites:")
+        self.layout.addWidget(self.link_headline)
+
+        self.web_lbl = QLabel('<a href={}>Link to research group website </a>'.format(info['webpage']))
         self.web_lbl.setOpenExternalLinks(True)
         self.layout.addWidget(self.web_lbl)
         
-        self.pers_lbl = QLabel('Personal <a href={}>webpage</a>'.format(info['personal']))
+        self.pers_lbl = QLabel('<a href={}>Link to github repository with source code</a>'.format(info['personal']))
         self.pers_lbl.setOpenExternalLinks(True)
         self.layout.addWidget(self.pers_lbl)
         
         self.setLayout(self.layout)
-        #self.show()
+        
 
 class ParamDialog(QDialog):
 
@@ -710,7 +714,6 @@ class SampleInformation(QDialog):
 
     def load_sample_data(self):
         filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
-        #filename_info =  ('C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/dbm_sample_data.dat', 'All Files (*)')
         filename = filename_info[0]
         try:
             f = open(filename, 'r')
