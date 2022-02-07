@@ -38,7 +38,7 @@ class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
 
         self.setLayout(self.layout) 
         self.layout.addLayout(self.layoutH)
-
+        
         
         self.show()
     

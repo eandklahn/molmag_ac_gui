@@ -1,3 +1,8 @@
+# v. 0.3.0
+Published on 07/02/2022
+Changed layout of Data Treatment and Data Analysis tab and adds Data Table tab. 
+Makes internal changes to fitting procedures.
+
 # v. 0.2.9
 Published on 26/10/2021
 Makes Windows-specific code only run on Windows
