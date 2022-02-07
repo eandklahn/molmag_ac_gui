@@ -2,6 +2,7 @@
 import os
 import sys
 from collections import deque
+import datetime
 
 #third-party packages
 import numpy as np
@@ -19,9 +20,8 @@ import scipy.constants as sc
 
 #local imports
 from .exceptions import NoGuessExistsError
-from .process_ac import (addPartialModel, getFittingFunction, 
-                         getParameterGuesses, getStartParams, readPopt,
-                         tau_err_RC, _QT, _R, _O)
+from .process_ac import (getParameterGuesses, tau_err_RC, fit_relaxation,
+                         default_parameters, add_partial_model)
 from .dialogs import (GuessDialog, MagMessage, ParamDialog, 
                       PlottingWindow, SimulationDialog)
 from .layout import make_headline, make_btn, make_line
@@ -184,16 +184,12 @@ class DataAnalysisTab(QSplitter):
         
         try:
             fit = self.fit_history[0]
-            assert self.fitted_params_dialog is None
-            
-        except IndexError:
-            pass
-        except AssertionError:
-            self.fitted_params_dialog.show()
-            self.fitted_params_dialog.activateWindow()
+        except (IndexError, TypeError):
+            w = MagMessage('Fit history error', 'There is no fit history yet!')
         else:
-            self.fitted_params_dialog = ParamDialog(fit_history=self.fit_history)
-            finished = self.fitted_params_dialog.exec_()
+            w = ParamDialog(self, self.fit_history)
+        finally:
+            w.exec_()
 
     def reset_analysis_containers(self):
 
@@ -341,11 +337,6 @@ class DataAnalysisTab(QSplitter):
             self.plot_t_tau_on_axes()
             self.plot_wdgt.reset_axes()
 
-    def add_to_history(self, p_fit, perform_this_fit):
-    
-        if len(self.fit_history)>9:
-            self.fit_history.pop()
-        self.fit_history.insert(0, (perform_this_fit, p_fit))
 
     def read_fit_type_cbs(self):
     
@@ -368,59 +359,6 @@ class DataAnalysisTab(QSplitter):
         if self.data_T is not None:
             self.plot_t_tau_on_axes()
 
-    def make_fitting_function(self, perform_this_fit):
-    
-        use_QT = 0
-        use_R = 0
-        use_O = 0
-        
-        if 'QT' in perform_this_fit: use_QT = 1
-        if 'R' in perform_this_fit: use_R = 1
-        if 'O' in perform_this_fit: use_O = 1
-        
-        fn = lambda T, tQT, Cr, n, t0, Ueff: np.log(1/(use_QT*1/_QT(T, tQT) + use_R*1/_R(T, Cr, n) + use_O*1/_O(T, t0, Ueff)))
-        
-        return fn
-
-    def fit_relaxation(self, guess, perform_this_fit):
-        """
-        First function used to fit t-tau-data, but this function uses curve_fit,
-        where it is more difficult to control parameters. Trying to switch to
-        lmfit, where control of refinable parameters is more extensive.
-        """
-        
-        f = getFittingFunction(fitType=perform_this_fit)
-        p0 = getStartParams(guess, fitType=perform_this_fit)
-        
-        if self.used_dtau is None:
-            popt, pcov = curve_fit(f, self.used_T, np.log(self.used_tau), p0)
-        else:
-            popt, pcov = curve_fit(f, self.used_T, np.log(self.used_tau), p0, sigma=np.log(self.used_dtau))
-        
-        p_fit = readPopt(popt, pcov, fitType=perform_this_fit)
-        
-        return p_fit
-
-    def fit_relaxation_lmfit(self, guess, perform_this_fit):
-
-        fn = self.make_fitting_function(perform_this_fit)
-        
-        def objective(params, T, tau_obs, err=None):
-            
-            tQT = params['tQT']
-            Cr = params['Cr']
-            n = params['n']
-            t0 = params['t0']
-            Ueff = params['Ueff']
-            
-            tau_calc = fn(T, tQT, Cr, n, t0, Ueff)
-
-            residuals = tau_calc - tau_obs
-            
-            if err is not None:
-                residuals = residuals/err
-                
-            return residuals
 
     def make_the_fit(self):
         window_title = 'Fit aborted'
@@ -431,39 +369,40 @@ class DataAnalysisTab(QSplitter):
             
             # This will raise TypeError and IndexError first
             # to warn that no data was loaded
-            guess = getParameterGuesses(self.used_T, self.used_tau)
+            fitwith = self.read_fit_type_cbs()
+            assert fitwith != ''
+            guess = getParameterGuesses(self.used_T, self.used_tau, fitwith)
             
             Tmin = self.temp_line[1].value()
             Tmax = self.temp_line[3].value()
-            perform_this_fit = self.read_fit_type_cbs()
-            
             assert Tmin != Tmax
-            assert perform_this_fit != ''
             
-            guess_dialog = GuessDialog(guess=guess,
-                                       fit_history=self.fit_history)
+            guess_dialog = GuessDialog(self,
+                                       guess,
+                                       fitwith)
             accepted = guess_dialog.exec_()
             if not accepted: raise NoGuessExistsError
             
             # If both fit and temperature setting are good,
             # and the GuessDialog was accepted, get the
             # guess and perform fitting
-            guess = guess_dialog.return_guess
-            p_fit = self.fit_relaxation(guess, perform_this_fit)
+            
+            params = guess_dialog.current_guess
+            minimize_res = fit_relaxation(self.used_T, self.used_tau, params)
             
         except (AssertionError, IndexError):
             msg_text = 'Bad temperature or fit settings'
             msg_details = """Possible errors:
-            - min and max temperatures are the same
-            - no fit options have been selected
-            - can't fit only one data point"""
+ - min and max temperatures are the same
+ - no fit options have been selected
+ - can't fit only one data point"""
         except RuntimeError:
             msg_text = 'This fit cannot be made within the set temperatures'
         except ValueError as e:
-            print(e)
             msg_text = 'No file has been loaded'
-        except TypeError:    
+        except TypeError as e:
             msg_text = 'No data has been selected'
+            print(e)
         except NoGuessExistsError:
             msg_text = 'Made no guess for initial parameters'
         
@@ -471,32 +410,24 @@ class DataAnalysisTab(QSplitter):
             window_title = 'Fit successful!'
             msg_text = 'Congratulations'
             
-            self.add_to_history(p_fit, perform_this_fit)
+            self.add_to_history(minimize_res, fitwith)
             
         finally:
-            msg = MagMessage(window_title,msg_text)
-            msg.setIcon(QMessageBox.Warning)
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Information)
+            msg.setWindowTitle(window_title)
+            msg.setText(msg_text)
             msg.setDetailedText(msg_details)
             msg.exec_()        
-
-    def prepare_sim_dict_for_plotting(self, p_fit_gui_struct):
-
-        params = []
-        quantities = []
-        sigmas = [0]*5
-
-        for key, val in p_fit_gui_struct.items():
-            params.append(val)
-            quantities.append(key)
+    
+    def add_to_history(self, p_fit, perform_this_fit):
         
-        Ueff = params[quantities.index('Ueff')]
-        params[quantities.index('Ueff')] = Ueff*sc.Boltzmann
-        
-        p_fit_script_type = {'params': params,
-                             'quantities': quantities,
-                             'sigmas': sigmas}
-        
-        return p_fit_script_type
+        now = datetime.datetime.now()
+        now = now.strftime("%d.%m %H:%M:%S")
+
+        if len(self.fit_history)>9:
+            self.fit_history.pop()
+        self.fit_history.insert(0, (perform_this_fit, p_fit, now))
 
     def redraw_simulation_lines(self):
         
@@ -528,88 +459,76 @@ class DataAnalysisTab(QSplitter):
             try:
                 sim_item = self.list_of_simulations.selectedItems()[0]
             except IndexError:
-                print('Did not find any selected line')
+                w = MagMessage("Did not find any selected line",
+                               "Select a line first to edit it")
+                w.exec_()
                 return
             else:
-
-                # Reading off information from the selected item
-                old_data = sim_item.data(32)
-                old_plot_type_list = old_data['plot_type']
-                old_p_fit = old_data['p_fit']
-                old_T_vals = old_data['T_vals']
-                old_line = old_data['line']
-                old_color = old_line._color
-                old_label = old_line._label
+                data = sim_item.data(32)
+                params = data['params']
+                T_vals = data['T_vals']
+                line = data['line']
+                color = line._color
+                label = line._label
         
         elif action == 'New':
             
-            old_plot_type_list = []
-            old_p_fit = {'tQT': 0.1, 'Cr': 0.1, 'n': 0.1, 't0': 0.1, 'Ueff': 0.1}
-            old_T_vals = [0,0]
-            old_line = False
-            old_label = None
-            old_color = None
+            params = default_parameters()
+            T_vals = [1,3]
+            line = False
+            label = None
+            color = None
             if len(self.simulation_colors)<1:
-                self.parent.statusBar.showMessage("ERROR: can't make any more simulations")
+                self.statusBar.showMessage("ERROR: can't make any more simulations")
                 return
             
-        sim_dialog = SimulationDialog(fit_history=self.fit_history,
-                                      plot_type_list=old_plot_type_list,
-                                      plot_parameters=old_p_fit,
-                                      min_and_max_temps=old_T_vals)
+        sim_dialog = SimulationDialog(parent=self,
+                                      fit_history=self.fit_history,
+                                      params = params,
+                                      min_max_T=T_vals)
         finished_value = sim_dialog.exec_()
+        functions = [bool(sim_dialog.params[p].value)
+                     for p in sim_dialog.params if 'use' in p]
         
         try:
             assert finished_value
-            
-            new_plot_type = sim_dialog.plot_type_list
-            assert len(new_plot_type)>0
-            
+            assert(any(functions))
         except AssertionError:
             pass
-            
         else:
+            params = sim_dialog.params
+            T_vals = sim_dialog.min_max_T
             
-            new_p_fit = sim_dialog.plot_parameters
-            new_T_vals = sim_dialog.min_and_max_temps
-            plot_to_make = ''.join(new_plot_type)
-            
-            if old_line:
-                self.plot_wdgt.ax.lines.remove(old_line)
+            if line:
+                self.plot_wdgt.ax.lines.remove(line)
             else:
                 # In this case, there was no old line and therefore also no sim_item
-                
                 """https://stackoverflow.com/questions/55145390/pyqt5-qlistwidget-with-checkboxes-and-drag-and-drop"""
                 sim_item = QListWidgetItem()
                 sim_item.setFlags( sim_item.flags() | Qt.ItemIsUserCheckable )
                 sim_item.setCheckState(Qt.Checked)
                 
                 self.list_of_simulations.addItem(sim_item)
-                old_color = self.simulation_colors.pop()
-                old_label = names.get_first_name()
+                color = self.simulation_colors.pop()
+                label = names.get_first_name()
             
-            new_line = addPartialModel(self.plot_wdgt.fig,
-                                       new_T_vals[0],
-                                       new_T_vals[1],
-                                       self.prepare_sim_dict_for_plotting(new_p_fit),
-                                       plotType=plot_to_make,
-                                       c=old_color,
-                                       label=old_label)
+            line = add_partial_model(self.plot_wdgt.fig,
+                                     T_vals[0],
+                                     T_vals[1],
+                                     params,
+                                     c=color,
+                                     label=label)
             
-            list_item_data = {'plot_type': new_plot_type,
-                              'p_fit': new_p_fit,
-                              'T_vals': new_T_vals,
-                              'line': new_line,
-                              'color': old_color}
+            list_item_data = {'params': params,
+                              'T_vals': T_vals,
+                              'line': line,
+                              'color': color}
             
-            new_item_text = f"{old_label},\n({new_T_vals[0]:.1f},{new_T_vals[1]:.1f}),\n"
-            new_item_text += f"tQT: {new_p_fit['tQT']:.2e}, Cr: {new_p_fit['Cr']:.2e}, "
-            new_item_text += f"n: {new_p_fit['n']:.2e}, t0: {new_p_fit['t0']:.2e}, "
-            new_item_text += f"Ueff: {new_p_fit['Ueff']:.2e}"
+            new_item_text = self.represent_simulation(T_vals, params)
             
             sim_item.setData(32, list_item_data)
             sim_item.setText(new_item_text)
-            sim_item.setBackground(QColor(to_hex(old_color)))
+            sim_item.setBackground(QColor(to_hex(color)))
             
             self.redraw_simulation_lines()
 
@@ -633,3 +552,10 @@ class DataAnalysisTab(QSplitter):
             
             del sim_item
 
+    def represent_simulation(self, T_vals, params):
+        
+        fs = [p for p in params if 'use' in p]
+        used = [bool(params[p].value) for p in fs]
+        text = ['Using QT: {}, Raman: {}, Orbach: {}\n'.format(*used),
+                'to plot between {} K and {} K\n'.format(*T_vals)]
+        return ''.join(text)

@@ -1,8 +1,9 @@
 #std packages
-from importlib.resources import read_text
 import sys
 import os
 import json
+from importlib.resources import read_text
+import datetime
 
 #third-party packages
 from PyQt5.QtGui import QIcon, QFont
@@ -13,7 +14,7 @@ from matplotlib.colors import LinearSegmentedColormap
 #local imports
 from .__init__ import __version__
 from .dialogs import  AboutDialog
-from .Datatabletab import Datatabletab 
+from .DataTableTab import DataTableTab 
 from .DataAnalysisTab import DataAnalysisTab
 from .DataTreatmentTab import DataTreatmentTab
 from . import data as pkg_static_data
@@ -83,7 +84,7 @@ class ACGui(QMainWindow):
         self.all_the_tabs.addTab(self.data_treat, "Data treatment")
 
         #Makes "Table of Data" tab
-        self.widget_table = Datatabletab(self)
+        self.widget_table = DataTableTab(self)
         self.all_the_tabs.addTab(self.widget_table, "Table of data")       
         
         #Makes "Data analysis" tab
@@ -157,8 +158,5 @@ class ACGui(QMainWindow):
         w.exec_()
     
 
-    
 
         
-
-

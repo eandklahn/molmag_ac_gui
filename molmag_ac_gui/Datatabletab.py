@@ -8,10 +8,10 @@ from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QPushButton,
                              QTableWidgetItem, QMessageBox) 
 from .dialogs import MagMessage
 
-class Datatabletab(QWidget): #First tab er Qwidget, så nu er det self.layout fx i stedet for self.widget.layout
+class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx i stedet for self.widget.layout
 
     def __init__(self, parent): 
-        super(Datatabletab,self).__init__() #Før __init__() peger på QWidget
+        super(DataTableTab,self).__init__() #Før __init__() peger på QWidget
         self.parent = parent
         self.initUI() 
     

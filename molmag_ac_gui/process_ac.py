@@ -8,9 +8,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 import scipy.constants as sc
-from scipy.optimize import curve_fit
 
 from lmfit import Parameters, minimize as lmfit_minimize
+
+kB = sc.Boltzmann
 
 """
 HELPER FUNCTIONS FOR PROCESSING AC-DATA
@@ -203,7 +204,7 @@ def Xpp_dataset(params, v):
     Xs = params['Xs']
     return Xpp_(v, Xs, Xt, tau, alpha)
     
-def getParameterGuesses(T, tau):
+def getParameterGuesses(T, tau, fitwith):
     """
     DOCUMENTED
     Calculates guesses for optimal fitting parameters to begin the fit
@@ -245,13 +246,20 @@ def getParameterGuesses(T, tau):
     # Extracting guess for QT parameter
     tQT_guess = tau[0]
     
-    guess = {'Ueff': Ueff_guess,
-            't0': t0_guess,
-            'n': n_guess,
-            'Cr': Cr_guess,
-            'tQT': tQT_guess}
-    
-    return guess
+    if fitwith == 'all':
+        fitwith = 'QTRO'
+
+    params = Parameters()
+    params.add(name='tQT', value=tQT_guess, vary='QT' in fitwith, min=0)
+    params.add(name='Cr', value=Cr_guess, vary='R' in fitwith, min=0)
+    params.add(name='n', value=n_guess, vary='R' in fitwith, min=0, max=20)
+    params.add(name='t0', value=t0_guess, vary='O' in fitwith, min=0)
+    params.add(name='Ueff', value=Ueff_guess, vary='O' in fitwith)
+    params.add(name='useQT', value=int('QT' in fitwith), vary=False)
+    params.add(name='useR', value=int('R' in fitwith), vary=False)
+    params.add(name='useO', value=int('O' in fitwith), vary=False)
+
+    return params
 
 def _QT(T, tQT):
     """
@@ -485,6 +493,9 @@ def readPFITinOrder(p_fit, plotType='O'):
     return p
     
 def addPartialModel(fig, Tmin, Tmax, p_fit, plotType='O', *args, **kwargs):
+    """
+    Avoid using this function
+    """
     
     ax = fig.get_axes()[0]
     
@@ -498,4 +509,65 @@ def addPartialModel(fig, Tmin, Tmax, p_fit, plotType='O', *args, **kwargs):
     T_space = np.linspace(Tmin, Tmax, 101)
     line, = ax.plot(1/T_space, np.ones(T_space.shape)*f(T_space, *p), *args, **kwargs)
     return line
+
+def add_partial_model(fig, Tmin, Tmax, params, N_points=100, *args, **kwargs):
+    """
+    Reimplementation of addPartialModel that supports the use of
+    lmfit.Parameters for setting the function to plot.
+    """
+
+    ax = fig.get_axes()[0]
+    T = np.linspace(Tmin, Tmax, N_points)
+    tau = relaxation_dataset(params, T)
+
+    line, = ax.plot(1/T, np.log(tau), *args, **kwargs)
+
+    return line
+
+def general_relaxation(T, tQT, Cr, n, t0, Ueff, useQT, useR, useO):
+
+    tauQT = _QT(T, tQT)
+    tauO = _O(T, t0, Ueff)
+    tauR = _R(T, Cr, n)
+
+    rate = useQT*(1/tauQT)+useO*(1/tauO)+useR*(1/tauR)
+    tau = 1/rate
+
+    return tau
+
+def relaxation_dataset(params, T):
     
+    tQT = params['tQT']
+    Cr = params['Cr']
+    n = params['n']
+    t0 = params['t0']
+    Ueff = params['Ueff']
+    useQT = params['useQT']
+    useR = params['useR']
+    useO = params['useO']
+
+    return general_relaxation(T, tQT, Cr, n, t0, Ueff, useQT, useR, useO)
+
+def fit_relaxation(T, tau_data, params):
+
+    def objective(params, T, tau_data):
+
+        return tau_data - relaxation_dataset(params, T)
+
+    out = lmfit_minimize(objective, params, args=(T, tau_data))
+
+    return out
+
+def default_parameters(fitwith='QTRO'):
+
+    params = Parameters()
+    params.add(name='tQT', value=1e-4, vary='QT' in fitwith, min=0)
+    params.add(name='Cr', value=1e-3, vary='R' in fitwith, min=0)
+    params.add(name='n', value=4, vary='R' in fitwith, min=0, max=20)
+    params.add(name='t0', value=1e-7, vary='O' in fitwith, min=0)
+    params.add(name='Ueff', value=50*kB, vary='O' in fitwith)
+    params.add(name='useQT', value=int('QT' in fitwith), vary=False)
+    params.add(name='useR', value=int('R' in fitwith), vary=False)
+    params.add(name='useO', value=int('O' in fitwith), vary=False)
+
+    return params
