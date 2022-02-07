@@ -366,7 +366,8 @@ class SimulationDialog(QDialog):
         
         param_names = [p for p in self.params if not 'use' in p]
         for p in param_names:
-            self.params[p].value = float(self.use_values_edits[p].text())
+            textval = self.use_values_edits[p].text()
+            self.params[p].value = float(textval)
     
     def read_plot_type(self):
         

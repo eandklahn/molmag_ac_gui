@@ -578,10 +578,6 @@ class ACGui(QMainWindow):
             newitem.setBackground(QColor(to_hex(self.temperature_cmap(t_float))))
             self.treat_raw_fit_list.addItem(newitem)
     
-    def set_fit_message_on_statusbar(self, n, N):
-
-        self.statusBar.showMessage('Fitted {}/{} curves'.format(n,N))
-
     def fit_Xp_Xpp_standalone(self):
         
         try:
@@ -610,18 +606,6 @@ class ACGui(QMainWindow):
             
             inputs = tuple(zip(v_all, Xp_all, Xpp_all))
             
-            #thread = QThread()
-            #worker = FitWorker(inputs)
-            #worker.moveToThread(thread)
-            #thread.started.connect(worker.run)
-            #worker.finished.connect(thread.quit)
-            #worker.finished.connect(worker.deleteLater)
-            #thread.finished.connect(thread.deleteLater)
-            #worker.progress.connect(self.set_fit_message_on_statusbar)
-
-            #thread.start()
-            #res = worker.res
-
             with Pool() as pool:
                 res = pool.starmap(fit_Xp_Xpp_genDebye, inputs)
             
