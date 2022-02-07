@@ -1,5 +1,4 @@
 from PyQt5.QtWidgets import (QPushButton, QLabel)
-from sqlalchemy import func
 
         
 def make_headline(self, headline_string, layout): 

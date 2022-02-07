@@ -67,7 +67,8 @@ def update_data_names(df, options):
     return summary
 
 def formatlabel(label): 
-
+    #Lav dictonary: Mp fx som key, M' som value 
+    
     if label == "Mp (emu)": 
         return "M' (emu)"
     elif label == "Mpp (emu)": 

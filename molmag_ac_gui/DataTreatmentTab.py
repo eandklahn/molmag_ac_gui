@@ -605,7 +605,7 @@ class DataTreatmentTab(QSplitter):
         else:
             df_to_save = self.raw_data_fit.copy()
             df_to_save = df_to_save.reindex(columns=['Temp', 'Tau', 'dTau', 'Alpha','ChiS', 'ChiT', 'Residual', 'Tau_Err'])
-            df_to_save.sort_values('Temp', inplace=True)
+            df_to_save.sort_values('Temp', inplace=True)    
             
             name, ext = os.path.splitext(filename)
             if ext == '':
@@ -703,7 +703,6 @@ class DataTreatmentTab(QSplitter):
                 y_label = self.raw_df_reduced.columns[idx_y]
             else: 
                 y_label = self.raw_df_reduced.columns[0]
-        print("x_label = {}, y_label = {} ".format(x_label, y_label))
 
         return x_label, y_label 
 
