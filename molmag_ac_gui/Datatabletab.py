@@ -2,7 +2,6 @@
 import os
 
 #third-party packages
-import pandas as pd
 from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QPushButton, 
                              QVBoxLayout, QWidget, QTableWidget,
                              QTableWidgetItem, QMessageBox) 
