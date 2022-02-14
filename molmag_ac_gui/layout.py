@@ -12,6 +12,7 @@ def make_headline(self, headline_string, layout):
 def make_btn(self, btn_string, function, layout): 
     self.btn = QPushButton(btn_string)
     self.btn.clicked.connect(function)
+    #self.btn.setEnabled(False)
     layout.addWidget(self.btn)
 
 def make_line(self, line_string, layout): 

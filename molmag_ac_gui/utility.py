@@ -1,4 +1,14 @@
 import pandas as pd
+label_dict = {
+        "Mp (emu)": "M' (emu)",
+        "Mpp (emu)": "M'' (emu)", 
+        "Mp_m (emu/mol)": r"$M_m'$ (emu/Oe)",
+        "Mpp_m (emu/mol)": r"$M_m''$ (emu/Oe)",
+        "Xp (emu/Oe)": r"$\chi'$ (emu/Oe)", 
+        "Xpp (emu/Oe)": r"$\chi''$ (emu/Oe)", 
+        "Xp_m (emu/(Oe*mol))": r"$\chi_m'$ $(emu/(Oe⋅mol))$", 
+        "Xpp_m (emu/(Oe*mol))": r"$\chi_m''$ $(emu/(Oe⋅mol))$"
+        }
 
 def read_ppms_file(filename):
     
@@ -68,25 +78,12 @@ def update_data_names(df, options):
 
 def formatlabel(label): 
     #Lav dictonary: Mp fx som key, M' som value 
-    
-    if label == "Mp (emu)": 
-        return "M' (emu)"
-    elif label == "Mpp (emu)": 
-        return "M'' (emu)"
-    elif label == "Xp (emu/Oe)": 
-        return r"$\chi'$ (emu/Oe)"
-    elif label == "Xpp (emu/Oe)": 
-        return r"$\chi''$ (emu/Oe)"
-    elif label == "Mp_m (emu/mol)": 
-        return r"$M_m'$ (emu/Oe)"
-    elif label == "Mpp_m (emu/mol)":
-        return r"$M_m''$ (emu/Oe)"
-    elif label ==  "Xp_m (emu/(Oe*mol))":
-        return r"$\chi_m'$ $(emu/(Oe⋅mol))$"
-    elif label ==  "Xpp_m (emu/(Oe*mol))":
-        return r"$\chi_m''$ $(emu/(Oe⋅mol))$"
-    else: 
+
+    try: 
+        return label_dict[label]
+    except KeyError: #If not in label dict
         return label
+
 
 
 if __name__ == '__main__':

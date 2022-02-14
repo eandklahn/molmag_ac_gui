@@ -48,11 +48,11 @@ class DataTreatmentTab(QSplitter):
         self.add_plot_type_combobox()
 
         # Constructing the x and y comboboxes
-        make_headline(self, "Raw data plotting", self.layout)
+        make_headline(self, "Raw data: Choose x- and y-contents", self.layout)
         self.add_xy_comboboxes() 
 
         # Constructing a combobox for plotting fitted data
-        make_headline(self, "Plot type for fitting", self.layout)
+        make_headline(self, "Fitted: Choose plot type", self.layout)
         self.add_fit_combobox() 
 
         # Constructing parameter controls
@@ -77,7 +77,6 @@ class DataTreatmentTab(QSplitter):
 
         self.raw_df = None
         self.raw_df_header = None
-        self.raw_df_reduced = None
         self.num_meas_freqs = 0
         self.num_meas_temps = 0
         self.temp_subsets = []
@@ -90,7 +89,7 @@ class DataTreatmentTab(QSplitter):
         the raw data, fitted data and the 3D plot in the plotting window on the right """
 
         self.plot_type_combo = QComboBox()
-        self.plot_type_combo.addItems(['Raw data', 'Fitted', 'Temp VS Freq VS Xpp'])
+        self.plot_type_combo.addItems(['Raw data', 'Fitted', '3D plot'])
         self.plot_type_combo.currentIndexChanged.connect(self.switch_view)
         self.layout.addWidget(self.plot_type_combo)
 
@@ -173,7 +172,7 @@ class DataTreatmentTab(QSplitter):
         """ Adds controls for the data plotting where one can pick which datapoints
         and fits to be visualized. """
 
-        make_headline(self, "Hide/show fitted lines and raw data", self.layout)
+        make_headline(self, "Fitted/3D plot: Hide/show fitted lines and raw data", self.layout)
         make_line(self, "Double click to edit list", self.layout)
         
         #List of fitted raw data
@@ -279,9 +278,7 @@ class DataTreatmentTab(QSplitter):
             if all([label in self.raw_df for label in chosenlabels + molarlabels]): #if molar properties have been calculated
                 self.x_combo.addItems(chosenlabels + molarlabels)
                 self.y_combo.addItems(chosenlabels + molarlabels)
-                self.update_reduced_df() 
             elif all([label in self.raw_df for label in chosenlabels]): #If no molar properties has been calculated
-                self.update_reduced_df() 
                 self.x_combo.addItems(chosenlabels)
                 self.y_combo.addItems(chosenlabels)
             else: 
@@ -291,20 +288,6 @@ class DataTreatmentTab(QSplitter):
             self.y_combo.addItems(self.raw_df.columns)
             self.x_combo.addItems(self.raw_df.columns)
         
-
-    def update_reduced_df(self): 
-        """Updates the reduced dataframe such that it only contains the desired datatypes based on whether the 
-        xy_options checkbox is checked or not."""
-
-        chosenlabels = ["Temperature (K)", "AC Frequency (Hz)", "AC Amplitude (Oe)", "Magnetic Field (Oe)", "Mp (emu)",\
-                           "Mpp (emu)", "Xp (emu/Oe)", "Xpp (emu/Oe)"]        
-        molarlabels = ["Mp_m (emu/mol)", "Mpp_m (emu/mol)", "Xp_m (emu/(Oe*mol))", "Xpp_m (emu/(Oe*mol))"]
-        
-        if not self.xy_options_cb.isChecked():
-            if all([label in self.raw_df for label in chosenlabels + molarlabels]): #if molar properties have been calculated
-                self.raw_df_reduced = self.raw_df[chosenlabels + molarlabels]
-            elif all([label in self.raw_df for label in chosenlabels]): #If no molar properties has been calculated
-                self.raw_df_reduced = self.raw_df[chosenlabels]
 
     def load_ppms_data(self):
         """ This function uses subfunctions to perform the following tasks:  
@@ -332,15 +315,14 @@ class DataTreatmentTab(QSplitter):
             pass
         except UnicodeDecodeError:
             # File being read is binary, not a text file
-            print('The file is not a text file')
+            MagMessage("Unicode error", "The file is not a text file").exec_() 
         except FileFormatError as e:
             # File does not have correct header and data blocks
-            print('Trying to read a file that does not look correct')
+            MagMessage("Wrong header and data blocks", "Trying to read a file that does not look correct").exec_() 
         except AssertionError:
             # The data names could not be mapped correctly
-            print('A data name from self.parent.read_options is showing up more than once in the columns')
-            print('OR')
-            print('both Mp and Xp are unexpectedly both showing up in the data names')
+            MagMessage("Data names not mapped correctly", "A data name from self.parent.read_options is showing up more than once in the columns \n  \
+                OR both Mp and Xp are unexpectedly both showing up in the data names").exec_() 
         
         else:
             # Now that everything has been seen to work,
@@ -359,7 +341,7 @@ class DataTreatmentTab(QSplitter):
             self.update_temp_subsets()
             self.update_meas_temps()
             
-            self.update_reduced_df() 
+            #self.update_reduced_df() 
 
             # Clearing axes of "old" drawings and setting front widget to the raw data
             self.raw_plot.clear_canvas()
@@ -457,6 +439,8 @@ class DataTreatmentTab(QSplitter):
             self.raw_fit_list.addItem(newitem)
 
     def plot_from_itemlist(self):
+        """ Plots the fitted plot depending on what is chosen in the fitted combobox 
+        (either Freq vs. χ', Freq. vs. χ'' or Cole-Cole) """
         
         if self.raw_fit_list.count()==0:
             return
@@ -529,7 +513,11 @@ class DataTreatmentTab(QSplitter):
         self.fit_plot.canvas.draw()
 
     def fit_Xp_Xpp_standalone(self):
-        
+        """ Fits χ' and χ'' for all temperature subsets. This gives a tau, tau fit error, alpha, 
+        χs, χt and residual to every temperature subset. 
+        It also updates the raw_fit_list, plots the fitted data, plots the 3D data
+        and updates the xy comboboxes with the new variables introduced in the dataframe """
+
         try:
             # Check to see if there has been loaded a data frame
             self.raw_df.columns
@@ -537,17 +525,12 @@ class DataTreatmentTab(QSplitter):
             assert 'Xp_m (emu/(Oe*mol))' in self.raw_df.columns
             
         except AttributeError:
-            print("There hasn't been loaded a data frame to work on")
+            MagMessage("Error", "There hasn't been loaded a data frame to work on").exec_() 
         except AssertionError:
             MagMessage('Error','Calculate diamagnetic correction first\nto make Xp_m and Xpp_m for the algorithm').exec_()
         
         else:
             self.parent.statusBar.showMessage('Running fit...')
-            
-            # This can't be used currently. Will only work if a separate thread is spawned for fitting.
-            #w = QMessageBox()
-            #w.setText('Running the fit...\nPlease wait!')
-            #w.exec_()
             
             T = [x for x in self.meas_temps]
             Xs, Xt, tau, alpha, resid, tau_fit_err = [],[],[],[],[],[]
@@ -560,8 +543,7 @@ class DataTreatmentTab(QSplitter):
             
             with Pool() as pool:
                 res = pool.starmap(fit_Xp_Xpp_genDebye, inputs)
-            
-            #w.close()
+
             
             tau = [e[0] for e in res]
             tau_fit_err = [e[1] for e in res]
@@ -570,6 +552,7 @@ class DataTreatmentTab(QSplitter):
             Xt = [e[4] for e in res]
             resid = [e[5] for e in res]
             
+
             fit_result = pd.DataFrame(data={'Temp': T,
                                             'ChiS': Xs,
                                             'ChiT': Xt,
@@ -686,33 +669,17 @@ class DataTreatmentTab(QSplitter):
         idx = self.plot_type_combo.currentIndex()
         self.sw.setCurrentIndex(idx)
 
-    def getxylabel(self): 
-        """ Gets the x and y labels for plotting raw data. """
-
-        idx_x = self.x_combo.currentIndex()
-        idx_y = self.y_combo.currentIndex()
-        if self.xy_options_cb.isChecked(): #If extra xy_options are chosen with checkbox: Index in raw_df
-            x_label = self.raw_df.columns[idx_x]
-            y_label = self.raw_df.columns[idx_y]
-        else: #If limited xy_options
-            if idx_x < len(self.raw_df_reduced.columns): 
-                x_label = self.raw_df_reduced.columns[idx_x]
-            else: 
-                x_label = self.raw_df_reduced.columns[0]
-            if idx_y < len(self.raw_df_reduced.columns): 
-                y_label = self.raw_df_reduced.columns[idx_y]
-            else: 
-                y_label = self.raw_df_reduced.columns[0]
-
-        return x_label, y_label 
 
     def plot_raw_data(self):
         """ Plots the raw data based on what is chosen in the xy comboxes"""
 
         self.raw_plot.ax.clear()
-        
-        x_label, y_label = self.getxylabel()
-          
+
+        x_label, y_label = self.x_combo.currentText(), self.y_combo.currentText()
+        if x_label == '' or y_label == '': 
+            x_label = self.raw_df.columns[0]
+            y_label = self.raw_df.columns[0]
+
         self.raw_plot.ax.plot(self.raw_df[x_label],
                                     self.raw_df[y_label],
                                     marker='o',
@@ -726,7 +693,6 @@ class DataTreatmentTab(QSplitter):
         self.raw_plot.ax.set_xlabel(formatlabel(x_label))
         self.raw_plot.ax.set_ylabel(formatlabel(y_label))
         self.raw_plot.canvas.draw()
-
 
 
     def update_itemdict(self, item, itemdict):
@@ -770,7 +736,9 @@ class DataTreatmentTab(QSplitter):
             self.parent.data_ana.set_new_t_tau(D)
             self.parent.data_ana.read_indices_for_used_temps()
             self.parent.data_ana.plot_t_tau_on_axes()
+            self.parent.data_ana.add_T_axis() 
             self.parent.data_ana.plot_wdgt.reset_axes()
+            self.parent.data_ana.update_T_axis() 
         except TypeError:
             MagMessage("Fitted data does not exist", "Fitted data does not yet exist in the Data Treatment tab").exec_() 
 

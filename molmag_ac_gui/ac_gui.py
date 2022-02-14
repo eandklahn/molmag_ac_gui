@@ -33,7 +33,26 @@ class ACGui(QMainWindow):
         
     def initUI(self):
         
-        """About"""
+        # Initilization: 
+        self.set_about_and_current_file() 
+        self.set_data_containers() 
+
+        # Setting up GUI: 
+        self.setWindowTitle('Molmag AC GUI v{}'.format(__version__))
+        self.setWindowIcon(QIcon('double_well_potential_R6p_icon.ico'))
+        self.make_tab_wdgt() 
+        self.make_menubar()        
+        
+        # Finalizing GUI
+        self.help_lang_eng.trigger()        
+        self.showMaximized()
+        self.show()
+
+
+
+    def set_about_and_current_file(self):
+        """ Sets the about information, remembers the last loaded file and sets current file to an empty string """
+        
         self.about_information = {'author':
                                   '\nEmil A. Klahn (eklahn@chem.au.dk) \nSofie Stampe Leiszner (sofiesl@chem.au.dk)',
                                   'webpage':
@@ -45,16 +64,10 @@ class ACGui(QMainWindow):
         self.last_loaded_file = os.getcwd() #Remember the last used folder.
         self.current_file = ''
 
+    def set_data_containers(self): 
+        """Sets data containers (read options, diamagnetic constants, temperature colormap 
+        and the tooltips dictionary) """
 
-        """ Things to do with how the window is shown """
-        self.setWindowTitle('Molmag AC GUI v{}'.format(__version__))
-        self.setWindowIcon(QIcon('double_well_potential_R6p_icon.ico'))
-        
-        """ FONT STUFF """
-        self.headline_font = QFont() #Defines headline font
-        self.headline_font.setBold(True) #Makes it bold
-        
-        # Data containers for treatment
         self.read_options = json.loads(read_text(pkg_static_data,
                                                 'read_options.json'))
         
@@ -68,33 +81,32 @@ class ACGui(QMainWindow):
         self.tooltips_dict = json.loads(read_text(pkg_static_data,
                                                   'tooltips.json'))
 
-        """ Setting up the main tab widget """
+    def make_tab_wdgt(self): 
+        """ Make the main window with the three tabs: Data treatment, Table of Data
+        and Data analysis. """
+
         self.all_the_tabs = QTabWidget() 
         self.setCentralWidget(self.all_the_tabs)
         self.statusBar = QStatusBar() #A statusbar in the buttom of the window
         self.setStatusBar(self.statusBar)
-        #self.setStyleSheet(read_text(pkg_static_data, 'styles.qss')
-        
-        """ Adding all the tabs"""    
 
-
-
-        #Makes "Data treatment" tab    
+        # Make "Data Treatment tab"
         self.data_treat = DataTreatmentTab(self)        
         self.all_the_tabs.addTab(self.data_treat, "Data treatment")
 
-        #Makes "Table of Data" tab
+        # Make "Table of Data" tab
         self.widget_table = DataTableTab(self)
         self.all_the_tabs.addTab(self.widget_table, "Table of data")       
         
-        #Makes "Data analysis" tab
+        # Make "Data analysis" tab
         self.data_ana = DataAnalysisTab(self)        
         self.all_the_tabs.addTab(self.data_ana, "Data analysis")   
-        
-        """ Making a menubar """
-        self.menu_bar = self.menuBar()
-        
-        # File menu
+
+
+    def add_file_menu(self): 
+        """ Adds the file menu in the top menu with options settings and quit their 
+        corresponding shortcuts """
+
         self.file_menu = self.menu_bar.addMenu('File')
         
         self.settings_action = QAction('&Settings', self)
@@ -110,16 +122,22 @@ class ACGui(QMainWindow):
         self.quit_action.setShortcut("Ctrl+Q")
         self.quit_action.triggered.connect(sys.exit)
         self.file_menu.addAction(self.quit_action)
-        
-        # Simulation menu
+
+
+    def add_simulation_menu(self): 
+        """Adds the simulation option to the top menubar. This is not fully functional yet. """
+
         self.sim_menu = self.menu_bar.addMenu('Simulation')
         
         self.add_sim_w_menu = QAction('&New', self)
         self.add_sim_w_menu.setShortcut("Ctrl+Shift+N")
         self.add_sim_w_menu.triggered.connect(self.data_ana.edit_simulation_from_list)
         self.sim_menu.addAction(self.add_sim_w_menu)
-        
-        # About menu
+
+    def add_help_menu(self): 
+        """ Adds a help menu, where the language can be changed (this only works for the 
+        tooltips in the sample information menu, not for the rest of the GUI). 
+        Also adds an option to view the about information. """
         self.help_menu = self.menu_bar.addMenu('Help')
         
         self.help_lang_menu = self.help_menu.addMenu('Language')
@@ -144,16 +162,23 @@ class ACGui(QMainWindow):
         self.help_about_menu.setShortcut("F10")
         self.help_menu.addAction(self.help_about_menu)
 
-        # Showing the GUI
-        self.data_ana.load_t_tau_data()
-        self.help_lang_eng.trigger()        
-        self.showMaximized()
-        self.show()
+    def make_menubar(self): 
+        """ Makes the menubar in the top of the GUI window"""
+
+        self.menu_bar = self.menuBar()
+        self.add_file_menu() 
+        self.add_simulation_menu() 
+        self.add_help_menu()
+        
 
     def set_gui_language(self): 
+        """ Sets the GUI language """
+
         self.gui_language = self.sender().text()
 
     def show_about_dialog(self):
+        """ Shows the about dialog"""
+
         w = AboutDialog(info=self.about_information)
         w.exec_()
     

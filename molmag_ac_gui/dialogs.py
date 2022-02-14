@@ -1,9 +1,11 @@
 #std packages
 from collections import OrderedDict
+from multiprocessing.sharedctypes import Value
 import os
 from re import X 
 
 #third-party packages
+import numpy as np 
 import scipy.constants as sc
 
 from PyQt5.QtGui import QFont, QDoubleValidator
@@ -56,7 +58,6 @@ class PlottingWindow(QWidget):
             self.cax.set_yticklabels([])
             self.cax.get_yaxis().labelpad = 15
             self.cax.set_ylabel("Temperature (K)")
-
         else:
             self.ax = self.fig.add_subplot(111)
         
@@ -702,11 +703,11 @@ class SampleInformation(QDialog):
             assert all([len(line.split())>=2 for line in d])
             
         except FileNotFoundError:
-            print('File was not selected')
+            MagMessage("Error", "File was not selected").exec_() 
         except UnicodeDecodeError:
-            print('Cant open a binary file')
+            MagMessage("Error", "Cannot open binary file").exec_() 
         except AssertionError:
-            print('Some of the lines have lengths less than two')
+            MagMessage("Error", "Some lines have length less than two").exec_() 
         else:
             
             # These are the default values that are "read" if nothing else is

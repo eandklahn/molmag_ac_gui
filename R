@@ -1,0 +1,15 @@
+Fit Statistics      Fitting method : leastsq      Number of function evals : 16.0
+      Number of data points : 10.0
+      Number of variables : 2.0
+      chi-square : 4.8417e-07
+      reduced chi-square : 6.0521e-08
+      Akaike info crit : -164.434236
+      Bayesian info crit : -163.829066
+Variables
+      tQT: 0.01984728 (fixed) 
+      Cr: 1.550e-02 +/- 2.38e-03 (15.35%) (init : 2.287e-02 
+)      n: 5.016e+00 +/- 9.14e-02 (1.82%) (init : 4.842e+00 
+)      t0: 5.120945e-06 (fixed) 
+      Ueff: 6.542127e-22 (fixed) 
+      useQT: 0.0 (fixed) 
+      useR: 1.0 (fixed) 
