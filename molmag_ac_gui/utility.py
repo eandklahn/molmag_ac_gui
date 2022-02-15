@@ -44,7 +44,7 @@ def read_ppms_file(filename):
                          skip_blank_lines=False)
     else:
         header, df = None, None
-    
+        
     return header, df
 
 def get_ppms_column_name_matches(columns, options):

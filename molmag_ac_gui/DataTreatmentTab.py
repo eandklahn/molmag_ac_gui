@@ -441,7 +441,8 @@ class DataTreatmentTab(QSplitter):
     def plot_from_itemlist(self):
         """ Plots the fitted plot depending on what is chosen in the fitted combobox 
         (either Freq vs. χ', Freq. vs. χ'' or Cole-Cole) """
-        
+        fit_resolution = 10000
+
         if self.raw_fit_list.count()==0:
             return
         
@@ -491,14 +492,32 @@ class DataTreatmentTab(QSplitter):
                                             mfc='none',
                                             linestyle='None')
             if itemdict['fit']:
-                self.fit_plot.ax.plot(x_data,
-                                            fcn_y(self.temp_subsets[row]['AC Frequency (Hz)'],
-                                                  self.raw_data_fit['ChiS'].iloc[row],
-                                                  self.raw_data_fit['ChiT'].iloc[row],
-                                                  self.raw_data_fit['Tau'].iloc[row],
-                                                  self.raw_data_fit['Alpha'].iloc[row]),
-                                            c=rgb)
-            
+                if plot_type == 'Cole-Cole':
+                    freq = self.temp_subsets[row]['AC Frequency (Hz)']
+                    freq_for_plotting = np.linspace(min(freq), max(freq), fit_resolution)
+                    x_data_for_plotting = Xp_(freq_for_plotting,
+                                              self.raw_data_fit['ChiS'].iloc[row],
+                                              self.raw_data_fit['ChiT'].iloc[row],
+                                              self.raw_data_fit['Tau'].iloc[row],
+                                              self.raw_data_fit['Alpha'].iloc[row])
+                                                     
+                    self.fit_plot.ax.plot(x_data_for_plotting,
+                                                fcn_y(freq_for_plotting,
+                                                      self.raw_data_fit['ChiS'].iloc[row],
+                                                      self.raw_data_fit['ChiT'].iloc[row],
+                                                      self.raw_data_fit['Tau'].iloc[row],
+                                                      self.raw_data_fit['Alpha'].iloc[row]),
+                                                c=rgb)
+                else: #Corresponds to elif plot_type == 'Freq VS Xpp' or plot_type == 'Freq VS Xp':
+                    freq_for_plotting = np.logspace(np.log10(min(x_data)), np.log10(max(x_data)), fit_resolution) #Logspace to equally distribute the points on a log-scale
+                    self.fit_plot.ax.plot(freq_for_plotting,
+                                                fcn_y(freq_for_plotting,
+                                                      self.raw_data_fit['ChiS'].iloc[row],
+                                                      self.raw_data_fit['ChiT'].iloc[row],
+                                                      self.raw_data_fit['Tau'].iloc[row],
+                                                      self.raw_data_fit['Alpha'].iloc[row]),
+                                                c=rgb)
+                        
         self.fit_plot.ax.set_xscale(x_scale)
         self.fit_plot.ax.set_xlabel(formatlabel(x_name))
         self.fit_plot.ax.set_ylabel(formatlabel(y_name))
@@ -630,6 +649,8 @@ class DataTreatmentTab(QSplitter):
         
     def plot_each_temp_3D(self): 
         """ Plots each temperature subset in colors according to the colorbar"""
+        fit_resolution = 1000
+
         for row in range(self.num_meas_temps):      
             T = self.meas_temps[row]
             rgb = self.parent.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))           
@@ -642,10 +663,12 @@ class DataTreatmentTab(QSplitter):
                                         self.temp_subsets[row][self.z_label_3D], 
                                         color = rgb, s = 7
                                         )
-            if itemdict['fit']:       
-                self.threeD_plot.ax.plot(self.temp_subsets[row][self.x_label_3D], 
-                                            np.log10(self.temp_subsets[row][self.y_label_3D]),
-                                            Xpp_(self.temp_subsets[row]['AC Frequency (Hz)'],
+            if itemdict['fit']: 
+                y_data = self.temp_subsets[row][self.y_label_3D]
+                freq_for_plotting = np.logspace(np.log10(min(y_data)), np.log10(max(y_data)), fit_resolution) #Logspace to equally distribute the points on a log-scale
+                self.threeD_plot.ax.plot(np.full(fit_resolution,T), 
+                                            np.log10(freq_for_plotting),
+                                            Xpp_(freq_for_plotting,
                                                   self.raw_data_fit['ChiS'].iloc[row],
                                                   self.raw_data_fit['ChiT'].iloc[row],
                                                   self.raw_data_fit['Tau'].iloc[row],
