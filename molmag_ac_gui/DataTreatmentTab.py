@@ -347,6 +347,7 @@ class DataTreatmentTab(QSplitter):
             self.raw_plot.clear_canvas()
             self.fit_plot.clear_canvas()
             self.fit_plot.cax.clear()
+            self.threeD_plot.clear_canvas() 
             
             combo_idx = self.plot_type_combo.findText('Raw data')
             self.plot_type_combo.setCurrentIndex(combo_idx)
