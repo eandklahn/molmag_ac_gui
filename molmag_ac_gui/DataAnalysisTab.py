@@ -357,9 +357,11 @@ class DataAnalysisTab(QSplitter):
         self.data_T = T[sort_indices]
         self.data_tau = tau[sort_indices]
         self.data_dtau = None
-        
-        if D.shape[1]==3:
-            # Three columns in the array loaded, assume the third is error
+
+
+        if D.shape[1]==3 or D.shape[1] == 8: 
+            # Three columns in the array loaded or 8 columns loaded from file
+            # Assume the third columns is error
             dtau = D[:,2]
             dtau = dtau[sort_indices]
             
@@ -370,6 +372,7 @@ class DataAnalysisTab(QSplitter):
             tau_fit_err = D[:,3]
             dtau = tau_err_RC(tau, tau_fit_err, alpha)
             dtau = dtau[sort_indices]
+
         else:
             dtau = None
             
