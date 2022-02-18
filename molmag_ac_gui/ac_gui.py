@@ -17,6 +17,7 @@ from .dialogs import  AboutDialog
 from .DataTableTab import DataTableTab 
 from .DataAnalysisTab import DataAnalysisTab
 from .DataTreatmentTab import DataTreatmentTab
+from .DataTreatmentTab_DC import DataTreatmentTab_DC
 from . import data as pkg_static_data
 
 
@@ -90,18 +91,24 @@ class ACGui(QMainWindow):
         self.statusBar = QStatusBar() #A statusbar in the buttom of the window
         self.setStatusBar(self.statusBar)
 
+
         # Make "Data Treatment tab"
         self.data_treat = DataTreatmentTab(self)        
-        self.all_the_tabs.addTab(self.data_treat, "Data treatment")
+        self.all_the_tabs.addTab(self.data_treat, "Data treatment (AC)")
 
         # Make "Table of Data" tab
         self.widget_table = DataTableTab(self)
-        self.all_the_tabs.addTab(self.widget_table, "Table of data")       
+        self.all_the_tabs.addTab(self.widget_table, "Table of data (AC)")       
         
         # Make "Data analysis" tab
         self.data_ana = DataAnalysisTab(self)        
-        self.all_the_tabs.addTab(self.data_ana, "Data analysis")   
+        self.all_the_tabs.addTab(self.data_ana, "Data analysis (AC)")   
 
+        # Make "Data treatment DC" tab
+        self.widget_table_dc = DataTableTab(self)
+        self.data_treat_dc  = DataTreatmentTab_DC(self)
+        self.all_the_tabs.addTab(self.data_treat_dc, "Data treatment (DC)")
+        self.all_the_tabs.addTab(self.widget_table_dc, "Table of data (DC)")       
 
     def add_file_menu(self): 
         """ Adds the file menu in the top menu with options settings and quit their 

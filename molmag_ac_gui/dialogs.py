@@ -591,11 +591,12 @@ class FitResultPlotStatus(QDialog):
             sublist[1].setChecked(False)
 
 class SampleInformation(QDialog): 
-    def __init__(self, parent):
+    def __init__(self, parent, tab):
     
         super(SampleInformation, self).__init__()
         self.parent = parent 
         self.layout = QVBoxLayout()
+        self.tab  = tab 
         self.setWindowTitle("Input sample information (used for diamagnetic correction)")
 
         #Hides Help button
@@ -772,32 +773,32 @@ class SampleInformation(QDialog):
             pass
             
     def save_sample_data_for_diamag(self): 
-        self.parent.data_treat.m_sample = self.sample_mass_inp.text()
-        self.parent.data_treat.M_sample = self.molar_mass_inp.text()
-        self.parent.data_treat.Xd_sample = self.sample_xd_inp.text()
-        self.parent.data_treat.constant_terms = self.constant_terms_inp.text()
-        self.parent.data_treat.var_am = self.var_amount_inp.text()
+        self.tab.m_sample = self.sample_mass_inp.text()
+        self.tab.M_sample = self.molar_mass_inp.text()
+        self.tab.Xd_sample = self.sample_xd_inp.text()
+        self.tab.constant_terms = self.constant_terms_inp.text()
+        self.tab.var_am = self.var_amount_inp.text()
         self.accept()
     
     def insert_values(self): 
         try: 
-            self.sample_mass_inp.setText(str(self.parent.data_treat.m_sample))
+            self.sample_mass_inp.setText(str(self.tab.m_sample))
         except AttributeError: 
             pass
         try: 
-            self.molar_mass_inp.setText(str(self.parent.data_treat.M_sample))
+            self.molar_mass_inp.setText(str(self.tab.M_sample))
         except AttributeError: 
             pass
         try: 
-            self.sample_xd_inp.setText(str(self.parent.data_treat.Xd_sample))
+            self.sample_xd_inp.setText(str(self.tab.Xd_sample))
         except AttributeError: 
             pass
         try: 
-            self.constant_terms_inp.setText(str(self.parent.data_treat.constant_terms))
+            self.constant_terms_inp.setText(str(self.tab.constant_terms))
         except AttributeError: 
             pass
         try: 
-            self.var_amount_inp.setText(str(self.parent.data_treat.var_am))
+            self.var_amount_inp.setText(str(self.tab.var_am))
         except AttributeError: 
             pass
     

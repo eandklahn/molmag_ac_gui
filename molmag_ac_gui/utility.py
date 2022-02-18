@@ -7,7 +7,10 @@ label_dict = {
         "Xp (emu/Oe)": r"$\chi'$ (emu/Oe)", 
         "Xpp (emu/Oe)": r"$\chi''$ (emu/Oe)", 
         "Xp_m (emu/(Oe*mol))": r"$\chi_m'$ $(emu/(Oe⋅mol))$", 
-        "Xpp_m (emu/(Oe*mol))": r"$\chi_m''$ $(emu/(Oe⋅mol))$"
+        "Xpp_m (emu/(Oe*mol))": r"$\chi_m''$ $(emu/(Oe⋅mol))$", 
+        "XT_molar (emu*K/Oe)": r"$\chi_m⋅T$ $(emu⋅K/Oe)$",
+        "Moment (emu)":  "M (emu)", 
+        "Moment_m (emu/mol)":  r"$M_m$ (emu/mol)"
         }
 
 def read_ppms_file(filename):
@@ -48,7 +51,6 @@ def read_ppms_file(filename):
     return header, df
 
 def get_ppms_column_name_matches(columns, options):
-
     matches = [x in columns for x in options]
     count = matches.count(True)
     if count>0:
@@ -67,7 +69,6 @@ def update_data_names(df, options):
     
     summary = {}
     for key, val in options.items():
-        
         count, name = get_ppms_column_name_matches(df, val)
         if count>0:
             df.rename(columns={name: key}, inplace=True)
@@ -90,4 +91,3 @@ if __name__ == '__main__':
     
     filename = input()
     h, df = read_ppms_file(filename)
-    print(h)

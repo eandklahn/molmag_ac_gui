@@ -42,6 +42,33 @@ class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
         
         self.show()
     
+    def updatetable_dc(self):
+        
+        self.line_edit.setText("The data is loaded from the file located at: {}".format(self.parent.current_file))
+
+        df = self.parent.data_treat_dc.raw_df
+        self.tableWidget.setRowCount(len(df))
+        self.tableWidget.setColumnCount(len(df.columns))
+            
+        for row in range(len(df)):
+            for col in range(len(df.columns)): 
+                self.tableWidget.setItem(row,col,QTableWidgetItem("{}".format(df.iloc[row,col])))
+
+
+        #Makes a list of column names from df: 
+        Colnames = []
+        for i in range(len(df.columns)): 
+            Colnames.append(df.columns.values[i])
+
+        #Labels all collumns 
+        self.tableWidget.setHorizontalHeaderLabels(Colnames)
+
+        #Makes table read-only
+        self.tableWidget.setEditTriggers(self.tableWidget.NoEditTriggers)
+
+        #Resizes column width with respect to contests
+        self.tableWidget.resizeColumnsToContents()
+
     def updatetable(self):
         
         self.line_edit.setText("The data is loaded from the file located at: {}".format(self.parent.current_file))

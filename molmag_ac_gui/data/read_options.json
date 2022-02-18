@@ -10,7 +10,9 @@
 "Mpp (emu)":
 ["M'' (emu)", "m\" (emu)"],
 "Xp (emu/Oe)":
-["AC X'  (emu/Oe)"],
+["AC X'  (emu/Oe)", "AC X' (emu/Oe)"],
 "Xpp (emu/Oe)":
-["AC X\" (emu/Oe)", "AC X'' (emu/Oe)"]
+["AC X\" (emu/Oe)", "AC X'' (emu/Oe)"], 
+"Moment (emu)": 
+["Moment (emu)", "DC Moment Free Ctr (emu)"]
 }

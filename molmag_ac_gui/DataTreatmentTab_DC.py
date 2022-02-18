@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (QFileDialog, QFormLayout, QListWidgetItem, QWidget,
                              QVBoxLayout, QHBoxLayout, QComboBox, QStackedWidget, 
                              QCheckBox, QListWidget, QSplitter)
 from PyQt5.QtGui import QColor
-
+from math import isclose
 from molmag_ac_gui.layout import make_btn, make_headline, make_line
 
 
@@ -21,13 +21,13 @@ from molmag_ac_gui.layout import make_btn, make_headline, make_line
 from .dialogs import PlottingWindow, MagMessage, FitResultPlotStatus, SampleInformation
 from .utility import read_ppms_file, update_data_names, formatlabel
 from .exceptions import FileFormatError
-from .process_ac import (diamag_correction, fit_Xp_Xpp_genDebye, tau_err_RC, 
+from .process_ac import (diamag_correction, diamag_correction_dc, fit_Xp_Xpp_genDebye, tau_err_RC, 
                          Xp_, Xpp_)
 
 
-class DataTreatmentTab(QSplitter): 
+class DataTreatmentTab_DC(QSplitter): 
     def __init__(self, parent): 
-        super(DataTreatmentTab,self).__init__() #Før __init__() peger på QWidget
+        super(DataTreatmentTab_DC,self).__init__() #Før __init__() peger på QWidget
         self.parent = parent
         self.initUI() 
     
@@ -50,13 +50,6 @@ class DataTreatmentTab(QSplitter):
         # Constructing the x and y comboboxes
         make_headline(self, "Raw data: Choose x- and y-contents", self.layout)
         self.add_xy_comboboxes() 
-
-        # Constructing a combobox for plotting fitted data
-        make_headline(self, "Fitted: Choose plot type", self.layout)
-        self.add_fit_combobox() 
-
-        # Constructing parameter controls
-        self.add_parameter_controls() 
         
         # Finalizing layout on the left side of the GUI
         self.layout.addStretch()
@@ -77,56 +70,32 @@ class DataTreatmentTab(QSplitter):
 
         self.raw_df = None
         self.raw_df_header = None
-        self.num_meas_freqs = 0
         self.num_meas_temps = 0
         self.temp_subsets = []
         self.meas_temps = []
         self.Tmin, self.Tmax = 0,0
-        self.raw_data_fit = None
 
     def add_plot_type_combobox(self): 
         """ Adds a plot_type combobox such that it is possible to switch between viewing 
         the raw data, fitted data and the 3D plot in the plotting window on the right """
 
         self.plot_type_combo = QComboBox()
-        self.plot_type_combo.addItems(['Raw data', 'Fitted', '3D plot'])
+        self.plot_type_combo.addItems(['Raw data', 'H VS M', 'T VS χT'])
         self.plot_type_combo.currentIndexChanged.connect(self.switch_view)
         self.layout.addWidget(self.plot_type_combo)
-
-    def add_fit_combobox(self): 
-        """ Adds a combobox to choose which fitted data plot you want to view.
-        Also adds an option to use temperature colors for datapoints."""
-        
-        self.fit_combo = QComboBox()
-        self.fit_combo.addItems(['Cole-Cole', 'Freq VS Xp', 'Freq VS Xpp'])
-        self.fit_combo.currentIndexChanged.connect(self.plot_from_itemlist)
-        self.layout.addWidget(self.fit_combo)
-        
-        self.fit_color_cb_lo = QHBoxLayout()
-
-        make_line(self, "Use temperature colors", self.fit_color_cb_lo)
-        
-        self.fit_data_color_cb = QCheckBox()
-        self.fit_data_color_cb.stateChanged.connect(self.plot_from_itemlist)
-        self.fit_color_cb_lo.addWidget(self.fit_data_color_cb)
-        self.layout.addLayout(self.fit_color_cb_lo)
 
     def add_data_treatment_buttons(self): 
         """ Adds the first 6 buttons in the option widget on the left side of the gui window. 
         and connects these to the corresponding functions. """
 
-        make_btn(self, "(1) Load datafile", self.load_ppms_data, self.layout)
+        make_btn(self, "(1) Load datafile", self.load_data, self.layout)
         make_btn(self, "(2) Load sample information", self.update_sample_info, self.layout)
         make_btn(self, "(3) Diamagnetic correction", self.make_diamag_correction_calculation, self.layout)
-        make_btn(self, "(4) Fit X', X''", self.fit_Xp_Xpp_standalone, self.layout)
-        
-        #Copy fit to data analysis and save fit to file layout
-        self.copy_save_layout = QHBoxLayout()
+        make_btn(self, "Load/Update data in Table of Data (DC)", self.parent.widget_table_dc.updatetable_dc, self.layout)
+        #self.copy_save_layout = QHBoxLayout()
+        #make_btn(self, "Save fit to file", self.save_fit_to_file, self.copy_save_layout)
 
-        make_btn(self, "Copy fit to Data analysis", self.copy_fit_to_analysis, self.copy_save_layout)
-        make_btn(self, "Save fit to file", self.save_fit_to_file, self.copy_save_layout)
-
-        self.layout.addLayout(self.copy_save_layout)
+        #self.layout.addLayout(self.copy_save_layout)
 
     def add_xy_comboboxes(self): 
         """Adds an option to show more option for x and y when plotting raw data. 
@@ -158,27 +127,15 @@ class DataTreatmentTab(QSplitter):
         self.sw = QStackedWidget()
         
         self.raw_plot = PlottingWindow()
-        self.fit_plot = PlottingWindow(make_ax="cax")
-        self.threeD_plot = PlottingWindow(make_ax = "z") 
+        self.HM_plot = PlottingWindow(make_ax="cax")
+        self.TXT_plot = PlottingWindow()
 
         self.sw.addWidget(self.raw_plot)
-        self.sw.addWidget(self.fit_plot)
-        self.sw.addWidget(self.threeD_plot)
+        self.sw.addWidget(self.HM_plot)
+        self.sw.addWidget(self.TXT_plot)
 
         self.addWidget(self.sw)
 
-
-    def add_parameter_controls(self): 
-        """ Adds controls for the data plotting where one can pick which datapoints
-        and fits to be visualized. """
-
-        make_headline(self, "Fitted/3D plot: Hide/show fitted lines and raw data", self.layout)
-        make_line(self, "Double click to edit list", self.layout)
-        
-        #List of fitted raw data
-        self.raw_fit_list = QListWidget()
-        self.layout.addWidget(self.raw_fit_list)
-        self.raw_fit_list.doubleClicked.connect(self.update_fitted_and_3D_plot)
         
     """ Other functions"""
     
@@ -223,43 +180,6 @@ class DataTreatmentTab(QSplitter):
         self.raw_df.rename(index=dict(zip(old_indices, new_indices)),
                            inplace=True)
 
-    def update_temp_subsets(self):
-        """ Splits datasets into one dataset for each temperature. 
-        The dataset it splitted based on when the frequency "restarts". 
-        The function assumes that the frequency is always increasing within a measurement. """
-
-        self.temp_subsets = []
-        idx_list = [0]
-        i=0
-        old_val = 0
-        while i<self.raw_df.shape[0]:
-            new_val = self.raw_df['AC Frequency (Hz)'].iloc[i]
-            if new_val<old_val:
-                idx_list.append(i)
-            else:
-                pass
-            old_val = new_val
-            i+=1
-        idx_list.append(self.raw_df.shape[0])
-        
-        for n in range(len(idx_list)-1):
-            self.temp_subsets.append(self.raw_df.iloc[idx_list[n]:idx_list[n+1]])
-
-    def update_meas_temps(self):
-        """ Updates the measured temperatures based on the temperatures on self.temp_subsets.
-        Does this by taking the average of all measured temperatures in that given subset.
-        Also sets a minimum and maximum temperature used for colormapping """
-
-        meas_temps = []
-        for sub in self.temp_subsets:
-            meas_temps.append(sub['Temperature (K)'].mean())
-        
-        self.meas_temps = np.array(meas_temps)
-        self.num_meas_temps = len(self.meas_temps)
-        self.Tmin = self.meas_temps.min()
-        self.Tmax = self.meas_temps.max()
-
-
 
     def update_xy_combos(self):
         """ Updates the x and y comboboxes for raw data plotting such that they contain only the desired datatypes. 
@@ -269,11 +189,9 @@ class DataTreatmentTab(QSplitter):
         self.x_combo.clear()
         self.y_combo.clear()
 
-        chosenlabels = ["Temperature (K)", "AC Frequency (Hz)", "AC Amplitude (Oe)", "Magnetic Field (Oe)", "Mp (emu)",\
-                           "Mpp (emu)", "Xp (emu/Oe)", "Xpp (emu/Oe)"]
+        chosenlabels = ["Time Stamp (sec)", "Temperature (K)", "Moment (emu)","Magnetic Field (Oe)"]
         
-        molarlabels = ["Mp_m (emu/mol)", "Mpp_m (emu/mol)", "Xp_m (emu/(Oe*mol))", "Xpp_m (emu/(Oe*mol))"]
-        
+        molarlabels = ["Moment_m (emu/mol)", "X_molar (emu/(Oe*mol))", "XT_molar (emu*K/Oe)"]
         if not self.xy_options_cb.isChecked():
             if all([label in self.raw_df for label in chosenlabels + molarlabels]): #if molar properties have been calculated
                 self.x_combo.addItems(chosenlabels + molarlabels)
@@ -288,15 +206,29 @@ class DataTreatmentTab(QSplitter):
             self.y_combo.addItems(self.raw_df.columns)
             self.x_combo.addItems(self.raw_df.columns)
         
-    def load_ppms_data(self):
-        """ This function uses subfunctions to perform the following tasks:  
-        Loads the ppms data, clears the dataframe, fills in the dataframe with the loaded raw data, 
-        adds Mp or Xp to the dataframe, cleans up the dataframe, updates temperatures subsets, 
-        clears the raw data and fitted plots for any old data, plots raw data and updates the data table. """
+    def load_data(self): 
 
         open_file_dialog = QFileDialog()
         filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
         filename = filename_info[0]
+        try: 
+            f = open(filename, 'r')
+            _ = f.readline()
+            d = f.readline()
+            f.close()
+            self.load_vsm_data(filename)
+        except FileNotFoundError: 
+            MagMessage("Wrong file", "You did not choose a file or you picked a wrong file").exec_() 
+
+
+
+    def load_vsm_data(self, filename): 
+        """ This function uses subfunctions to perform the following tasks:  
+        Loads the ppms data, clears the dataframe, fills in the dataframe with the loaded raw data, 
+        adds Mp or Xp to the dataframe, cleans up the dataframe, updates temperatures subsets, 
+        clears the raw data and fitted plots for any old data, plots raw data and updates the data table. """
+        
+
         try:
             # FileNotFoundError and UnicodeDecodeError will be raised here
             potential_header, potential_df = read_ppms_file(filename)
@@ -304,11 +236,7 @@ class DataTreatmentTab(QSplitter):
                 raise FileFormatError(filename)
             summary = update_data_names(potential_df, self.parent.read_options)
             counts = [val>1 for key, val in summary.items()]
-            # To make sure that none of the names in read_options were matched more than once.
-            #assert not any(counts)
-            # To make sure that only Mp (and therefore Mpp) OR Xp (and therefore Xpp) can appear at once.
-            # In the case that this is ever an error, self.fill_df_data_values will have to be changed.
-            #assert (summary['Mp (emu)']>0) != (summary['Xp (emu/Oe)']>0)
+            
         except FileNotFoundError:
             # Did not read any file
             pass
@@ -318,10 +246,6 @@ class DataTreatmentTab(QSplitter):
         except FileFormatError as e:
             # File does not have correct header and data blocks
             MagMessage("Wrong header and data blocks", "Trying to read a file that does not look correct").exec_() 
-        except AssertionError:
-            # The data names could not be mapped correctly
-            MagMessage("Data names not mapped correctly", "A data name from self.parent.read_options is showing up more than once in the columns \n  \
-                OR both Mp and Xp are unexpectedly both showing up in the data names").exec_() 
         
         else:
             # Now that everything has been seen to work,
@@ -330,24 +254,17 @@ class DataTreatmentTab(QSplitter):
             self.parent.current_file = filename
             self.raw_df = potential_df
             self.raw_df_header = potential_header
-
             # Clear old data and set new names
-            self.raw_fit_list.clear()
             self.fill_df_data_values()
-            
             self.cleanup_loaded_ppms()
-            self.num_meas_freqs = len(set(self.raw_df['AC Frequency (Hz)']))
-            self.update_temp_subsets()
-            self.update_meas_temps()
-            
-            #self.update_reduced_df() 
+            update_data_names(self.raw_df, self.parent.read_options)
+            self.update_subsets() 
 
             # Clearing axes of "old" drawings and setting front widget to the raw data
             self.raw_plot.clear_canvas()
-            self.fit_plot.clear_canvas()
-            self.fit_plot.cax.clear()
-            self.threeD_plot.clear_canvas() 
-            
+            self.HM_plot.clear_canvas()
+            self.TXT_plot.clear_canvas() 
+
             combo_idx = self.plot_type_combo.findText('Raw data')
             self.plot_type_combo.setCurrentIndex(combo_idx)
             
@@ -355,7 +272,46 @@ class DataTreatmentTab(QSplitter):
             self.update_xy_combos()
             
             #Updates "Table of Data" tab with the loaded data
-            self.parent.widget_table.updatetable()
+            #self.parent.widget_table_dc.updatetable_dc()
+
+    def update_subsets(self): 
+            old_time = 0.0
+            i = 0
+            split_idx = []
+            subsets = []
+            self.HM_subsets = []
+            self.TXT_subset = None
+
+            #Finds indicies to split data and asigns TXT or HM to each subset
+            for i in range(self.raw_df.shape[0]):  
+                current_time = self.raw_df["Time Stamp (sec)"].values[i]
+                if current_time > old_time + 500:
+                    split_idx.append(i)
+                    if isclose(self.raw_df["Magnetic Field (Oe)"].values[i], self.raw_df["Magnetic Field (Oe)"].values[i+10], rel_tol = 0.05): 
+                        subsets.append((i,"TXT"))
+                    if isclose(self.raw_df["Temperature (K)"].values[i],self.raw_df["Temperature (K)"].values[i+10],rel_tol = 0.05): 
+                        if self.raw_df["Temperature (K)"].values[i] < 250: #Assumption: You would never measure T vs. XT data above 250 K  
+                            subsets.append((i,"HM"))
+                old_time = current_time
+            split_idx.append(self.raw_df.shape[0])
+
+
+            #Makes subsets
+            for i in range(len(split_idx)): 
+                if (split_idx[i], "HM") in subsets: 
+                    self.HM_subsets.append(self.raw_df.iloc[split_idx[i]:split_idx[i+1]])
+                if (split_idx[i], "TXT") in subsets: 
+                    self.TXT_subset = self.raw_df.iloc[split_idx[i]:split_idx[i+1]]
+            #Ads each HM subset temperature to measured temperature and finds min and max temperature of all HM subsets
+            if self.HM_subsets != []: 
+                meas_temps = []
+                for sub in self.HM_subsets:
+                    meas_temps.append(sub['Temperature (K)'].mean())
+
+                self.meas_temps = np.array(meas_temps)
+                self.num_meas_temps = len(self.meas_temps)
+                self.Tmin = self.meas_temps.min()
+                self.Tmax = self.meas_temps.max()
 
 
     def make_diamag_correction_calculation(self):
@@ -374,52 +330,99 @@ class DataTreatmentTab(QSplitter):
                 Xd_sample = float(self.Xd_sample)
                 constant_terms = [float(x) for x in self.constant_terms.split(',')]
                 var_am = [float(x) for x in self.var_am.split(',')]
-                
+
                 assert len(var_am)%2==0
                 paired_terms = [(var_am[n], var_am[n+1]) for n in range(0,len(var_am),2)]
-                
+
                 if Xd_sample == 0:
                     Xd_sample = -6e-7*M_sample
                 
             except (ValueError, AssertionError, AttributeError):
                 MagMessage('Error', 'Something wrong in "Sample information"\n').exec_()
-            else:
-                H = self.raw_df['AC Amplitude (Oe)']
+            else: 
                 H0 = self.raw_df['Magnetic Field (Oe)']
-                Mp = self.raw_df["Mp (emu)"]
-                Mpp = self.raw_df["Mpp (emu)"]
+                M = self.raw_df["Moment (emu)"]
                 
                 # Get molar, corrected values from function in process_ac
-                Mp_molar, Mpp_molar, Xp_molar, Xpp_molar = diamag_correction(
-                    H, H0, Mp, Mpp, m_sample, M_sample, Xd_sample,
+                M_molar, X_molar = diamag_correction_dc(
+                    H0, M, m_sample, M_sample, Xd_sample,
                     constant_terms = constant_terms, paired_terms = paired_terms)
-            
-                # PUT THE CODE HERE TO INSERT CORRECTED VALUES INTO DATA FRAME
-                if "Mp_m (emu/mol)" in self.raw_df.columns:
-                    self.raw_df.replace(to_replace="Mp_m (emu/mol)", value=Mp_molar)
-                    self.raw_df.replace(to_replace="Mpp_m (emu/mol)", value=Mpp_molar)
-                    self.raw_df.replace(to_replace="Xp_m (emu/(Oe*mol))", value=Xp_molar)
-                    self.raw_df.replace(to_replace="Xpp_m (emu/(Oe*mol))", value=Xpp_molar)
+                          # PUT THE CODE HERE TO INSERT CORRECTED VALUES INTO DATA FRAME
+                if "Moment_m (emu/mol)" in self.raw_df.columns:
+                    self.raw_df.replace(to_replace="Moment_m (emu/mol)", value=M_molar)
+                if "X_molar (emu/(Oe*mol))" in self.raw_df.columns: 
+                    self.raw_df.replace(to_replace="X_molar (emu/(Oe*mol))", value=X_molar)
                 else:
-                    Mp_idx = self.raw_df.columns.get_loc('Mp (emu)')
-                    self.raw_df.insert(Mp_idx+1, column="Mp_m (emu/mol)", value=Mp_molar)
-                    
-                    Mpp_idx = self.raw_df.columns.get_loc('Mpp (emu)')
-                    self.raw_df.insert(Mpp_idx+1, column="Mpp_m (emu/mol)", value=Mpp_molar)
-                    
-                    Xp_idx = self.raw_df.columns.get_loc('Xp (emu/Oe)')
-                    self.raw_df.insert(Xp_idx+1, column="Xp_m (emu/(Oe*mol))", value=Xp_molar)
-                    
-                    Xpp_idx = self.raw_df.columns.get_loc('Xpp (emu/Oe)')
-                    self.raw_df.insert(Xpp_idx+1, column="Xpp_m (emu/(Oe*mol))", value=Xpp_molar)
-
-                self.update_temp_subsets()
-                self.update_xy_combos()
-                self.parent.widget_table.updatetable()
-                MagMessage('Diamagnetic correction',
-                               'Diamagnetic correction successful!').exec_()
+                    try: 
+                        M_idx = self.raw_df.columns.get_loc('Moment (emu)')
+                        self.raw_df.insert(M_idx+1, column = "X_molar (emu/(Oe*mol))", value=M_molar)   
+                        self.raw_df.insert(M_idx+2, column = "XT_molar (emu*K/Oe)", value = self.raw_df["X_molar (emu/(Oe*mol))"]*self.raw_df["Temperature (K)"])
+                    except KeyError: 
+                            pass
+                    if self.HM_subsets != []: 
+                        M_idx = self.raw_df.columns.get_loc('Moment (emu)')
+                        self.raw_df.insert(M_idx+1, column="Moment_m (emu/mol)", value=M_molar)
 
 
+            self.update_subsets()
+            self.update_xy_combos()
+            #self.parent.widget_table_dc.updatetable_dc()
+            if self.HM_subsets != []: 
+                self.plot_HM() 
+            try: 
+                self.plot_TXT()
+            except: 
+                pass
+            combo_idx = self.plot_type_combo.findText('H vs M')
+            self.plot_type_combo.setCurrentIndex(combo_idx)
+            MagMessage('Diamagnetic correction',
+                            'Diamagnetic correction successful!').exec_()
+
+    def plot_TXT(self): #Maybe it should be just XT instead of TXT
+        
+        x_name = "Temperature (K)"
+        y_name = "XT_molar (emu*K/Oe)"
+        self.TXT_plot.ax.plot(self.TXT_subset[x_name],
+                            self.TXT_subset[y_name],
+                            marker='o',
+                            mfc='none',
+                            markersize = 5) 
+
+        self.TXT_plot.ax.set_xlabel(formatlabel(x_name))
+        self.TXT_plot.ax.set_ylabel(formatlabel(y_name))
+
+    def plot_HM(self): 
+        
+        for row in range(self.num_meas_temps):
+            
+            T = self.meas_temps[row]
+            if len(self.HM_subsets) == 1: 
+                rgb = 'k'
+            else:
+                rgb = self.parent.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))
+
+            x_name = "Magnetic Field (Oe)"
+            y_name = "Moment_m (emu/mol)"
+            self.HM_plot.ax.plot(self.HM_subsets[row][x_name],
+                                            self.HM_subsets[row][y_name],
+                                            marker='o',
+                                            color=rgb,
+                                            mfc='none',
+                                            markersize = 3) 
+
+            
+        self.HM_plot.ax.set_xlabel(formatlabel(x_name))
+        self.HM_plot.ax.set_ylabel(formatlabel(y_name))
+        
+        if len(self.HM_subsets) > 1: 
+            norm = mpl.colors.Normalize(vmin=self.Tmin, vmax=self.Tmax)
+            self.HM_plot.fig.colorbar(
+                mpl.cm.ScalarMappable(norm=norm,
+                                      cmap=self.parent.temperature_cmap),
+                                            orientation='horizontal',
+                cax=self.HM_plot.cax)
+
+        self.HM_plot.canvas.draw()        
     
     def update_raw_fit_list(self):   
         """Updates the raw_fit_list in the ListWidget, where it can be chosen which fits and raw 
