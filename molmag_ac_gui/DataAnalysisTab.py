@@ -70,7 +70,7 @@ class DataAnalysisTab(QSplitter):
         self.sim_btn_layout = QHBoxLayout()
         make_btn(self, "New", self.edit_simulation_from_list, self.sim_btn_layout)
         make_btn(self, "Delete", self.delete_sim, self.sim_btn_layout)
-        make_btn(self, "Edit", self.edit_simulation_from_list, self.sim_btn_layout)
+        #make_btn(self, "Edit", self.edit_simulation_from_list, self.sim_btn_layout)
         self.options_layout.addLayout(self.sim_btn_layout)
         
         #Adding view fitted parameters button 
@@ -432,12 +432,16 @@ class DataAnalysisTab(QSplitter):
                                                                                     label='Data',
                                                                                     zorder=0.1)
 
+                
+
             self.plotted_data_pointers.append(err_used_point)
             self.plotted_data_pointers.append(err_not_used_point)
             for e in [caplines1, caplines2, barlinecols1, barlinecols2]:
                 for line in e:
                     self.plotted_data_pointers.append(line)
         
+            self.plot_wdgt.ax.relim() 
+            self.plot_wdgt.ax.autoscale_view() 
         self.plot_wdgt.canvas.draw()
 
     def add_T_axis(self): 

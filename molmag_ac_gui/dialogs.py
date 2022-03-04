@@ -555,8 +555,6 @@ class FitResultPlotStatus(QDialog):
         
         self.layout.addLayout(self.uncheck_lo)
 
-
-
         self.judge_btn_lo = QHBoxLayout()
         
         self.states_reject_btn = QPushButton('Cancel')
@@ -568,9 +566,10 @@ class FitResultPlotStatus(QDialog):
         self.judge_btn_lo.addWidget(self.states_accept_btn)
         
         self.layout.addLayout(self.judge_btn_lo)
-        self.resize(500,700)
-
+        #self.resize(315,500)
+        self.layout.addStretch()
         self.setLayout(self.layout)
+        #self.adjustSize() 
         #self.show()
         
     def check_all_function(self):
@@ -673,25 +672,26 @@ class SampleInformation(QDialog):
         self.sample_data_lo = QHBoxLayout()
         self.sample_info_layout.addLayout(self.sample_data_lo)
         
-        self.load_sample_data_btn = QPushButton('Load sample data from file')
-        self.load_sample_data_btn.clicked.connect(self.load_sample_data)
-        self.sample_data_lo.addWidget(self.load_sample_data_btn)
-        
         self.save_sample_data_btn = QPushButton('Save sample data in file')
         self.save_sample_data_btn.clicked.connect(self.save_sample_data)
         self.sample_data_lo.addWidget(self.save_sample_data_btn)
+        self.save_sample_data_btn.setFocusPolicy(Qt.NoFocus)
+
+
+        self.load_sample_data_btn = QPushButton('Load sample data from file')
+        self.load_sample_data_btn.clicked.connect(self.load_sample_data)
+        self.sample_data_lo.addWidget(self.load_sample_data_btn)
+        self.load_sample_data_btn.setFocusPolicy(Qt.NoFocus)
         
-        self.done_sample_data_btn = QPushButton('Ok')
+        self.done_sample_data_btn = QPushButton('Make diamagnetic correction')
         self.done_sample_data_btn.clicked.connect(self.save_sample_data_for_diamag)
         self.sample_data_lo.addWidget(self.done_sample_data_btn)
-
         #Sets gui langugage for tooltips
         self.set_gui_language() 
 
         #Finalizing layout
         self.sample_data_lo.addStretch()
         self.setLayout(self.sample_info_layout)
-
 
     def load_sample_data(self):
         filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
@@ -779,6 +779,11 @@ class SampleInformation(QDialog):
         self.tab.constant_terms = self.constant_terms_inp.text()
         self.tab.var_am = self.var_amount_inp.text()
         self.accept()
+        if self.tab.data_type == "AC": 
+            self.tab.make_diamag_correction_calculation()
+            self.tab.fit_X_btn.setEnabled(True)
+        else: 
+            self.tab.make_diamag_correction_calculation_dc()
     
     def insert_values(self): 
         try: 

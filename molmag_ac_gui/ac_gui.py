@@ -17,7 +17,6 @@ from .dialogs import  AboutDialog
 from .DataTableTab import DataTableTab 
 from .DataAnalysisTab import DataAnalysisTab
 from .DataTreatmentTab import DataTreatmentTab
-from .DataTreatmentTab_DC import DataTreatmentTab_DC
 from . import data as pkg_static_data
 
 
@@ -93,22 +92,23 @@ class ACGui(QMainWindow):
 
 
         # Make "Data Treatment tab"
-        self.data_treat = DataTreatmentTab(self)        
-        self.all_the_tabs.addTab(self.data_treat, "Data treatment (AC)")
+        self.widget_table = DataTableTab(self)
+        self.data_treat = DataTreatmentTab(self)    
+    
+        self.all_the_tabs.addTab(self.data_treat, "Data treatment")
 
         # Make "Table of Data" tab
-        self.widget_table = DataTableTab(self)
-        self.all_the_tabs.addTab(self.widget_table, "Table of data (AC)")       
+        self.all_the_tabs.addTab(self.widget_table, "Table of data")       
         
         # Make "Data analysis" tab
         self.data_ana = DataAnalysisTab(self)        
-        self.all_the_tabs.addTab(self.data_ana, "Data analysis (AC)")   
+        self.all_the_tabs.addTab(self.data_ana, "Data analysis (AC only)")   
 
         # Make "Data treatment DC" tab
-        self.widget_table_dc = DataTableTab(self)
-        self.data_treat_dc  = DataTreatmentTab_DC(self)
-        self.all_the_tabs.addTab(self.data_treat_dc, "Data treatment (DC)")
-        self.all_the_tabs.addTab(self.widget_table_dc, "Table of data (DC)")       
+        #self.widget_table_dc = DataTableTab(self)
+        #self.data_treat_dc  = DataTreatmentTab_DC(self)
+        #self.all_the_tabs.addTab(self.data_treat_dc, "Data treatment (DC)")
+        #self.all_the_tabs.addTab(self.widget_table_dc, "Table of data (DC)")       
 
     def add_file_menu(self): 
         """ Adds the file menu in the top menu with options settings and quit their 
