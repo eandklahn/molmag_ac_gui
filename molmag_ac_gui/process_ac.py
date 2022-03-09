@@ -318,7 +318,7 @@ def _QT(T, tQT):
     Output
     tau: relaxation time due to quantum tunneling
     """
-    
+
     tau = tQT
     
     return tau
@@ -337,7 +337,6 @@ def _R(T, Cr, n):
     Output
     tau: relaxation time due to the Raman mechanism
     """
-    
     tau = (Cr**(-1))*(T**(-n))
 
     return tau

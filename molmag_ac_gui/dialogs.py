@@ -309,6 +309,7 @@ class SimulationDialog(QDialog):
         
         self.plot_type_hbl = QHBoxLayout()
         functions = [p for p in self.params if 'use' in p]
+        
         for p in functions:
             name = p[3:]
             use = bool(self.params[p].value)
@@ -331,6 +332,7 @@ class SimulationDialog(QDialog):
             self.use_values_edits[p].setValidator(self.validator)
             self.use_values_edits[p].setText(str(self.params[p].value))
             self.sim_vals_layout.addRow(p, self.use_values_edits[p])
+        
         self.layout.addLayout(self.sim_vals_layout)
         
         # Making control buttons at the end
@@ -496,48 +498,59 @@ class FitResultPlotStatus(QDialog):
         
         self.layout = QVBoxLayout()
         self.setWindowTitle("Temperature subsets to be shown")
+        self.checkbox_layout = QGridLayout() 
+        #self.checkbox_layout.setColumnStretch(1, 4)
+
+        
+        self.checkbox_layout.addWidget(QLabel("Temperature"), 0, 0, alignment=Qt.AlignHCenter)
+        self.checkbox_layout.addWidget(QLabel("Raw data points"), 0, 1, alignment=Qt.AlignHCenter)
+        self.checkbox_layout.addWidget(QLabel("Fitted line"), 0, 2, alignment=Qt.AlignHCenter)
+
+
+
         self.scroll = QScrollArea(self)
         self.scroll.setWidgetResizable(True)
         self.layout.addWidget(self.scroll)
-        
+        #
         self.content = QWidget(self.scroll)
-        self.cont_lo = QVBoxLayout(self.content)
-        self.content.setLayout(self.cont_lo)
+        #self.cont_lo = QVBoxLayout(self.content)
+        self.content.setLayout(self.checkbox_layout)
         self.scroll.setWidget(self.content)
         
         self.checked_items = []
         
         num_of_temps = list_input.count()
         for idx in range(num_of_temps):
+
             item = list_input.item(idx)
-            item_lo = QHBoxLayout()
+            #item_lo = QHBoxLayout()
             item_data = item.data(32)
             
             item_fit_bool = item_data['fit']
             item_raw_bool = item_data['raw']
-            item_txt = item_data['temp']
+            #item_txt = item_data['temp']
             
-            raw_checked = QCheckBox('Raw data points')
-            fit_checked = QCheckBox('Fitted line')
+            raw_checked = QCheckBox()
+            fit_checked = QCheckBox()
             temp = QLabel('{:5.2f}K'.format(item_data['temp']))
-            
-            item_lo.addWidget(temp)
-            item_lo.addWidget(raw_checked)
-            item_lo.addWidget(fit_checked)
             
             self.checked_items.append([raw_checked, fit_checked])
             
             raw_checked.setChecked(item_raw_bool)
             fit_checked.setChecked(item_fit_bool)
-            
-            self.cont_lo.addLayout(item_lo)
-        
+                    
+                    
+            self.checkbox_layout.addWidget(temp, idx+1,0, alignment=Qt.AlignHCenter)
+            self.checkbox_layout.addWidget(raw_checked, idx+1,1, alignment=Qt.AlignHCenter)
+            self.checkbox_layout.addWidget(fit_checked, idx+1,2, alignment=Qt.AlignHCenter)
+
+
         self.state_btn_lo = QHBoxLayout()
         
         self.check_all_btn = QPushButton('Check all')
         self.check_all_btn.clicked.connect(self.check_all_function)
         
-        self.state_btn_lo.addWidget(self.check_all_btn)
+        self.state_btn_lo.addWidget(self.check_all_btn,0)
 
         self.layout.addLayout(self.state_btn_lo)
         
@@ -694,7 +707,9 @@ class SampleInformation(QDialog):
         self.setLayout(self.sample_info_layout)
 
     def load_sample_data(self):
-        filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        #filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        filename_info =  ('C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/dbm_sample_data.dat', 'All Files (*)')
+        #print("filename_info = ", filename_info)
         filename = filename_info[0]
         try:
             f = open(filename, 'r')

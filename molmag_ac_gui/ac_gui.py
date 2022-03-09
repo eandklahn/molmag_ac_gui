@@ -85,30 +85,24 @@ class ACGui(QMainWindow):
         """ Make the main window with the three tabs: Data treatment, Table of Data
         and Data analysis. """
 
+        # Make the overall tab widget that contain all tabs 
         self.all_the_tabs = QTabWidget() 
         self.setCentralWidget(self.all_the_tabs)
-        self.statusBar = QStatusBar() #A statusbar in the buttom of the window
+
+        # Make a statusbar in the buttom of the window
+        self.statusBar = QStatusBar() 
         self.setStatusBar(self.statusBar)
 
-
-        # Make "Data Treatment tab"
+        # Make "Data treatment", "Table of data" and "Data analysis" tabs
         self.widget_table = DataTableTab(self)
         self.data_treat = DataTreatmentTab(self)    
-    
-        self.all_the_tabs.addTab(self.data_treat, "Data treatment")
-
-        # Make "Table of Data" tab
-        self.all_the_tabs.addTab(self.widget_table, "Table of data")       
-        
-        # Make "Data analysis" tab
         self.data_ana = DataAnalysisTab(self)        
+
+        #Adds the tabs to the tabwidget 
+        self.all_the_tabs.addTab(self.data_treat, "Data treatment")
+        self.all_the_tabs.addTab(self.widget_table, "Table of data")       
         self.all_the_tabs.addTab(self.data_ana, "Data analysis (AC only)")   
 
-        # Make "Data treatment DC" tab
-        #self.widget_table_dc = DataTableTab(self)
-        #self.data_treat_dc  = DataTreatmentTab_DC(self)
-        #self.all_the_tabs.addTab(self.data_treat_dc, "Data treatment (DC)")
-        #self.all_the_tabs.addTab(self.widget_table_dc, "Table of data (DC)")       
 
     def add_file_menu(self): 
         """ Adds the file menu in the top menu with options settings and quit their 
@@ -145,6 +139,7 @@ class ACGui(QMainWindow):
         """ Adds a help menu, where the language can be changed (this only works for the 
         tooltips in the sample information menu, not for the rest of the GUI). 
         Also adds an option to view the about information. """
+        
         self.help_menu = self.menu_bar.addMenu('Help')
         
         self.help_lang_menu = self.help_menu.addMenu('Language')

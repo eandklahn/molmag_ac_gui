@@ -10,16 +10,18 @@ from .dialogs import MagMessage
 class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx i stedet for self.widget.layout
 
     def __init__(self, parent): 
+
         super(DataTableTab,self).__init__() #Før __init__() peger på QWidget
         self.parent = parent
         self.initUI() 
     
-    def initUI(self): 
+    def initUI(self):
+
         self.path_to_export = ""
         self.export_filetype = ""
     
-        self.layout = QVBoxLayout() #Vertical box layout. Første ting øverst, så nedenunder osv. 
-        self.layoutH = QHBoxLayout() #Vertical box layout. Første ting øverst, så nedenunder osv. 
+        self.layout = QVBoxLayout() 
+        self.layoutH = QHBoxLayout()  
 
         self.line_edit = QLabel("When a file is loaded in the \"Data Treatment\" tab, a table of the loaded data will be shown here")
 
@@ -42,35 +44,10 @@ class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
         
         self.show()
     
-    def updatetable_dc(self):
-        
-        self.line_edit.setText("The data is loaded from the file located at: {}".format(self.parent.current_file))
 
-        df = self.parent.data_treat_dc.raw_df
-        self.tableWidget.setRowCount(len(df))
-        self.tableWidget.setColumnCount(len(df.columns))
-            
-        for row in range(len(df)):
-            for col in range(len(df.columns)): 
-                self.tableWidget.setItem(row,col,QTableWidgetItem("{}".format(df.iloc[row,col])))
+    def update_table(self):
+        """ Updates the table """
 
-
-        #Makes a list of column names from df: 
-        Colnames = []
-        for i in range(len(df.columns)): 
-            Colnames.append(df.columns.values[i])
-
-        #Labels all collumns 
-        self.tableWidget.setHorizontalHeaderLabels(Colnames)
-
-        #Makes table read-only
-        self.tableWidget.setEditTriggers(self.tableWidget.NoEditTriggers)
-
-        #Resizes column width with respect to contests
-        self.tableWidget.resizeColumnsToContents()
-
-    def updatetable(self):
-        
         self.line_edit.setText("The data is loaded from the file located at: {}".format(self.parent.current_file))
 
         df = self.parent.data_treat.raw_df
@@ -99,6 +76,7 @@ class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
 
     def findnewpath(self): 
         #Finds path for datatable csv or excel file to be stored
+
         splitpath = self.parent.current_file.split('/')
         newpath = ""
         for element in splitpath[:-1]: 
@@ -107,14 +85,20 @@ class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
         self.path_to_export = newpath
     
     def export_table_excel(self):
+        """ Sets export_filetype to xlsx and exports the table """
+
         self.export_filetype = "xlsx"
         self.export_table() 
         
     def export_table_csv(self):
+        """ Sets export_filetype to csv and exports the table """
+
         self.export_filetype = "csv"
         self.export_table() 
 
     def savetofile(self): 
+        """Saves the fit to file depending on export_filetype """
+
         if self.export_filetype == "csv": 
             self.parent.data_treat.raw_df.to_csv(r'{}.{}'.format(self.path_to_export, self.export_filetype), index = False)
         if self.export_filetype == "xlsx": 
@@ -122,6 +106,9 @@ class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
         MagMessage('The data is successfully exported', "The data is saved as a .{} file at: {}.{}".format(self.export_filetype, self.path_to_export, self.export_filetype)).exec_() 
 
     def export_table(self):
+        """ Saves file with table, checking whether the file already exists and asks the user 
+        whether or not the file should be overwritten if present. """
+
         filetype = self.export_filetype
         try: 
             self.findnewpath()

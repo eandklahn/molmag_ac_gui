@@ -14,8 +14,8 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (QDoubleSpinBox, QFileDialog, QListWidgetItem, 
                              QMessageBox, QWidget, QVBoxLayout, 
-                             QLabel, QHBoxLayout, QCheckBox, QScrollArea,
-                             QListWidget, QSplitter, QComboBox, QTextEdit, QFormLayout)
+                             QLabel, QHBoxLayout, 
+                             QListWidget, QSplitter, QComboBox, QTextEdit)
 from scipy.optimize.minpack import curve_fit
 import scipy.constants as sc
 
@@ -23,9 +23,9 @@ import scipy.constants as sc
 from .exceptions import NoGuessExistsError
 from .process_ac import (getParameterGuesses, tau_err_RC, fit_relaxation,
                          default_parameters, add_partial_model)
-from .dialogs import (GuessDialog, MagMessage, ParamDialog, 
+from .dialogs import (GuessDialog, MagMessage, 
                       PlottingWindow, SimulationDialog)
-from .layout import make_headline, make_btn, make_line, headline_font
+from .layout import make_checkbox, make_headline, make_btn, make_line, headline_font
 from lmfit import fit_report
 
 
@@ -47,7 +47,7 @@ class DataAnalysisTab(QSplitter):
         
         # Adding data loading options
         make_headline(self, "Data loading options", self.options_layout)
-        make_btn(self, "Import current fit from Data Treatment", self.parent.data_treat.copy_fit_to_analysis, self.options_layout)
+        make_btn(self, "Import current fit from Data Treatment", self.copy_data_treat_fit, self.options_layout)
         make_btn(self, 'Load fitting file generated in Data Treatment', self.load_t_tau_data, self.options_layout)
 
         # Adding fit controls with checkboxes
@@ -61,22 +61,21 @@ class DataAnalysisTab(QSplitter):
 
         # Adding a button to run a fit
         make_btn(self, "Run fit!", self.make_the_fit, self.options_layout)
-        
+
+         #Adding view fitted parameters button 
+        make_headline(self, "View information about fits", self.options_layout)        
+        self.add_fit_parameters_view()       
+
         # Adding a list to hold information about simulations
-        make_headline(self, "View fit/simulate fit", self.options_layout)
+        make_headline(self, "Plot/simulate fit", self.options_layout)
         self.add_simulations_list()
 
         # Adding buttons to control simulation list
         self.sim_btn_layout = QHBoxLayout()
         make_btn(self, "New", self.edit_simulation_from_list, self.sim_btn_layout)
         make_btn(self, "Delete", self.delete_sim, self.sim_btn_layout)
-        #make_btn(self, "Edit", self.edit_simulation_from_list, self.sim_btn_layout)
         self.options_layout.addLayout(self.sim_btn_layout)
-        
-        #Adding view fitted parameters button 
-        make_headline(self, "View information about fits", self.options_layout)        
-        self.add_fit_parameters_view()
-        #make_btn(self, "Fitted params", self.show_fitted_params, self.options_layout)
+
 
         #Setting the layout of the options widget
         self.options_wdgt.setLayout(self.options_layout)
@@ -90,39 +89,64 @@ class DataAnalysisTab(QSplitter):
         self.setSizes([1,1200])
         self.show() 
 
+    def copy_data_treat_fit(self): 
+        self.fit_history.clear() 
+        self.update_fit_combo() 
+        self.reset_checkboxes_and_T() 
+        self.fit_stat_txt = ""
+        self.fit_summary.setText("")
+        self.fit_title.setText("")
+        self.parent.data_treat.copy_fit_to_analysis() 
+
+    def reset_checkboxes_and_T(self): 
+        self.orbach_cb.setChecked(False)
+        self.raman_cb.setChecked(False)
+        self.qt_cb.setChecked(False)
+        self.temp_line[1].setValue(0)
+        self.temp_line[3].setValue(0)
+
     def add_fit_parameters_view(self): 
+        """ Adds fit parameters view, where the user can view information about the
+        fits that have been made. Also adds an option to save the fit in a file. """
 
         self.choose_fit_layout = QHBoxLayout() 
         self.choose_fit_combo = QComboBox()
         self.choose_fit_combo.currentIndexChanged.connect(
-                                                  self.show_MinimizerResult)
+                                                  self.show_fit_stat)
+
         self.choose_fit_line = [QLabel('Choose fit from list: '), self.choose_fit_combo]
         for w in self.choose_fit_line: 
             self.choose_fit_layout.addWidget(w)
         self.options_layout.addLayout(self.choose_fit_layout)
+
         self.fit_title = QLabel()
         self.fit_title.setFont(headline_font)
         self.options_layout.addWidget(self.fit_title)
+
         self.fit_summary = QTextEdit()
         self.fit_summary.setReadOnly(True)
         self.options_layout.addWidget(self.fit_summary)
+
         make_btn(self, "Save fit statistics to file", self.save_fit_statistics, self.options_layout)
     
-    def save_fit_statistics(self): 
+    def save_fit_statistics(self):
+        """ Saves the fit statistics into a file """ 
+
         name = QFileDialog.getSaveFileName(self, 'Save File')
         filename = name[0]
         name, ext = os.path.splitext(filename)
         if ext == '':
             ext = '.txt'
-        fit_idx = self.choose_fit_combo.currentIndex() 
+        
         try: 
             self.set_fit_stat_txt(all_significant_digits=True) 
             with open(filename + ext, "w") as f:
                 f.write(self.fit_stat_txt)
             MagMessage("Succes", "File succesfully written").exec_() 
+       
         except IndexError: #If fit history is empty 
-            print("Error")
-            MagMessage("Errpr", "No fit made yet").exec_() 
+            MagMessage("Error", "No fit made yet").exec_() 
+       
         except ValueError: #If fit_result format is different, it will save in original format
             fit_idx = self.choose_fit_combo.currentIndex() 
             name, res, time = self.fit_history[fit_idx]
@@ -134,6 +158,7 @@ class DataAnalysisTab(QSplitter):
     def set_fit_stat_txt(self, all_significant_digits = False): 
         """ Formatting the result from the fit_report and saving the formatted 
         text in self.fit_stat_txt. Displays them with only few siginificant digits """
+        
         self.fit_stat_txt = "" 
 
         fit_idx = self.choose_fit_combo.currentIndex() 
@@ -184,12 +209,19 @@ class DataAnalysisTab(QSplitter):
 
 
     def update_fit_combo(self):
+        """ Updates the fit combobox with a time and name for each fit in the fit
+        history, """
+
         self.choose_fit_combo.clear() 
         for fit in self.fit_history: 
             name, res, time = fit
             self.choose_fit_combo.addItem(f'{time}: {name}')
 
-    def show_MinimizerResult(self):
+    def show_fit_stat(self):
+        """ Shows and sets the fit statistics text in the parameter view"""
+
+        if self.fit_history == []: 
+            return 
         
         fit_idx = self.choose_fit_combo.currentIndex()
         name, res, time = self.fit_history[fit_idx]
@@ -204,6 +236,7 @@ class DataAnalysisTab(QSplitter):
 
     def initialize_attributes(self):  
         """ Initializes attributes such as simulation colors, temperature, tau etc."""
+
         self.simulation_colors = [x for x in TABLEAU_COLORS]
         self.simulation_colors.remove('tab:gray')  
         self.simulation_colors = deque(self.simulation_colors) 
@@ -239,9 +272,9 @@ class DataAnalysisTab(QSplitter):
         self.temp_line = [QLabel('Temperature range in K: ('), QDoubleSpinBox(), QLabel(','),
                           QDoubleSpinBox(), QLabel(')')]
         
-        self.temp_line[1].setRange(0,self.temp_line[3].value())
+        self.temp_line[1].setRange(0,1000)
         self.temp_line[1].setSingleStep(0.1)
-        self.temp_line[3].setRange(self.temp_line[1].value(),1000)
+        self.temp_line[3].setRange(0,1000)
         self.temp_line[3].setSingleStep(0.1)
 
         self.temp_line[1].editingFinished.connect(self.set_new_temp_ranges)
@@ -252,24 +285,8 @@ class DataAnalysisTab(QSplitter):
         self.temp_horizontal_layout.setAlignment(Qt.AlignCenter)
         self.options_layout.addLayout(self.temp_horizontal_layout)
 
-        #self.line = QLabel() 
-        #self.update_T_line() 
 
-        #self.options_layout.addWidget(self.line)
 
-    def update_T_line(self): 
-        """Updates the line showing chosen T-range in a 1/T range """
-
-        try: 
-            min_reciprocal_T = 1/self.temp_line[3].value()
-            max_reciprocal_T = 1/self.temp_line[1].value()
-        except ZeroDivisionError:
-            try:  
-                min_reciprocal_T, max_reciprocal_T = 1/self.temp_line[3].value(), np.Inf
-            except ZeroDivisionError: 
-                min_reciprocal_T, max_reciprocal_T = np.Inf, np.Inf
-        
-        self.line.setText("Current 1/T range in K⁻¹: {:.2f} to {:.2f} ".format(min_reciprocal_T, max_reciprocal_T))
     
     def add_simulations_list(self): 
         """ Makes a QListWidget with all simulations and adds it to the options layout """
@@ -289,17 +306,9 @@ class DataAnalysisTab(QSplitter):
 
         self.fit_type_layout = QHBoxLayout() 
         
-        self.orbach_cb = QCheckBox('Orbach')
-        self.orbach_cb.stateChanged.connect(self.read_fit_type_cbs)
-        self.fit_type_layout.addWidget(self.orbach_cb)
-        
-        self.raman_cb = QCheckBox('Raman')
-        self.raman_cb.stateChanged.connect(self.read_fit_type_cbs)
-        self.fit_type_layout.addWidget(self.raman_cb)
-        
-        self.qt_cb = QCheckBox('QT')
-        self.qt_cb.stateChanged.connect(self.read_fit_type_cbs)
-        self.fit_type_layout.addWidget(self.qt_cb)
+        self.orbach_cb = make_checkbox(self, self.read_fit_type_cbs, self.fit_type_layout, "Orbach") 
+        self.raman_cb = make_checkbox(self, self.read_fit_type_cbs, self.fit_type_layout, "Raman") 
+        self.qt_cb = make_checkbox(self, self.read_fit_type_cbs, self.fit_type_layout, "QT")
         
         self.options_layout.addLayout(self.fit_type_layout)
 
@@ -312,16 +321,6 @@ class DataAnalysisTab(QSplitter):
         self.plot_wdgt.ax.set_ylabel(r'$\ln{\tau}$ ($\ln{s}$)')
         self.addWidget(self.plot_wdgt)
 
-
-    def show_fitted_params(self):
-        """ Shows the box with fitted parameters and general info about the fit """
-        try:
-            fit = self.fit_history[0]
-        except (IndexError, TypeError):
-            w = MagMessage('Fit history error', 'There is no fit history yet!').exec_() 
-        else:
-            self.update_fit_combo() 
-            #w = ParamDialog(self, self.fit_history)
 
 
     def reset_analysis_containers(self):
@@ -415,7 +414,6 @@ class DataAnalysisTab(QSplitter):
             self.plotted_data_pointers.append(used)
             self.plotted_data_pointers.append(not_used)
         else:
-            
 
             err_used_point, caplines1, barlinecols1 = self.plot_wdgt.ax.errorbar(1/self.used_T,
                                                                                 np.log(self.used_tau),
@@ -457,7 +455,7 @@ class DataAnalysisTab(QSplitter):
 
 
     def update_T_axis(self):
-
+        """ Updates the second temperature axis (T axis on top of the plot) """
         self.plot_wdgt.ax2.set_xticklabels([])
         
         labels = self.plot_wdgt.ax.get_xticks()
@@ -507,13 +505,17 @@ class DataAnalysisTab(QSplitter):
             elif error_type == 'OSError':
                 pass
         else:
+            #self.plot_wdgt.ax.clear() #Clearing data in plotting wdgt 
+            #self.fit_history.clear() 
+
             self.set_new_t_tau(D)
             self.read_indices_for_used_temps()
             self.plot_t_tau_on_axes()
             self.add_T_axis()         
             self.plot_wdgt.reset_axes()
             self.update_T_axis()
-
+            
+            #self.update_fit_combo()
 
 
 
@@ -531,27 +533,20 @@ class DataAnalysisTab(QSplitter):
 
     def set_new_temp_ranges(self):
         """ Sets a new temperature range to fit in, when the spin boxes are changed"""
-    
-        new_max_for_low = self.temp_line[3].value()
-        new_min_for_high = self.temp_line[1].value()
-        self.temp_line[1].setRange(0,new_max_for_low)
-        self.temp_line[3].setRange(new_min_for_high,1000)
-        
+
         self.read_indices_for_used_temps()
         if self.data_T is not None:
             self.plot_t_tau_on_axes()
         
-        #self.update_T_line() 
-
 
     def make_the_fit(self):
-        """ Makes the fit 1/T vs. τ"""
+        """ Makes the fit of 1/T vs. τ"""
+
         window_title = 'Fit aborted'
         msg_text = ''
         msg_details = ''
             
         try:
-            
             # This will raise TypeError and IndexError first
             # to warn that no data was loaded
             fitwith = self.read_fit_type_cbs()
@@ -561,6 +556,7 @@ class DataAnalysisTab(QSplitter):
             Tmin = self.temp_line[1].value()
             Tmax = self.temp_line[3].value()
             assert Tmin != Tmax
+            assert Tmin < Tmax 
             
             guess_dialog = GuessDialog(self,
                                        guess,
@@ -576,15 +572,15 @@ class DataAnalysisTab(QSplitter):
             minimize_res = fit_relaxation(self.used_T, self.used_tau, params)
 
         except (AssertionError, IndexError):
-            msg_text = 'Bad temperature or fit settings'
-            msg_details = """Possible errors:
- - min and max temperatures are the same
- - no fit options have been selected
- - can't fit only one data point"""
+            msg_text = "Bad temperature or fit settings \nPossible errors: \n \
+            - Minimum and maximum temperatures are the same \n \
+            - Minimum temperature is larger than maximum temperature \n \
+            - No fit options have been selected \n \
+            - Can't fit only one data point "
         except RuntimeError:
             msg_text = 'This fit cannot be made within the set temperatures'
-        except ValueError as e:
-            msg_text = 'No file has been loaded'
+        #except ValueError as e:
+        #    msg_text = 'No file has been loaded'
         except TypeError as e:
             msg_text = 'No data has been selected'
             print(e)
@@ -600,7 +596,6 @@ class DataAnalysisTab(QSplitter):
         finally:
             msg = MagMessage(window_title, msg_text)
             msg.setIcon(QMessageBox.Information)
-            msg.setDetailedText(msg_details)
             msg.exec_()  
       
     
@@ -633,44 +628,14 @@ class DataAnalysisTab(QSplitter):
     def edit_simulation_from_list(self):
         """ Edit simulations/fits from the list"""
 
-        try:
-            sender = self.sender().text()
-        except AttributeError:
-            # Sent here because of double-click on QListWidget
-            action = 'Edit'
-        else:
-            if sender == 'Edit':
-                action = 'Edit'
-            elif sender in ('New', '&New'):
-                action = 'New'
+        action = self.get_action() 
 
         if action == 'Edit':
-            try:
-                sim_item = self.list_of_simulations.selectedItems()[0]
-            except IndexError:
-                w = MagMessage("Did not find any selected line",
-                               "Select a line first to edit it")
-                w.exec_()
-                return
-            else:
-                data = sim_item.data(32)
-                params = data['params']
-                T_vals = data['T_vals']
-                line = data['line']
-                color = line._color
-                label = line._label
-        
+            params, T_vals, line, color, label  = self.load_chosen_item() 
+
         elif action == 'New':
-            
-            params = default_parameters()
-            T_vals = [1,3]
-            line = False
-            label = None
-            color = None
-            if len(self.simulation_colors)<1:
-                self.statusBar.showMessage("ERROR: can't make any more simulations")
-                return
-            
+            params, T_vals, line, color, label = self.load_new_item() 
+
         sim_dialog = SimulationDialog(parent=self,
                                       fit_history=self.fit_history,
                                       params = params,
@@ -721,6 +686,57 @@ class DataAnalysisTab(QSplitter):
             
             self.redraw_simulation_lines()
 
+    def get_action(self): 
+        """ Get the action (edit or new) depending on the sender chosen. 
+        Used for edit_simulations_from_list"""
+        try:
+            sender = self.sender().text()
+        except AttributeError:
+            # Sent here because of double-click on QListWidget
+            action = 'Edit'
+        else:
+            if sender == 'Edit':
+                action = 'Edit'
+            elif sender in ('New', '&New'):
+                action = 'New'
+        return action
+
+    def load_chosen_item(self): 
+        """ Loads the parameters, T_values, line, color and label of the chosen 
+        simulation item """
+
+        try:
+            sim_item = self.list_of_simulations.selectedItems()[0]
+        except IndexError:
+            w = MagMessage("Did not find any selected line",
+                           "Select a line first to edit it")
+            w.exec_()
+            return
+        else:
+            data = sim_item.data(32)
+            params = data['params']
+            T_vals = data['T_vals']
+            line = data['line']
+            color = line._color
+            label = line._label
+
+            return params, T_vals, line, color, label 
+
+
+    def load_new_item(self): 
+        """ If new is chosen for the simulation list, the following values are set """
+        
+        params = default_parameters()
+        T_vals = [1,3]
+        line = False
+        label = None
+        color = None
+        if len(self.simulation_colors)<1:
+            self.statusBar.showMessage("ERROR: can't make any more simulations")
+            return
+
+        return params, T_vals, line, color, label 
+    
     def delete_sim(self):
         """ Deleting a simulation/fit from the list"""
 
