@@ -53,7 +53,7 @@ class DataTreatmentTab(QSplitter):
         self.add_xy_comboboxes() 
 
         # Constructing a combobox for plotting fitted AC data
-        make_headline(self, "Fitted: Choose plot type (AC only)", self.layout)
+        make_headline(self, "Fitted: Choose plot type (AC)", self.layout)
         self.add_fit_combobox() 
 
         # Constructing parameter controls
@@ -112,14 +112,14 @@ class DataTreatmentTab(QSplitter):
 
         make_btn(self, "(1) Load datafile", self.load_data, self.layout)
         make_btn(self, "(2) Make diamagnetic correction", self.update_sample_info_and_make_dia_correction, self.layout)
-        self.fit_X_btn = make_btn(self, "(3) Fit X' and X'' (AC only)", self.fit_Xp_Xpp_standalone, self.layout)
+        self.fit_X_btn = make_btn(self, "(3) Fit X' and X'' (AC)", self.fit_Xp_Xpp_standalone, self.layout)
         self.fit_X_btn.setEnabled(False)
         
         #Copy fit to data analysis and save fit to file layout
         self.copy_save_layout = QHBoxLayout()
-        self.copy_fit_btn = make_btn(self, "Copy fit to Data analysis (AC only)", self.copy_fit_to_analysis, self.copy_save_layout)
+        self.copy_fit_btn = make_btn(self, "Copy fit to Data analysis (AC)", self.copy_fit_to_analysis, self.copy_save_layout)
         self.copy_fit_btn.setEnabled(False)
-        self.save_fit_X_btn = make_btn(self, "Save fit to file (AC only)", self.save_fit_to_file, self.copy_save_layout)
+        self.save_fit_X_btn = make_btn(self, "Save fit to file (AC)", self.save_fit_to_file, self.copy_save_layout)
         self.save_fit_X_btn.setEnabled(False)
 
         self.layout.addLayout(self.copy_save_layout)
@@ -379,11 +379,8 @@ class DataTreatmentTab(QSplitter):
 
     def try_load_raw_df(self): 
                 
-        #open_file_dialog = QFileDialog()
-        #filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
-        #filename_info =  ('C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/dc-data/DC_DyBrTHF_ODPM2blank_1.dat', 'All Files (*)')
-        #filename_info =  ("C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/20180209DyII_1000.dat", 'All Files (*)')
-        filename_info =  ("C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-fod/20180430DyfodOPy-ac-0.dat", 'All Files (*)')
+        open_file_dialog = QFileDialog()
+        filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
         filename = filename_info[0]
         
         try:
@@ -518,6 +515,8 @@ class DataTreatmentTab(QSplitter):
                 self.update_temp_subsets()
                 self.update_xy_combos()
                 self.parent.widget_table.update_table()
+                self.fit_X_btn.setEnabled(True)
+
                 MagMessage('Diamagnetic correction',
                                'Diamagnetic correction successful!').exec_()
 
@@ -631,7 +630,7 @@ class DataTreatmentTab(QSplitter):
 
     def get_plot_settings(self): 
         """Determines the x-data, y-data, function and x-scale 
-        used for plotting in the Fitted window (AC only) """
+        used for plotting in the Fitted window (AC) """
 
         plot_type = self.fit_combo.currentText()
 
@@ -693,6 +692,8 @@ class DataTreatmentTab(QSplitter):
             self.save_fit_X_btn.setEnabled(True)
             self.copy_fit_btn.setEnabled(True)
             self.headline.setText("Fitted/3D plot: Hide/show raw data and fitted lines")
+            combo_idx = self.plot_type_combo.findText('Fitted (AC)')
+            self.plot_type_combo.setCurrentIndex(combo_idx)
 
     def get_fit_result(self): 
         """ Fits χ' and χ'' and returns the result of the fit. Fit result contains T, 
@@ -911,7 +912,6 @@ class DataTreatmentTab(QSplitter):
             D = np.array(list(zip(self.meas_temps,
                                   self.raw_data_fit['Tau'],
                                   self.raw_data_fit['dTau'])))
-            print(D)
             self.parent.data_ana.set_new_t_tau(D)
             self.parent.data_ana.read_indices_for_used_temps()
             self.parent.data_ana.plot_t_tau_on_axes()

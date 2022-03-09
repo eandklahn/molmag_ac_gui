@@ -90,20 +90,24 @@ class DataAnalysisTab(QSplitter):
         self.show() 
 
     def copy_data_treat_fit(self): 
-        self.fit_history.clear() 
-        self.update_fit_combo() 
-        self.reset_checkboxes_and_T() 
-        self.fit_stat_txt = ""
-        self.fit_summary.setText("")
-        self.fit_title.setText("")
+        
+        self.clear_fits() 
         self.parent.data_treat.copy_fit_to_analysis() 
 
-    def reset_checkboxes_and_T(self): 
+    def clear_fits(self): 
+
+        self.plot_wdgt.ax.clear() 
+        self.list_of_simulations.clear()
+        self.fit_history.clear() 
+        self.update_fit_combo() 
         self.orbach_cb.setChecked(False)
         self.raman_cb.setChecked(False)
         self.qt_cb.setChecked(False)
         self.temp_line[1].setValue(0)
         self.temp_line[3].setValue(0)
+        self.fit_stat_txt = ""
+        self.fit_summary.setText("")
+        self.fit_title.setText("")
 
     def add_fit_parameters_view(self): 
         """ Adds fit parameters view, where the user can view information about the
@@ -505,6 +509,7 @@ class DataAnalysisTab(QSplitter):
             elif error_type == 'OSError':
                 pass
         else:
+            self.clear_fits() 
             #self.plot_wdgt.ax.clear() #Clearing data in plotting wdgt 
             #self.fit_history.clear() 
 
@@ -579,11 +584,12 @@ class DataAnalysisTab(QSplitter):
             - Can't fit only one data point "
         except RuntimeError:
             msg_text = 'This fit cannot be made within the set temperatures'
-        #except ValueError as e:
-        #    msg_text = 'No file has been loaded'
+        except ValueError as e:
+            print(e)
+            msg_text = 'No file has been loaded or there might be some other problem. \nTry to choose another temperature setting or change the fit type, \nif you have already loaded a file.'
+            #This error trigers sometimes when a bad T-range and fit functions are chosen, i am not sure why.
         except TypeError as e:
             msg_text = 'No data has been selected'
-            print(e)
         except NoGuessExistsError:
             msg_text = 'Made no guess for initial parameters'
         

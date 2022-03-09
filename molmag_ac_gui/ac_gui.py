@@ -101,7 +101,7 @@ class ACGui(QMainWindow):
         #Adds the tabs to the tabwidget 
         self.all_the_tabs.addTab(self.data_treat, "Data treatment")
         self.all_the_tabs.addTab(self.widget_table, "Table of data")       
-        self.all_the_tabs.addTab(self.data_ana, "Data analysis (AC only)")   
+        self.all_the_tabs.addTab(self.data_ana, "Data analysis (AC)")   
 
 
     def add_file_menu(self): 
