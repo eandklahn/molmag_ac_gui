@@ -707,6 +707,7 @@ class SampleInformation(QDialog):
         self.setLayout(self.sample_info_layout)
 
     def load_sample_data(self):
+
         filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
         filename = filename_info[0]
         try:
