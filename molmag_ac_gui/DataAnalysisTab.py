@@ -90,11 +90,19 @@ class DataAnalysisTab(QSplitter):
         self.show() 
 
     def copy_data_treat_fit(self): 
-        
+        """ Copies the fit of tau from the data treatment tab into the data analysis tab. 
+        First it clears all previos fits and lists, make sure the data is not DC data and then imports the fit """
         self.clear_fits() 
+        try:
+            if self.parent.data_treat.data_type == "DC": 
+                MagMessage("Error", "The data loaded in data treatment is DC data, not AC data. \nThe functions in this tab requires AC data.").exec_() 
+                return
+        except:
+            pass
         self.parent.data_treat.copy_fit_to_analysis() 
 
     def clear_fits(self): 
+        """ Clears all fits, unchecks checkboxes, lists etc."""
 
         self.plot_wdgt.ax.clear() 
         self.list_of_simulations.clear()
@@ -585,7 +593,6 @@ class DataAnalysisTab(QSplitter):
         except RuntimeError:
             msg_text = 'This fit cannot be made within the set temperatures'
         except ValueError as e:
-            print(e)
             msg_text = 'No file has been loaded or there might be some other problem. \nTry to choose another temperature setting or change the fit type, \nif you have already loaded a file.'
             #This error trigers sometimes when a bad T-range and fit functions are chosen, i am not sure why.
         except TypeError as e:

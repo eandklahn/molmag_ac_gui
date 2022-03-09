@@ -191,6 +191,7 @@ class DataTreatmentTab(QSplitter):
     """ Other functions"""
     
     def add_T_legend(self): 
+        """ Adds a temperature legend to the H vs. M plot"""
         
         if self.T_legend_cb.isChecked(): 
             self.T_legend = True
@@ -340,8 +341,8 @@ class DataTreatmentTab(QSplitter):
         Loads the ppms data, clears the dataframe, fills in the dataframe with the loaded raw data, 
         adds Mp or Xp to the dataframe, cleans up the dataframe, updates temperatures subsets, 
         clears the raw data and fitted plots for any old data, plots raw data and updates the data table. """
-
-        if self.try_load_raw_df(): ## If the function succeeds at loading the raw_df, this statement will be True
+        succes_in_loading = self.try_load_raw_df()
+        if succes_in_loading: ## If the function succeeds at loading the raw_df, this statement will be True
 
             self.reset_btns() 
             
@@ -378,6 +379,7 @@ class DataTreatmentTab(QSplitter):
             self.parent.widget_table.update_table()
 
     def try_load_raw_df(self): 
+        """ Tries to load the raw dataframe """
                 
         open_file_dialog = QFileDialog()
         filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
@@ -930,7 +932,6 @@ class DataTreatmentTab(QSplitter):
     def copy_fit_to_analysis(self):
         """ Copies the fit of tau obtained after fitting χ' and χ'' 
         to the data analysis tab. """
-    
         try:
             D = np.array(list(zip(self.meas_temps,
                                   self.raw_data_fit['Tau'],
