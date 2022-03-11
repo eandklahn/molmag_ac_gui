@@ -36,7 +36,6 @@ class DataAnalysisTab(QSplitter):
         self.initUI() 
     
     def initUI(self): 
-        self.startUp = True #Some old stuff about reading a file directly from the terminal. Does not work fully. 
 
         # Initializes simulations colors and other attributes
         self.initialize_attributes() 
@@ -226,7 +225,7 @@ class DataAnalysisTab(QSplitter):
 
         self.choose_fit_combo.clear() 
         for fit in self.fit_history: 
-            name, res, time = fit
+            name, res, time, Tmin, Tmax = fit
             self.choose_fit_combo.addItem(f'{time}: {name}')
 
     def show_fit_stat(self):
@@ -236,7 +235,7 @@ class DataAnalysisTab(QSplitter):
             return 
         
         fit_idx = self.choose_fit_combo.currentIndex()
-        name, res, time = self.fit_history[fit_idx]
+        name, res, time, Tmin, Tmax = self.fit_history[fit_idx]
         title = f'{time}: {name}'
         try: 
             self.set_fit_stat_txt() 
@@ -450,8 +449,7 @@ class DataAnalysisTab(QSplitter):
                 for line in e:
                     self.plotted_data_pointers.append(line)
         
-            self.plot_wdgt.ax.relim() 
-            self.plot_wdgt.ax.autoscale_view() 
+
         self.plot_wdgt.canvas.draw()
 
     def add_T_axis(self): 
@@ -485,19 +483,10 @@ class DataAnalysisTab(QSplitter):
     def load_t_tau_data(self):
         """Load 1/T vs. τ data from file generated in data treatment """
 
-        if self.startUp:
-            try:
-                filename = sys.argv[1]
-            except IndexError:
-                pass
-            finally:
-                self.startUp = False
-                return 0
-        else:
-            filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
-            filename = filename_info[0]
-            
-            self.last_loaded_file = os.path.split(filename)[0]
+        filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        filename = filename_info[0]
+          
+        self.last_loaded_file = os.path.split(filename)[0]
         
         if filename == '':
             pass
@@ -525,7 +514,6 @@ class DataAnalysisTab(QSplitter):
             self.read_indices_for_used_temps()
             self.plot_t_tau_on_axes()
             self.add_T_axis()         
-            self.plot_wdgt.reset_axes()
             self.update_T_axis()
             
             #self.update_fit_combo()
@@ -604,7 +592,7 @@ class DataAnalysisTab(QSplitter):
             window_title = 'Fit successful!'
             msg_text = 'Congratulations'
             
-            self.add_to_history(minimize_res, fitwith)
+            self.add_to_history(minimize_res, fitwith, Tmin, Tmax)
             self.update_fit_combo() 
         finally:
             msg = MagMessage(window_title, msg_text)
@@ -612,15 +600,16 @@ class DataAnalysisTab(QSplitter):
             msg.exec_()  
       
     
-    def add_to_history(self, p_fit, perform_this_fit):
+    def add_to_history(self, p_fit, perform_this_fit, Tmin, Tmax):
         """ Adds a fit to the top of the fit history"""
 
-        now = datetime.datetime.now()
-        now = now.strftime("%d.%m %H:%M:%S")
+        time = datetime.datetime.now()
+        time = time.strftime("%d.%m %H:%M:%S")
 
         if len(self.fit_history)>9:
             self.fit_history.pop()
-        self.fit_history.insert(0, (perform_this_fit, p_fit, now))
+        self.fit_history.insert(0, (perform_this_fit, p_fit, time, Tmin, Tmax))
+
 
 
 
@@ -644,11 +633,11 @@ class DataAnalysisTab(QSplitter):
         action = self.get_action() 
 
         if action == 'Edit':
-            params, T_vals, line, color, label  = self.load_chosen_item() 
+            sim_item, params, T_vals, line, color, label  = self.load_chosen_item() 
 
         elif action == 'New':
             params, T_vals, line, color, label = self.load_new_item() 
-
+        
         sim_dialog = SimulationDialog(parent=self,
                                       fit_history=self.fit_history,
                                       params = params,
@@ -656,7 +645,7 @@ class DataAnalysisTab(QSplitter):
         finished_value = sim_dialog.exec_()
         functions = [bool(sim_dialog.params[p].value)
                      for p in sim_dialog.params if 'use' in p]
-        
+
         try:
             assert finished_value
             assert(any(functions))
@@ -665,9 +654,9 @@ class DataAnalysisTab(QSplitter):
         else:
             params = sim_dialog.params
             T_vals = sim_dialog.min_max_T
-            
             if line:
                 self.plot_wdgt.ax.lines.remove(line)
+                
             else:
                 # In this case, there was no old line and therefore also no sim_item
                 """https://stackoverflow.com/questions/55145390/pyqt5-qlistwidget-with-checkboxes-and-drag-and-drop"""
@@ -733,7 +722,7 @@ class DataAnalysisTab(QSplitter):
             color = line._color
             label = line._label
 
-            return params, T_vals, line, color, label 
+            return sim_item, params, T_vals, line, color, label 
 
 
     def load_new_item(self): 

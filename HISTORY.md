@@ -1,3 +1,8 @@
+# v. 0.4.0
+Published on 09/03/2022
+Adds DC functionality: Plotting of H vs. M and T vs. XT is now possible. 
+Adds a function to display and save fitting statistics in Data analysis. 
+
 # v. 0.3.0
 Published on 07/02/2022
 Changed layout of Data Treatment and Data Analysis tab and adds Data Table tab. 

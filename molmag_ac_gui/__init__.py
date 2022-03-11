@@ -20,6 +20,6 @@ __all__ = [
            'ac_gui'
           ]
 
-__version__ = '0.3.0'
+__version__ = '0.4.0'
 __author__ = ['Emil Andreasen Klahn', 'Sofie Leiszner']
 __author_email__ = ['eklahn@chem.au.dk', 'sofiesl@chem.au.dk']

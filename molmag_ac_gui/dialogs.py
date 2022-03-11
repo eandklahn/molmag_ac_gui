@@ -220,7 +220,7 @@ class GuessDialog(QDialog):
     def get_values_from_fit(self):
         
         idx = self.choose_fit_combo.currentIndex()
-        name, res, time = self.fit_history[idx]
+        name, res, time, Tmin, Tmax = self.fit_history[idx]
         potential_guess = res.params
         for p in potential_guess:
             current_param = self.current_guess[p]
@@ -232,7 +232,7 @@ class GuessDialog(QDialog):
     def update_fit_combo(self):
 
         for fit in self.fit_history:
-            name, res, time = fit
+            name, res, time, Tmin, Tmax = fit
             params = res.params
             repr = f'{time}: {name}'
             L = [p for p in params if not ('use' in p or params[p].vary==False)]
@@ -355,24 +355,48 @@ class SimulationDialog(QDialog):
     def update_fit_combo(self):
 
         for fit in self.fit_history:
-            name, res, time = fit
+            name, res, time, Tmin, Tmax = fit
             params = res.params
             repr = f'{time}: {name}'
             L = [p for p in params if not ('use' in p or params[p].vary==False)]
             for p in L:
                 param = params[p]
                 repr += f'\n{param.name}: {param.value}'
+            repr += '\nMin. T: {}'.format(Tmin)
+            repr += '\nMax. T: {}'.format(Tmax)
             self.choose_fit_combo.addItem(repr)
 
     def use_fitted_values(self):
         
         idx = self.choose_fit_combo.currentIndex()
-        name, res, time = self.fit_history[idx]
+        name, res, time, Tmin, Tmax = self.fit_history[idx]
         
         new_params = res.params
+        
         param_names = [p for p in new_params if not 'use' in p]
+        
         for p in param_names:
             self.use_values_edits[p].setText(str(new_params[p].value))
+
+        self.temp_min.setValue(Tmin)
+        self.temp_max.setValue(Tmax)
+
+        self.update_fitting_checkboxes(name) 
+    
+    def update_fitting_checkboxes(self, name): 
+
+        if "O" in name: 
+            self.use_function_checkboxes['useO'].setChecked(True)
+        else: 
+            self.use_function_checkboxes['useO'].setChecked(False)
+        if "R" in name: 
+            self.use_function_checkboxes['useR'].setChecked(True)
+        else: 
+            self.use_function_checkboxes['useR'].setChecked(False)
+        if "QT" in name: 
+            self.use_function_checkboxes['useQT'].setChecked(True)
+        else: 
+            self.use_function_checkboxes['useQT'].setChecked(False)
 
     def read_param_values(self):
         
@@ -477,13 +501,13 @@ class ParamDialog(QDialog):
     def update_fit_combo(self):
 
         for fit in self.fit_history:
-            name, res, time = fit
+            name, res, time, Tmin, Tmax = fit
             self.choose_fit_combo.addItem(f'{time}: {name}')
 
     def show_MinimizerResult(self):
         
         fit_idx = self.choose_fit_combo.currentIndex()
-        name, res, time = self.fit_history[fit_idx]
+        name, res, time, Tmin, Tmax = self.fit_history[fit_idx]
         title = f'{time}: {name}'
 
         self.fit_summary.setText(fit_report(res))
