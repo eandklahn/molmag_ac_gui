@@ -4,7 +4,9 @@ import os
 #third-party packages
 from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QPushButton, 
                              QVBoxLayout, QWidget, QTableWidget,
-                             QTableWidgetItem, QMessageBox) 
+                             QTableWidgetItem, QMessageBox)
+
+from molmag_ac_gui.layout import make_btn, make_line 
 from .dialogs import MagMessage
 
 class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx i stedet for self.widget.layout
@@ -21,29 +23,25 @@ class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
         self.export_filetype = ""
     
         self.layout = QVBoxLayout() 
-        self.layoutH = QHBoxLayout()  
 
-        self.line_edit = QLabel("When a file is loaded in the \"Data Treatment\" tab, a table of the loaded data will be shown here")
-
+        self.line_edit = make_line(self,"When a file is loaded in the \"Data Treatment\" tab, a table of the loaded data will be shown here", self.layout )
+        make_line(self,"To load a new file, go to the \"Data Tretment\" tab and click \"(1) Load datafile\" ", self.layout )
         self.tableWidget = QTableWidget() 
-        
-        self.export_table_excel_btn = QPushButton('Export table to Excel (.xlsx file)')
-        self.export_table_excel_btn.clicked.connect(self.export_table_excel)
-
-        self.export_table_csv_btn = QPushButton('Export table to .csv file')
-        self.export_table_csv_btn.clicked.connect(self.export_table_csv)
-
-        self.layout.addWidget(self.line_edit)     
         self.layout.addWidget(self.tableWidget)
-        self.layoutH.addWidget(self.export_table_excel_btn)
-        self.layoutH.addWidget(self.export_table_csv_btn)
 
-        self.setLayout(self.layout) 
+        self.layoutH = QHBoxLayout()  
+        make_btn(self, "Export table to .xlsx file", self.export_table_excel, self.layoutH)
+        make_btn(self, "Export table to .csv file", self.export_table_csv, self.layoutH)
+        make_btn(self, "Export table as .dat file in same format as your input .dat file", self.export_table_dat, self.layoutH)
         self.layout.addLayout(self.layoutH)
         
-        
+        self.setLayout(self.layout) 
+
         self.show()
     
+    def export_table_dat(self): 
+        self.export_filetype = "dat"
+        self.export_table() 
 
     def update_table(self):
         """ Updates the table """
@@ -81,7 +79,7 @@ class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
         newpath = ""
         for element in splitpath[:-1]: 
             newpath += element + '/'
-        newpath += splitpath[-1] + "_datatable"    
+        newpath += splitpath[-1].split(".")[0] + "_datatable"    
         self.path_to_export = newpath
     
     def export_table_excel(self):
@@ -103,7 +101,17 @@ class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
             self.parent.data_treat.raw_df.to_csv(r'{}.{}'.format(self.path_to_export, self.export_filetype), index = False)
         if self.export_filetype == "xlsx": 
             self.parent.data_treat.raw_df.to_excel(r'{}.{}'.format(self.path_to_export, self.export_filetype), index = False)
+        if self.export_filetype == "dat": 
+            self.parent.data_treat.raw_df.to_csv(r'{}.{}'.format(self.path_to_export, self.export_filetype), index = False, header = self.parent.data_treat.raw_df_header)
+            with open(r'{}.{}'.format(self.path_to_export, self.export_filetype), "r") as f: 
+                csv_lines = f.readlines()  
+            with open(r'{}.{}'.format(self.path_to_export, self.export_filetype), "w") as f: 
+                for line in self.parent.data_treat.pre_header: 
+                    f.write(line)
+                for line in csv_lines: 
+                    f.write(line)
         MagMessage('The data is successfully exported', "The data is saved as a .{} file at: {}.{}".format(self.export_filetype, self.path_to_export, self.export_filetype)).exec_() 
+
 
     def export_table(self):
         """ Saves file with table, checking whether the file already exists and asks the user 

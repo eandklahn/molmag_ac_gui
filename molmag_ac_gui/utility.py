@@ -31,7 +31,7 @@ def read_ppms_file(filename):
             found_data = True
     
     if (found_header and found_data):
-        
+        pre_header = d[:data_start]
         header = d[header_start:data_start-1]
         header = [h.strip().split(',') for h in header if not h.startswith(';') and h.startswith('INFO')]
         header_dict = {}
@@ -47,9 +47,9 @@ def read_ppms_file(filename):
                          engine='python',
                          skip_blank_lines=False)
     else:
-        header, df = None, None
+        pre_header, header, df = None, None, None
         
-    return header, df
+    return pre_header, header, df
 
 def get_ppms_column_name_matches(columns, options):
     matches = [x in columns for x in options]

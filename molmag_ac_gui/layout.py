@@ -18,6 +18,7 @@ def make_btn(self, btn_string, function, layout):
 def make_line(self, line_string, layout): 
     self.line = QLabel(line_string)
     layout.addWidget(self.line)
+    return self.line
 
 def make_checkbox(self, function, layout, cb_string = ""): 
     self.checkbox = QCheckBox(cb_string) 

@@ -78,6 +78,7 @@ class DataTreatmentTab(QSplitter):
 
         self.raw_df = None
         self.raw_df_header = None
+        self.pre_header = None
         self.num_meas_freqs = 0
         self.num_meas_temps = 0
         self.temp_subsets = []
@@ -378,6 +379,7 @@ class DataTreatmentTab(QSplitter):
             #Updates "Table of Data" tab with the loaded data
             self.parent.widget_table.update_table()
 
+
     def try_load_raw_df(self): 
         """ Tries to load the raw dataframe """
                 
@@ -385,9 +387,10 @@ class DataTreatmentTab(QSplitter):
         filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
         filename = filename_info[0]
         
+        
         try:
             # FileNotFoundError and UnicodeDecodeError will be raised here
-            potential_header, potential_df = read_ppms_file(filename)
+            pre_header, potential_header, potential_df = read_ppms_file(filename)
             if potential_header is None:
                 raise FileFormatError(filename)
             summary = update_data_names(potential_df, self.parent.read_options)
@@ -410,6 +413,7 @@ class DataTreatmentTab(QSplitter):
             self.parent.current_file = filename
             self.raw_df = potential_df
             self.raw_df_header = potential_header
+            self.pre_header = pre_header
             return True
         return False
 
