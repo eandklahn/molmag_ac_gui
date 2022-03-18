@@ -129,6 +129,7 @@ def diamag_correction(H, H0, Mp, Mpp, m_sample, M_sample, Xd_sample, constant_te
 
 def diamag_correction_dc(H0, M, m_sample, M_sample, Xd_sample, constant_terms=[], paired_terms=[]):
     """
+    This should be fixed. 
     Calculates a diamagnetic correction of the data in Mp and Mpp and calculates
     the corresponding values of Xp and Xpp
     

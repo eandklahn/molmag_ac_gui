@@ -29,10 +29,11 @@ class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
         self.tableWidget = QTableWidget() 
         self.layout.addWidget(self.tableWidget)
 
+        make_btn(self, "Update Table of data", self.update_table_from_tab, self.layout)
         self.layoutH = QHBoxLayout()  
         make_btn(self, "Export table to .xlsx file", self.export_table_excel, self.layoutH)
         make_btn(self, "Export table to .csv file", self.export_table_csv, self.layoutH)
-        make_btn(self, "Export table as .dat file in same format as your input .dat file", self.export_table_dat, self.layoutH)
+        make_btn(self, "Export table to .dat file", self.export_table_dat, self.layoutH)
         self.layout.addLayout(self.layoutH)
         
         self.setLayout(self.layout) 
@@ -40,22 +41,37 @@ class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
         self.show()
     
     def export_table_dat(self): 
+
         self.export_filetype = "dat"
         self.export_table() 
 
-    def update_table(self):
+    def update_table_from_tab(self): 
+
+        self.update_table(ask_question=False)
+
+    def update_table(self, ask_question = True):
         """ Updates the table """
 
-        self.line_edit.setText("The data is loaded from the file located at: {}".format(self.parent.current_file))
+        try: 
+            df = self.parent.data_treat.raw_df
+        except: 
+            return
+        if ask_question: 
+            max_cols = 8000
+            if df.shape[0] > max_cols: 
+                qm = QMessageBox() 
+                ans = qm.question(self,'Trying to load large dataset into Data table tab', "The dataframe is very large (more than {} rows). Updating the Table of data, might take some time. Do you want to update the Table of data anyway? \
+                    The table can be updated manually from the Table of data tab".format(max_cols), qm.Yes | qm.No, defaultButton=qm.No)
 
-        df = self.parent.data_treat.raw_df
+                if ans == qm.No: 
+                    return 
+        
         self.tableWidget.setRowCount(len(df))
         self.tableWidget.setColumnCount(len(df.columns))
             
         for row in range(len(df)):
             for col in range(len(df.columns)): 
                 self.tableWidget.setItem(row,col,QTableWidgetItem("{}".format(df.iloc[row,col])))
-
 
         #Makes a list of column names from df: 
         Colnames = []
@@ -70,6 +86,8 @@ class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
 
         #Resizes column width with respect to contests
         self.tableWidget.resizeColumnsToContents()
+        
+        self.line_edit.setText("The data is loaded from the file located at: {}".format(self.parent.current_file))
 
 
     def findnewpath(self): 

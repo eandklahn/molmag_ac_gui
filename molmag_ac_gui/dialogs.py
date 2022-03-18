@@ -569,6 +569,7 @@ class FitResultPlotStatus(QDialog):
             self.checkbox_layout.addWidget(fit_checked, idx+1,2, alignment=Qt.AlignHCenter)
 
 
+        
         self.state_btn_lo = QHBoxLayout()
         
         self.check_all_btn = QPushButton('Check all')
@@ -732,7 +733,8 @@ class SampleInformation(QDialog):
 
     def load_sample_data(self):
 
-        filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        #filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        filename_info = ('C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/dc-data/fake_sample_data.dat', 'All Files (*)')
         filename = filename_info[0]
         try:
             f = open(filename, 'r')
@@ -819,7 +821,7 @@ class SampleInformation(QDialog):
         self.accept()
         if self.tab.data_type == "AC": 
             self.tab.make_diamag_correction_calculation()
-        else: 
+        elif self.tab.data_type == "DC":
             self.tab.make_diamag_correction_calculation_dc()
     
     def insert_values(self): 

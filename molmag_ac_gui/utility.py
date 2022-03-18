@@ -8,9 +8,11 @@ label_dict = {
         "Xpp (emu/Oe)": r"$\chi''$ (emu/Oe)", 
         "Xp_m (emu/(Oe*mol))": r"$\chi_m'$ $(emu/(Oe⋅mol))$", 
         "Xpp_m (emu/(Oe*mol))": r"$\chi_m''$ $(emu/(Oe⋅mol))$", 
-        "XT_m (emu*K/Oe)": r"$\chi_m⋅T$ $(emu⋅K/Oe)$",
+        "XT_m (emu*K/(Oe*mol))": r"$\chi_m⋅T$ $(emu⋅K/(Oe⋅mol))$",
+        "XT_m (cm3*K/mol)": r"$\chi_m⋅T$ $(cm^3⋅K/mol)$",
         "Moment (emu)":  "M (emu)", 
         "Moment_m (emu/mol)":  r"$M_m$ (emu/mol)", 
+        "Moment_m (Na*muB)":  r"$M_m$ ($N_a$⋅$μ_B$)", 
         "X_m (emu/(Oe*mol))": r"$\chi_m$ $(emu/(Oe⋅mol))$"
         }
 
