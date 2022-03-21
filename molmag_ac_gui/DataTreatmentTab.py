@@ -640,7 +640,7 @@ class DataTreatmentTab(QSplitter):
 
                 self.update_temp_subsets()
                 self.update_xy_combos()
-                self.parent.widget_table.update_table()
+
                 self.fit_X_or_get_phi_btn.setEnabled(True)
                 self.fit_X_or_get_phi_btn.clicked.disconnect()
                 self.fit_X_or_get_phi_btn.clicked.connect(self.fit_Xp_Xpp_standalone)
@@ -1116,16 +1116,12 @@ class DataTreatmentTab(QSplitter):
                     H0, M, m_sample, M_sample, Xd_sample,
                     constant_terms = constant_terms, paired_terms = paired_terms)
 
-                self.insert_molar_values_dc(M_molar, X_molar) 
-
-            
+                self.insert_molar_values_dc(M_molar, X_molar)
 
                 self.update_subsets()
                 self.update_xy_combos()
                 self.update_raw_fit_list()
                 self.plot_XT_HM() 
-                self.parent.widget_table.update_table() 
-
 
                 self.fit_X_or_get_phi_btn.setText("(3) Get files for fitting in PHI")
                 self.fit_X_or_get_phi_btn.clicked.disconnect() 

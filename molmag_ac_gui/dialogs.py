@@ -733,8 +733,7 @@ class SampleInformation(QDialog):
 
     def load_sample_data(self):
 
-        #filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
-        filename_info = ('C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/dc-data/fake_sample_data.dat', 'All Files (*)')
+        filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
         filename = filename_info[0]
         try:
             f = open(filename, 'r')
