@@ -87,7 +87,7 @@ class DataTreatmentTab(QSplitter):
         self.meas_temps = []
         self.meas_Hs = []
         self.Tmin, self.Tmax = 0,0
-        self.raw_data_fit = None
+        self.fit_result = None
         self.data_type = None
         self.T_legend = None
         self.DC_data_types = []
@@ -262,9 +262,10 @@ class DataTreatmentTab(QSplitter):
         """ Adds controls for the data plotting where one can pick which datapoints
         and fits to be visualized. """
         
-        
-        self.headline = QLabel( "Hide/show raw data and lines")
-        self.headline.setFont(headline_font)
+        make_headline(self, "Hide/show raw data and lines", self.layout)
+        #self.headline = QLabel( "Hide/show raw data and lines")
+        #self.headline.setFont(headline_font)
+
         self.layout.addWidget(self.headline)
         
         make_line(self, "Double click to edit list", self.layout)
@@ -490,9 +491,12 @@ class DataTreatmentTab(QSplitter):
         """ Tries to load the raw dataframe """
                 
         open_file_dialog = QFileDialog()
+        #filname_info = "('C:/Users/au592011/OneDrive - Aarhus Universitet/Dokumenter/PhDProjekt/CoX2Cltpy/Magnetic data/Ambient_withoutDAC/CoCl2(CltPy)/AC_infield.dat', 'All Files (*)')"
+        
         filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
         filename = filename_info[0]
-        
+        print("filename_info = ", filename_info)
+
         try:
             # FileNotFoundError and UnicodeDecodeError will be raised here
             pre_header, potential_header, potential_df = read_ppms_file(filename)
@@ -548,18 +552,20 @@ class DataTreatmentTab(QSplitter):
         self.HM_subsets = []
         self.XT_subsets = []
         # Finds indicies to split data and asigns XT or HM to each subset
-        for i in range(self.raw_df.shape[0]):  
+        for i in range(self.raw_df.shape[0]-5):  
             current_time = self.raw_df["Time Stamp (sec)"].values[i]
-            if current_time > old_time + 500:
+            if current_time > old_time + 100: # If time stamp jumps by more than 100 seconds, the data set is split into a new subset.
                 split_idx.append(i)
                 if isclose(self.raw_df["Magnetic Field (Oe)"].values[i], self.raw_df["Magnetic Field (Oe)"].values[i+5], rel_tol = 0.05): 
                     subsets.append((i,"XT"))
-                if isclose(self.raw_df["Temperature (K)"].values[i],self.raw_df["Temperature (K)"].values[i+5],rel_tol = 0.05): 
+                if isclose(self.raw_df["Temperature (K)"].values[i],self.raw_df["Temperature (K)"].values[i+5],rel_tol = 0.05): #Used to be rel_tol = 0.01 
                     if self.raw_df["Temperature (K)"].values[i] < 250: #Assumption: You would never measure T vs. XT data above 250 K  
                         subsets.append((i,"HM"))
-            old_time = current_time
+                        
+            
+            old_time = current_time #Should be on the same indent as if
         split_idx.append(self.raw_df.shape[0])
-        
+
         # Makes subsets of the dataframes 
         for i in range(len(split_idx)): 
             if (split_idx[i], "HM") in subsets: 
@@ -723,10 +729,10 @@ class DataTreatmentTab(QSplitter):
             #Sets x-data to χ' if plot-type is Cole Cole,
             if plot_type == 'Cole-Cole':
                 x_data = Xp_(self.temp_subsets[row]['AC Frequency (Hz)'],
-                             self.raw_data_fit['ChiS'].iloc[row],
-                             self.raw_data_fit['ChiT'].iloc[row],
-                             self.raw_data_fit['Tau'].iloc[row],
-                             self.raw_data_fit['Alpha'].iloc[row])
+                             self.fit_result['ChiS'].iloc[row],
+                             self.fit_result['ChiT'].iloc[row],
+                             self.fit_result['Tau'].iloc[row],
+                             self.fit_result['Alpha'].iloc[row])
             else:
                 x_data = self.temp_subsets[row][x_name]
             
@@ -745,26 +751,26 @@ class DataTreatmentTab(QSplitter):
                     freq = self.temp_subsets[row]['AC Frequency (Hz)']
                     freq_for_plotting = np.linspace(min(freq), max(freq), fit_resolution)
                     x_data_for_plotting = Xp_(freq_for_plotting,
-                                              self.raw_data_fit['ChiS'].iloc[row],
-                                              self.raw_data_fit['ChiT'].iloc[row],
-                                              self.raw_data_fit['Tau'].iloc[row],
-                                              self.raw_data_fit['Alpha'].iloc[row])
+                                              self.fit_result['ChiS'].iloc[row],
+                                              self.fit_result['ChiT'].iloc[row],
+                                              self.fit_result['Tau'].iloc[row],
+                                              self.fit_result['Alpha'].iloc[row])
                                                      
                     self.fit_plot.ax.plot(x_data_for_plotting,
                                                 fcn_y(freq_for_plotting,
-                                                      self.raw_data_fit['ChiS'].iloc[row],
-                                                      self.raw_data_fit['ChiT'].iloc[row],
-                                                      self.raw_data_fit['Tau'].iloc[row],
-                                                      self.raw_data_fit['Alpha'].iloc[row]),
+                                                      self.fit_result['ChiS'].iloc[row],
+                                                      self.fit_result['ChiT'].iloc[row],
+                                                      self.fit_result['Tau'].iloc[row],
+                                                      self.fit_result['Alpha'].iloc[row]),
                                                 c=rgb)
                 else: #Corresponds to elif plot_type == 'Freq VS Xpp' or plot_type == 'Freq VS Xp':
                     freq_for_plotting = np.logspace(np.log10(min(x_data)), np.log10(max(x_data)), fit_resolution) #Logspace to equally distribute the points on a log-scale
                     self.fit_plot.ax.plot(freq_for_plotting,
                                                 fcn_y(freq_for_plotting,
-                                                      self.raw_data_fit['ChiS'].iloc[row],
-                                                      self.raw_data_fit['ChiT'].iloc[row],
-                                                      self.raw_data_fit['Tau'].iloc[row],
-                                                      self.raw_data_fit['Alpha'].iloc[row]),
+                                                      self.fit_result['ChiS'].iloc[row],
+                                                      self.fit_result['ChiT'].iloc[row],
+                                                      self.fit_result['Tau'].iloc[row],
+                                                      self.fit_result['Alpha'].iloc[row]),
                                                 c=rgb)
                         
         self.fit_plot.ax.set_xscale(x_scale)
@@ -836,7 +842,7 @@ class DataTreatmentTab(QSplitter):
         else:
             self.parent.statusBar.showMessage('Running fit...')
 
-            self.raw_data_fit = self.get_fit_result() 
+            self.get_fit_result() 
             self.update_raw_fit_list()
             self.plot_from_itemlist()
             self.plot3D()
@@ -852,6 +858,8 @@ class DataTreatmentTab(QSplitter):
             self.headline.setText("Fitted/3D plot: Hide/show raw data and fitted lines")
             combo_idx = self.plot_type_combo.findText('Fitted (AC)')
             self.plot_type_combo.setCurrentIndex(combo_idx)
+
+            self.parent.tau_table.update_table()
 
     def get_fit_result(self): 
         """ Fits χ' and χ'' and returns the result of the fit. Fit result contains T, 
@@ -876,16 +884,16 @@ class DataTreatmentTab(QSplitter):
         Xt = [e[4] for e in res]
         resid = [e[5] for e in res]
         
-        fit_result = pd.DataFrame(data={'Temp': T,
+        self.fit_result = pd.DataFrame(data={'Temp': T,
+                                        'Tau': tau,
+                                        'dTau': tau_err_RC(tau, tau_fit_err, alpha),
+                                        'Alpha': alpha,
                                         'ChiS': Xs,
                                         'ChiT': Xt,
-                                        'Tau': tau,
-                                        'Alpha': alpha,
                                         'Residual': resid,
-                                        'Tau_Err': tau_fit_err,
-                                        'dTau': tau_err_RC(tau, tau_fit_err, alpha)})
+                                        'Tau_Err': tau_fit_err})
 
-        return fit_result
+        return self.fit_result
 
     def save_fit_to_file(self):
         """ The fit of χ' and χ'' is saved to a file with columns: 
@@ -894,12 +902,12 @@ class DataTreatmentTab(QSplitter):
         
         name = QFileDialog.getSaveFileName(self, 'Save File')
         filename = name[0]
-        if self.raw_data_fit is None:
+        if self.fit_result is None:
             MagMessage("There is nothing to save", "There is probably no fit yet...").exec_()
         elif filename=='':
             pass 
         else:
-            df_to_save = self.raw_data_fit.copy()
+            df_to_save = self.fit_result.copy()
             df_to_save = df_to_save.reindex(columns=['Temp', 'Tau', 'dTau', 'Alpha','ChiS', 'ChiT', 'Residual', 'Tau_Err'])
             df_to_save.sort_values('Temp', inplace=True)    
             
@@ -966,10 +974,10 @@ class DataTreatmentTab(QSplitter):
                 self.threeD_plot.ax.plot(np.full(fit_resolution,T), 
                                             np.log10(freq_for_plotting),
                                             Xpp_(freq_for_plotting,
-                                                  self.raw_data_fit['ChiS'].iloc[row],
-                                                  self.raw_data_fit['ChiT'].iloc[row],
-                                                  self.raw_data_fit['Tau'].iloc[row],
-                                                  self.raw_data_fit['Alpha'].iloc[row]),
+                                                  self.fit_result['ChiS'].iloc[row],
+                                                  self.fit_result['ChiT'].iloc[row],
+                                                  self.fit_result['Tau'].iloc[row],
+                                                  self.fit_result['Alpha'].iloc[row]),
                                             c=rgb)  
 
     def add_colorbar_3D(self): 
@@ -1064,16 +1072,15 @@ class DataTreatmentTab(QSplitter):
         """ Copies the fit of tau obtained after fitting χ' and χ'' 
         to the data analysis tab. """
         try:
-            D = np.array(list(zip(self.meas_temps,
-                                  self.raw_data_fit['Tau'],
-                                  self.raw_data_fit['dTau'])))
-            self.parent.data_ana.set_new_t_tau(D)
+
+            self.parent.data_ana.set_new_t_tau()
             self.parent.data_ana.read_indices_for_used_temps()
             self.parent.data_ana.plot_t_tau_on_axes()
             self.parent.data_ana.add_T_axis() 
             self.parent.data_ana.plot_wdgt.reset_axes()
             self.parent.data_ana.update_T_axis() 
 
+            self.parent.data_ana.update_datapoints_table()
         except TypeError:
             MagMessage("Fitted data does not exist", "Fitted data does not yet exist in the Data Treatment tab").exec_() 
         else: 
@@ -1095,11 +1102,11 @@ class DataTreatmentTab(QSplitter):
                 m_sample = float(self.m_sample)
                 M_sample = float(self.M_sample)
                 Xd_sample = float(self.Xd_sample)
-                constant_terms = [float(x) for x in self.constant_terms.split(',')]
-                var_am = [float(x) for x in self.var_am.split(',')]
+                #constant_terms = [float(x) for x in self.constant_terms.split(',')]
+                #var_am = [float(x) for x in self.var_am.split(',')]
 
-                assert len(var_am)%2==0
-                paired_terms = [(var_am[n], var_am[n+1]) for n in range(0,len(var_am),2)]
+                #assert len(var_am)%2==0
+                #paired_terms = [(var_am[n], var_am[n+1]) for n in range(0,len(var_am),2)]
 
                 if Xd_sample == 0:
                     Xd_sample = -6e-7*M_sample
@@ -1107,14 +1114,12 @@ class DataTreatmentTab(QSplitter):
             except (ValueError, AssertionError, AttributeError):
                 MagMessage('Error', 'Something wrong in "Sample information"\n').exec_()
             else: 
-                H0 = self.raw_df['Magnetic Field (Oe)']
+                H = self.raw_df['Magnetic Field (Oe)']
                 M = self.raw_df["Moment (emu)"]
                 
                 # Get molar, corrected values from function in process_ac
 
-                M_molar, X_molar = diamag_correction_dc(
-                    H0, M, m_sample, M_sample, Xd_sample,
-                    constant_terms = constant_terms, paired_terms = paired_terms)
+                M_molar, X_molar = diamag_correction_dc(H, M, m_sample, M_sample)
 
                 self.insert_molar_values_dc(M_molar, X_molar)
 

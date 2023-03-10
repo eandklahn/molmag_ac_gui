@@ -21,7 +21,7 @@ from matplotlib.backends.qt_compat import QtCore, QtWidgets
 from matplotlib.backends.backend_qt5agg import FigureCanvas, NavigationToolbar2QT as NavigationToolbar
 
 from .process_ac import default_parameters
-from .layout import make_headline, headline_font
+from .layout import make_headline, headline_font, make_btn
 
 #set constants
 kB = sc.Boltzmann
@@ -461,8 +461,7 @@ class AboutDialog(QDialog):
         self.pers_lbl.setOpenExternalLinks(True)
         self.layout.addWidget(self.pers_lbl)
         
-        self.setLayout(self.layout)
-        
+        self.setLayout(self.layout)     
 
 class ParamDialog(QDialog):
 
@@ -684,24 +683,25 @@ class SampleInformation(QDialog):
         self.sample_xd_lo.addWidget(self.sample_xd_inp)
         
         # Constant terms edit
-        self.constant_terms_layout = QHBoxLayout()
-        self.sample_info_layout.addLayout(self.constant_terms_layout)
+        if self.tab.data_type == "AC": 
+            self.constant_terms_layout = QHBoxLayout()
+            self.sample_info_layout.addLayout(self.constant_terms_layout)
         
-        self.constant_terms_lbl = QLabel('Constant terms')
-        self.constant_terms_layout.addWidget(self.constant_terms_lbl)
+            self.constant_terms_lbl = QLabel('Constant terms: List of χD [emu/Oe] (for instance sample holder etc.)')
+            self.constant_terms_layout.addWidget(self.constant_terms_lbl)
              
-        self.constant_terms_inp = QLineEdit()
-        self.constant_terms_layout.addWidget(self.constant_terms_inp)
+            self.constant_terms_inp = QLineEdit()
+            self.constant_terms_layout.addWidget(self.constant_terms_inp)
         
-        # Variable amount edit
-        self.var_amount_layout = QHBoxLayout()
-        self.sample_info_layout.addLayout(self.var_amount_layout)
+            # Variable amount edit
+            self.var_amount_layout = QHBoxLayout()
+            self.sample_info_layout.addLayout(self.var_amount_layout)
         
-        self.var_amount_lbl = QLabel('Variable amounts')
-        self.var_amount_layout.addWidget(self.var_amount_lbl)
+            self.var_amount_lbl = QLabel('Variable amounts')
+            self.var_amount_layout.addWidget(self.var_amount_lbl)
         
-        self.var_amount_inp = QLineEdit()
-        self.var_amount_layout.addWidget(self.var_amount_inp)
+            self.var_amount_inp = QLineEdit()
+            self.var_amount_layout.addWidget(self.var_amount_inp)
         
         #Insert values to the QLineEdits if known: 
         self.insert_values() 
@@ -775,8 +775,9 @@ class SampleInformation(QDialog):
             self.sample_mass_inp.setText(m_sample)
             self.molar_mass_inp.setText(M_sample)
             self.sample_xd_inp.setText(Xd_sample)
-            self.constant_terms_inp.setText(constant_terms)
-            self.var_amount_inp.setText(var_amount)
+            if self.tab.data_type == "AC": 
+                self.constant_terms_inp.setText(constant_terms)
+                self.var_amount_inp.setText(var_amount)
     
     def save_sample_data(self):
     
@@ -801,8 +802,9 @@ class SampleInformation(QDialog):
             fc += 'm_sample ' + self.sample_mass_inp.text() + '\n'
             fc += 'M_sample ' + self.molar_mass_inp.text() + '\n'
             fc += 'Xd_sample ' + self.sample_xd_inp.text() + '\n'
-            fc += 'constants ' + self.constant_terms_inp.text() + '\n'
-            fc += 'var_amount ' + self.var_amount_inp.text() + '\n'
+            if self.tab.data_type == "AC": 
+                fc += 'constants ' + self.constant_terms_inp.text() + '\n'
+                fc += 'var_amount ' + self.var_amount_inp.text() + '\n'
             
             f = open(filename+ext, 'w')
             f.write(fc)
@@ -815,8 +817,9 @@ class SampleInformation(QDialog):
         self.tab.m_sample = self.sample_mass_inp.text()
         self.tab.M_sample = self.molar_mass_inp.text()
         self.tab.Xd_sample = self.sample_xd_inp.text()
-        self.tab.constant_terms = self.constant_terms_inp.text()
-        self.tab.var_am = self.var_amount_inp.text()
+        if self.tab.data_type == "AC": 
+            self.tab.constant_terms = self.constant_terms_inp.text()
+            self.tab.var_am = self.var_amount_inp.text()
         self.accept()
         if self.tab.data_type == "AC": 
             self.tab.make_diamag_correction_calculation()
@@ -851,11 +854,11 @@ class SampleInformation(QDialog):
             self.sample_mass_inp.setToolTip(self.parent.tooltips_dict[language]['m_sample'])
             self.molar_mass_inp.setToolTip(self.parent.tooltips_dict[language]['M_sample'])
             self.sample_xd_inp.setToolTip(self.parent.tooltips_dict[language]['Xd_sample'])
-            self.constant_terms_inp.setToolTip(self.parent.tooltips_dict[language]['const_terms'])
-            self.var_amount_inp.setToolTip(self.parent.tooltips_dict[language]['var_amounts'])
+            if self.tab.data_type == "AC":
+                self.constant_terms_inp.setToolTip(self.parent.tooltips_dict[language]['const_terms'])
+                self.var_amount_inp.setToolTip(self.parent.tooltips_dict[language]['var_amounts'])
         except: 
             pass 
-
 
 
 

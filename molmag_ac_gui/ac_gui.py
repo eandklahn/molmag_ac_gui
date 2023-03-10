@@ -9,7 +9,7 @@ import datetime
 from PyQt5.QtGui import QIcon, QFont
 from PyQt5.QtWidgets import (QMainWindow, QAction, QTabWidget, QStatusBar,
                              QActionGroup)
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import LinearSegmentedColormap, LogNorm
 
 #local imports
 from .__init__ import __version__
@@ -17,6 +17,7 @@ from .dialogs import  AboutDialog
 from .DataTableTab import DataTableTab 
 from .DataAnalysisTab import DataAnalysisTab
 from .DataTreatmentTab import DataTreatmentTab
+from .DataTableRelaxTab import DataTableRelaxTab
 from . import data as pkg_static_data
 
 
@@ -77,6 +78,7 @@ class ACGui(QMainWindow):
         self.temperature_cmap = LinearSegmentedColormap.from_list(
             'temp_colormap',
             json.loads(read_text(pkg_static_data, 'default_colormap.json')))
+
         
         self.tooltips_dict = json.loads(read_text(pkg_static_data,
                                                   'tooltips.json'))
@@ -93,14 +95,16 @@ class ACGui(QMainWindow):
         self.statusBar = QStatusBar() 
         self.setStatusBar(self.statusBar)
 
-        # Make "Data treatment", "Table of data" and "Data analysis" tabs
+        # Make "Data treatment", "Table of raw data", "Table of fitted relaxation times" and "Data analysis" tabs
         self.widget_table = DataTableTab(self)
-        self.data_treat = DataTreatmentTab(self)    
-        self.data_ana = DataAnalysisTab(self)        
+        self.data_treat = DataTreatmentTab(self) 
+        self.tau_table = DataTableRelaxTab(self)
+        self.data_ana = DataAnalysisTab(self)  
 
         #Adds the tabs to the tabwidget 
         self.all_the_tabs.addTab(self.data_treat, "Data treatment")
-        self.all_the_tabs.addTab(self.widget_table, "Table of data")       
+        self.all_the_tabs.addTab(self.widget_table, "Table of raw data")     
+        self.all_the_tabs.addTab(self.tau_table, "Table of fitted relaxation times (AC)")     
         self.all_the_tabs.addTab(self.data_ana, "Data analysis (AC)")   
 
 

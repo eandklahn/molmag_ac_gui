@@ -116,6 +116,7 @@ def diamag_correction(H, H0, Mp, Mpp, m_sample, M_sample, Xd_sample, constant_te
     n_sample = m_sample/M_sample
     
     sum_of_constants = sum(constant_terms)
+    
     sum_of_pairwise = sum([tup[0]*tup[1] for tup in paired_terms])
     
     Mp_molar = (Mp - (sum_of_constants + sum_of_pairwise)*H - Xd_sample*H*n_sample)/n_sample
@@ -127,47 +128,28 @@ def diamag_correction(H, H0, Mp, Mpp, m_sample, M_sample, Xd_sample, constant_te
     return Mp_molar, Mpp_molar, Xp_molar, Xpp_molar
 
 
-def diamag_correction_dc(H0, M, m_sample, M_sample, Xd_sample, constant_terms=[], paired_terms=[]):
+def diamag_correction_dc(H, M, m_sample, M_sample):
     """
     This should be fixed. 
     Calculates a diamagnetic correction of the data in Mp and Mpp and calculates
     the corresponding values of Xp and Xpp
     
     Input
-    H: amplitude of AC field (unit: Oe)
     H0: strength of applied DC field (unit: Oe)
-    Mp: in-phase magnetization (unit: emu)
-    Mpp: out-of-phase magnetization (unit: emu)
+    M: Moment (unit: emu)
     m_sample: sample mass in (unit: mg)
     M_sample: sample molar mass (unit: g/mol)
     Xd_sample: sample diamagnetic susceptibility in emu/(Oe*mol) from DOI: 10.1021/ed085p532
-    constant_terms: terms to be subtracted directly from magnetization (unit: emu/Oe)
-    paired_terms: list of tuples (tup) to be subtracted pairwise from magnetization
-                  The terms must pairwise have the unit emu/Oe when multiplied,
-                  fx. unit of tup[0] is emu/(Oe*<amount>) and unit of tup[1] is <amount>
-    
+
     Output
-    Mp_molar: molar in-phase magnetization, corrected for diamagnetic contribution (unit: emu/mol)
-    Mpp_molar: molar out-of-phase magnetization, corrected for diamagnetic contribution (unit: emu/mol)
-    Xp_molar: molar in-phase susceptibility, corrected for diamagnetic contribution (unit: emu/(Oe*mol))
-    Xpp_molar: molar out-of-phase susceptibility, corrected for diamagnetic contribution (unit: emu/(Oe*mol))
+    M_molar: molar moment (unit: emu/mol)
+    X_molar: molar in-phase susceptibility (unit: emu/(Oe*mol)). I am unsure if this should included 
     """
-    # Old
-    #Xp = (Mp - self.Xd_capsule*H - self.Xd_film*film_mass*H)*molar_mass/(sample_mass*H) - Xd_sample*molar_mass
-    #Xpp = Mpp/(sample_mass*H)*molar_mass
-    
-    # NEW (documentation in docs with eklahn@chem.au.dk)
-    # ---------------------------
-    # Recalculate sample mass into g
+    Xd_sample = 0 #THIS SHOULD BE CHANGED / RECONSIDERED 
     m_sample *= 10**-3
-    # Calculate the molar amount of the sample
     n_sample = m_sample/M_sample
-    
-    sum_of_constants = sum(constant_terms)
-    sum_of_pairwise = sum([tup[0]*tup[1] for tup in paired_terms])
-    
-    M_molar = (M - (sum_of_constants + sum_of_pairwise)*H0 - Xd_sample*H0*n_sample)/n_sample
-    X_molar = M_molar/H0
+    M_molar = M/n_sample
+    X_molar = M_molar/H - Xd_sample
 
     return M_molar, X_molar
 

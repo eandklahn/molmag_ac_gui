@@ -7,6 +7,7 @@ import datetime
 
 #third-party packages
 import numpy as np
+import pandas as pd
 import names
 from matplotlib.colors import to_hex
 from matplotlib._color_data import TABLEAU_COLORS
@@ -14,7 +15,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (QDoubleSpinBox, QFileDialog, QListWidgetItem, 
                              QMessageBox, QWidget, QVBoxLayout, 
-                             QLabel, QHBoxLayout, 
+                             QLabel, QHBoxLayout, QAction, QMenu,
                              QListWidget, QSplitter, QComboBox, QTextEdit)
 from scipy.optimize.minpack import curve_fit
 import scipy.constants as sc
@@ -24,7 +25,7 @@ from .exceptions import NoGuessExistsError
 from .process_ac import (getParameterGuesses, tau_err_RC, fit_relaxation,
                          default_parameters, add_partial_model)
 from .dialogs import (GuessDialog, MagMessage, 
-                      PlottingWindow, SimulationDialog)
+                      PlottingWindow, SimulationDialog, FitResultPlotStatus)
 from .layout import make_checkbox, make_headline, make_btn, make_line, headline_font
 from lmfit import fit_report
 
@@ -61,9 +62,14 @@ class DataAnalysisTab(QSplitter):
         # Adding a button to run a fit
         make_btn(self, "Run fit!", self.make_the_fit, self.options_layout)
 
+        #Add options to remove outliers
+        make_headline(self, "Remove outliers from plotting/fitting", self.options_layout) 
+        self.add_outliers_controls()
+
          #Adding view fitted parameters button 
         make_headline(self, "View information about fits", self.options_layout)        
-        self.add_fit_parameters_view()       
+        self.add_fit_parameters_view()     
+          
 
         # Adding a list to hold information about simulations
         make_headline(self, "Plot/simulate fit", self.options_layout)
@@ -75,6 +81,8 @@ class DataAnalysisTab(QSplitter):
         make_btn(self, "Delete", self.delete_sim, self.sim_btn_layout)
         self.options_layout.addLayout(self.sim_btn_layout)
 
+        #Adding a refresh plotting btn
+        make_btn(self, "Refresh plotting", self.update_plotting, self.options_layout)
 
         #Setting the layout of the options widget
         self.options_wdgt.setLayout(self.options_layout)
@@ -160,7 +168,7 @@ class DataAnalysisTab(QSplitter):
        
         except ValueError: #If fit_result format is different, it will save in original format
             fit_idx = self.choose_fit_combo.currentIndex() 
-            name, res, time = self.fit_history[fit_idx]
+            name, res, time, Tmin, Tmax = self.fit_history[fit_idx]
             self.fit_stat_txt = fit_report(res)
             with open(filename + ext, "w") as f:
                 f.write(self.fit_stat_txt)
@@ -173,7 +181,7 @@ class DataAnalysisTab(QSplitter):
         self.fit_stat_txt = "" 
 
         fit_idx = self.choose_fit_combo.currentIndex() 
-        name, res, time = self.fit_history[fit_idx]
+        name, res, time, Tmin, Tmax = self.fit_history[fit_idx]
         joined_result = "".join(fit_report(res))
         lines = [line.split() for line in joined_result.split("\n")]
         
@@ -251,6 +259,7 @@ class DataAnalysisTab(QSplitter):
         self.simulation_colors = [x for x in TABLEAU_COLORS]
         self.simulation_colors.remove('tab:gray')  
         self.simulation_colors = deque(self.simulation_colors) 
+        self.sim_dialog = None
 
         self.fit_history = list()
 
@@ -297,6 +306,74 @@ class DataAnalysisTab(QSplitter):
         self.options_layout.addLayout(self.temp_horizontal_layout)
 
 
+
+
+
+    def add_outliers_controls(self): 
+        """ Adds controls for the data plotting where one can pick which datapoints
+        and fits to be visualized. """
+        
+        
+        def delete_item():
+            item = self.datapoints_wgt.currentItem()
+            row_index = self.datapoints_wgt.row(item)
+            confirmation = QMessageBox.question(self.datapoints_wgt, "Delete Item", "Are you sure you want to delete this item?",
+                                             QMessageBox.Yes | QMessageBox.No)
+            if confirmation == QMessageBox.Yes:
+                self.datapoints_wgt.takeItem(self.datapoints_wgt.row(item))
+                self.parent.data_treat.fit_result.drop(row_index, inplace = True)
+                
+                #Updates the indicies of the dataframe
+                for i in range(row_index, self.parent.data_treat.fit_result.index.max()): 
+                    self.parent.data_treat.fit_result.index.values[i] = i
+                
+                #Updates the table tab showing relaxation times.
+                self.update_plotting()
+
+
+
+        make_line(self, "Right click on a data point to delete it", self.options_layout)
+        
+        #List of relazation times datapoints
+        self.datapoints_wgt = QListWidget()
+        self.options_layout.addWidget(self.datapoints_wgt)
+    
+        # Create the context menu
+        self.datapoints_wgt.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.datapoints_wgt.customContextMenuRequested.connect(lambda pos: self.show_context_menu(pos))
+        self.context_menu = QMenu(self)
+        self.delete_action = QAction("Delete", self)
+        self.delete_action.triggered.connect(delete_item)
+        self.context_menu.addAction(self.delete_action)
+
+    def show_context_menu(self, pos):
+        self.context_menu.exec_(self.datapoints_wgt.mapToGlobal(pos))
+    
+
+
+    def update_datapoints_table(self):
+        
+        self.datapoints_wgt.clear()
+        df = self.parent.data_treat.fit_result
+        
+        for i in range(len(df)): 
+            row = df.loc[i]
+
+            T = row['Temp']
+            tau = row['Tau']
+
+            item = QListWidgetItem()
+            item.setText('T = {:<6.2f} K, tau = {:<.5f} ms'.format(round(T,2),tau*10**3)) #Text for Fitted Parameters box
+            self.datapoints_wgt.addItem(item)
+        
+        
+    def open_datapoints_dialog(self): 
+        w = OutlierDialog(data=self.parent.data_treat.fit_result)
+        finished_value = w.exec_()
+        if not finished_value:
+            pass
+        else:
+            pass
 
     
     def add_simulations_list(self): 
@@ -351,7 +428,7 @@ class DataAnalysisTab(QSplitter):
         self.used_indices = None
 
 
-    def set_new_t_tau(self, D):
+    def set_new_t_tau(self):
         """
         Uses the array D to set new values for T, tau, and alpha
         Assumes that the first column is temperatures, second column is tau-values
@@ -359,7 +436,8 @@ class DataAnalysisTab(QSplitter):
         If four columns in D: assume third is alpha, fourth is tau_fit_error
             dtau will then be calculated from these values
         """
-        
+        D = self.parent.data_treat.fit_result.values
+
         T = D[:,0]
         tau = D[:,1]
         
@@ -480,6 +558,23 @@ class DataAnalysisTab(QSplitter):
         self.plot_wdgt.ax2.set_xticklabels(tick_f(T_tick_loc))
         self.plot_wdgt.canvas.draw() 
 
+
+    def update_plotting(self): 
+            
+            self.plot_wdgt.clear_canvas()
+            self.plot_wdgt.ax.set_xlabel('1/T ($K^{-1}$)')
+            self.plot_wdgt.ax.set_ylabel(r'$\ln{\tau}$ ($\ln{s}$)')
+            self.set_new_t_tau()
+            self.read_indices_for_used_temps()
+            self.plot_t_tau_on_axes()
+            self.redraw_simulation_lines()
+            self.add_T_axis()         
+            self.update_T_axis()
+
+            self.parent.tau_table.update_table()
+            self.update_datapoints_table()
+
+
     def load_t_tau_data(self):
         """Load 1/T vs. τ data from file generated in data treatment """
 
@@ -494,9 +589,13 @@ class DataAnalysisTab(QSplitter):
             self.reset_analysis_containers()
         
         try:
+            #Need the column names for the dataframe for the tab with relaxation time data. 
+            with open(filename, 'r') as f:
+                column_names = f.readline().strip().split(';')
             D = np.loadtxt(filename,
                            skiprows=1,
                            delimiter=';')
+            
         except (ValueError, OSError) as error_type:
             sys.stdout.flush()
             if error_type == 'ValueError':
@@ -507,16 +606,23 @@ class DataAnalysisTab(QSplitter):
                 pass
         else:
             self.clear_fits() 
-            #self.plot_wdgt.ax.clear() #Clearing data in plotting wdgt 
-            #self.fit_history.clear() 
+             #Clearing data in plotting wdgt 
+            
+            self.parent.data_treat.fit_result = pd.DataFrame(D, columns=column_names)
 
-            self.set_new_t_tau(D)
-            self.read_indices_for_used_temps()
-            self.plot_t_tau_on_axes()
-            self.add_T_axis()         
-            self.update_T_axis()
+            self.update_plotting()
+            #self.set_new_t_tau()
+            #self.read_indices_for_used_temps()
+            #self.plot_t_tau_on_axes()
+            #self.add_T_axis()         
+            #self.update_T_axis()
+            
+            #self.parent.tau_table.update_table()
+            #self.update_datapoints_table()
             
             #self.update_fit_combo()
+
+
 
 
 
@@ -615,6 +721,7 @@ class DataAnalysisTab(QSplitter):
 
     def redraw_simulation_lines(self):
         """ Redraw simulation lines """
+        
 
         for idx in range(self.list_of_simulations.count()):
             item = self.list_of_simulations.item(idx)
@@ -624,8 +731,13 @@ class DataAnalysisTab(QSplitter):
                 data['line']._visible = True
             elif item.checkState() == Qt.Unchecked:
                 data['line']._visible = False
-        
+
         self.plot_wdgt.canvas.draw()
+        
+
+
+
+
 
     def edit_simulation_from_list(self):
         """ Edit simulations/fits from the list"""
@@ -638,13 +750,13 @@ class DataAnalysisTab(QSplitter):
         elif action == 'New':
             params, T_vals, line, color, label = self.load_new_item() 
         
-        sim_dialog = SimulationDialog(parent=self,
+        self.sim_dialog = SimulationDialog(parent=self,
                                       fit_history=self.fit_history,
                                       params = params,
                                       min_max_T=T_vals)
-        finished_value = sim_dialog.exec_()
-        functions = [bool(sim_dialog.params[p].value)
-                     for p in sim_dialog.params if 'use' in p]
+        finished_value = self.sim_dialog.exec_()
+        functions = [bool(self.sim_dialog.params[p].value)
+                     for p in self.sim_dialog.params if 'use' in p]
 
         try:
             assert finished_value
@@ -652,21 +764,21 @@ class DataAnalysisTab(QSplitter):
         except AssertionError:
             pass
         else:
-            params = sim_dialog.params
-            T_vals = sim_dialog.min_max_T
-            if line:
-                self.plot_wdgt.ax.lines.remove(line)
+                    params = self.sim_dialog.params
+        T_vals = self.sim_dialog.min_max_T
+        if line:
+            self.plot_wdgt.ax.lines.remove(line)
                 
-            else:
-                # In this case, there was no old line and therefore also no sim_item
-                """https://stackoverflow.com/questions/55145390/pyqt5-qlistwidget-with-checkboxes-and-drag-and-drop"""
-                sim_item = QListWidgetItem()
-                sim_item.setFlags( sim_item.flags() | Qt.ItemIsUserCheckable )
-                sim_item.setCheckState(Qt.Checked)
+        else:
+            # In this case, there was no old line and therefore also no sim_item
+            """https://stackoverflow.com/questions/55145390/pyqt5-qlistwidget-with-checkboxes-and-drag-and-drop"""
+            sim_item = QListWidgetItem()
+            sim_item.setFlags( sim_item.flags() | Qt.ItemIsUserCheckable )
+            sim_item.setCheckState(Qt.Checked)
                 
-                self.list_of_simulations.addItem(sim_item)
-                color = self.simulation_colors.pop()
-                label = names.get_first_name()
+            self.list_of_simulations.addItem(sim_item)
+            color = self.simulation_colors.pop()
+            label = names.get_first_name()
             
             line = add_partial_model(self.plot_wdgt.fig,
                                      T_vals[0],
@@ -687,6 +799,9 @@ class DataAnalysisTab(QSplitter):
             sim_item.setBackground(QColor(to_hex(color)))
             
             self.redraw_simulation_lines()
+
+
+
 
     def get_action(self): 
         """ Get the action (edit or new) depending on the sender chosen. 
