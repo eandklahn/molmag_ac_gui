@@ -344,91 +344,6 @@ def _O(T, t0, Ueff):
     
     return tau
     
-def _QT_log(T, tQT):
-    """
-    Wrapper function to function _QT that computes the logarithmic
-    relaxation time due to quantum tunneling.
-    
-    See help(_QT) for more
-    """
-    
-    return np.log(_QT(T, tQT))
-
-def _R_log(T, Cr, n):
-    """
-    Wrapper function to function _R that computes the logarithmic
-    relaxation time due to the Raman mechanism.
-    
-    See help(_R) for more
-    """    
-    
-    return np.log(_R(T, Cr, n))
-    
-def _O_log(T, t0, Ueff):
-    """
-    Wrapper function to function _O that computes the logarithmic
-    relaxation time due to the Orbach mechanism.
-    
-    See help(_O) for more
-    """
-    
-    return np.log(_O(T, t0, Ueff))
-    
-def _QTR(T, tQT, Cr, n):
-    """
-    Wrapper function that computes the combined effect of a quantum
-    tunneling mechanism and the Raman mechanism
-    
-    See help(_QT) and help(_R) for more
-    """
-    
-    w = 1/_QT(T, tQT) + 1/_R(T, Cr, n)
-    
-    tau = 1/w
-    
-    return np.log(tau)
-
-def _QTO(T, tQT, t0, Ueff):
-    """
-    Wrapper function that computes the combined effect of a quantum
-    tunneling mechanism and the Orbach mechanism
-    
-    See help(_QT) and help(_O) for more
-    """
-    
-    w = 1/_QT(T, tQT) + 1/_O(T, t0, Ueff)
-    
-    tau = 1/w
-    
-    return np.log(tau)
-    
-def _RO(T, Cr, n, t0, Ueff):
-    """
-    Wrapper function that computes the combined effect of a Raman
-    mechanism and the Orbach mechanism
-    
-    See help(_R) and help(_O) for more
-    """
-    
-    w = 1/_R(T, Cr, n) + 1/_O(T, t0, Ueff)
-    
-    tau = 1/w
-    
-    return np.log(tau)
-
-def _QTRO(T, tQT, Cr, n, t0, Ueff):
-    """
-    Wrapper function that computes the combined effect of a quantum
-    tunneling mechanism, the Raman mechanism and the Orbach mechanism
-    
-    See help(_QT), help(_R) and help(_O) for more
-    """
-    
-    w = 1/_QT(T, tQT) + 1/_R(T, Cr, n) + 1/_O(T, t0, Ueff)
-    
-    tau = 1/w
-    
-    return np.log(tau)
 
 def getStartParams(guess, fitType='QTRO'):
     
@@ -452,27 +367,7 @@ def getStartParams(guess, fitType='QTRO'):
         
     return p0
 
-def getFittingFunction(fitType='QTRO'):
-    
-    f = 0
-    if fitType=='QT':
-        f = _QT_log
-    elif fitType=='R':
-        f = _R_log
-    elif fitType=='O':
-        f = _O_log
-    elif fitType=='QTR':
-        f = _QTR
-    elif fitType=='QTO':
-        f = _QTO
-    elif fitType=='RO':
-        f = _RO
-    elif fitType=='QTRO':
-        f = _QTRO
-    else:
-        print('fitType parameter did not correspond to any correct one')
-        
-    return f
+
     
 def readPopt(popt, pcov, fitType='QTRO'):
 
@@ -519,23 +414,7 @@ def readPFITinOrder(p_fit, plotType='O'):
     
     return p
     
-def addPartialModel(fig, Tmin, Tmax, p_fit, plotType='O', *args, **kwargs):
-    """
-    Avoid using this function
-    """
-    
-    ax = fig.get_axes()[0]
-    
-    f = getFittingFunction(fitType=plotType)
-    p = readPFITinOrder(p_fit, plotType=plotType)
 
-    #Quickfix for zero division when calculating: line = ax.plot(1/T_space ...) 
-    if Tmin == 0: 
-        Tmin = 0.00001 
-    
-    T_space = np.linspace(Tmin, Tmax, 101)
-    line, = ax.plot(1/T_space, np.ones(T_space.shape)*f(T_space, *p), *args, **kwargs)
-    return line
 
 def add_partial_model(fig, Tmin, Tmax, params, N_points=100, *args, **kwargs):
     """
@@ -557,8 +436,8 @@ def general_relaxation(T, tQT, Cr, n, t0, Ueff, useQT, useR, useO):
     tauO = _O(T, t0, Ueff)
     tauR = _R(T, Cr, n)
 
-    rate = useQT*(1/tauQT)+useO*(1/tauO)+useR*(1/tauR)
-    tau = 1/rate
+    rate = useQT*(1/tauQT)+useO*(1/tauO)+useR*(1/tauR) # We can add rates, but not relaxation times.
+    tau = 1/rate 
 
     return tau
 

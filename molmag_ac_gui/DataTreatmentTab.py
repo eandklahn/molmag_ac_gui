@@ -490,12 +490,9 @@ class DataTreatmentTab(QSplitter):
     def try_load_raw_df(self): 
         """ Tries to load the raw dataframe """
                 
-        open_file_dialog = QFileDialog()
-        #filname_info = "('C:/Users/au592011/OneDrive - Aarhus Universitet/Dokumenter/PhDProjekt/CoX2Cltpy/Magnetic data/Ambient_withoutDAC/CoCl2(CltPy)/AC_infield.dat', 'All Files (*)')"
-        
+        open_file_dialog = QFileDialog()        
         filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
         filename = filename_info[0]
-        print("filename_info = ", filename_info)
 
         try:
             # FileNotFoundError and UnicodeDecodeError will be raised here
@@ -650,7 +647,7 @@ class DataTreatmentTab(QSplitter):
                 self.fit_X_or_get_phi_btn.setEnabled(True)
                 self.fit_X_or_get_phi_btn.clicked.disconnect()
                 self.fit_X_or_get_phi_btn.clicked.connect(self.fit_Xp_Xpp_standalone)
-                self.fit_X_or_get_phi_btn.setText("(3) Fit X' and X'' (AC)")
+                self.fit_X_or_get_phi_btn.setText("(3) Fit χ' and χ'' (AC)")
 
                 MagMessage('Diamagnetic correction',
                                'Diamagnetic correction successful!').exec_()
