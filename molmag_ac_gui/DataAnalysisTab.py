@@ -16,7 +16,8 @@ from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (QDoubleSpinBox, QFileDialog, QListWidgetItem, 
                              QMessageBox, QWidget, QVBoxLayout, 
                              QLabel, QHBoxLayout, QAction, QMenu,
-                             QListWidget, QSplitter, QComboBox, QTextEdit)
+                             QListWidget, QSplitter, QComboBox, QTextEdit,
+                             QAbstractItemView)
 from scipy.optimize.minpack import curve_fit
 import scipy.constants as sc
 
@@ -98,7 +99,9 @@ class DataAnalysisTab(QSplitter):
 
     def copy_data_treat_fit(self): 
         """ Copies the fit of tau from the data treatment tab into the data analysis tab. 
-        First it clears all previos fits and lists, make sure the data is not DC data and then imports the fit """
+        First it clears all previos fits and lists. Then it makes sure the data is not DC data, if not it imports the fit 
+        from the Data treatment tab """
+        
         self.clear_fits() 
         try:
             if self.parent.data_treat.data_type == "DC": 
@@ -106,7 +109,9 @@ class DataAnalysisTab(QSplitter):
                 return
         except:
             pass
+
         self.parent.data_treat.copy_fit_to_analysis() 
+
 
     def clear_fits(self): 
         """ Clears all fits, unchecks checkboxes, lists etc."""
@@ -114,12 +119,19 @@ class DataAnalysisTab(QSplitter):
         self.plot_wdgt.ax.clear() 
         self.list_of_simulations.clear()
         self.fit_history.clear() 
+
+        #Now that the fit_history is empty, the fit combobox should be updated (emptied)
         self.update_fit_combo() 
+
+        #Sets all checkboxes to false
         self.orbach_cb.setChecked(False)
         self.raman_cb.setChecked(False)
         self.qt_cb.setChecked(False)
+        #Set temperature values to 0
         self.temp_line[1].setValue(0)
         self.temp_line[3].setValue(0)
+        
+        # I should find out what these below does - are they important?
         self.fit_stat_txt = ""
         self.fit_summary.setText("")
         self.fit_title.setText("")
@@ -174,17 +186,12 @@ class DataAnalysisTab(QSplitter):
                 f.write(self.fit_stat_txt)
             MagMessage("Succes", "File succesfully written").exec_() 
 
+
+
     def set_fit_stat_txt(self, all_significant_digits = False): 
         """ Formatting the result from the fit_report and saving the formatted 
         text in self.fit_stat_txt. Displays them with only few siginificant digits """
-        
-        self.fit_stat_txt = "" 
 
-        fit_idx = self.choose_fit_combo.currentIndex() 
-        name, res, time, Tmin, Tmax = self.fit_history[fit_idx]
-        joined_result = "".join(fit_report(res))
-        lines = [line.split() for line in joined_result.split("\n")]
-        
         def printstring(line, nb_before, nb_float, nb_after,):
             if float(line[nb_float]) > 0.1 and float(line[nb_float]) < 100: 
                 string  = "     " + "{}"*nb_before + "{}" + "{}"*nb_after + "\n"
@@ -195,6 +202,15 @@ class DataAnalysisTab(QSplitter):
             else: 
                 string = "     " + "{} "*nb_before + "{:.2e} " + "{} "*nb_after + "\n"
                 self.fit_stat_txt += string.format(*line[:nb_float],float(line[nb_float]), *line[nb_float+1:])
+
+
+        self.fit_stat_txt = "" 
+
+        fit_idx = self.choose_fit_combo.currentIndex() 
+        _, res, _, _, _ = self.fit_history[fit_idx]
+        joined_result = "".join(fit_report(res))
+        lines = [line.split() for line in joined_result.split("\n")]
+        
         
         for line in lines: 
             if len(line)>=1 and line[0][:2] == "[[":
@@ -233,7 +249,7 @@ class DataAnalysisTab(QSplitter):
 
         self.choose_fit_combo.clear() 
         for fit in self.fit_history: 
-            name, res, time, Tmin, Tmax = fit
+            name, _, time, _, _ = fit
             self.choose_fit_combo.addItem(f'{time}: {name}')
 
     def show_fit_stat(self):
@@ -243,7 +259,7 @@ class DataAnalysisTab(QSplitter):
             return 
         
         fit_idx = self.choose_fit_combo.currentIndex()
-        name, res, time, Tmin, Tmax = self.fit_history[fit_idx]
+        name, res, time, _, _ = self.fit_history[fit_idx]
         title = f'{time}: {name}'
         try: 
             self.set_fit_stat_txt() 
@@ -263,6 +279,7 @@ class DataAnalysisTab(QSplitter):
 
         self.fit_history = list()
 
+        #I am not sure its helpful to use all these, now that we have the dataframe fit_result containing all info
         self.data_T = None
         self.data_tau = None
         self.data_dtau = None
@@ -282,6 +299,8 @@ class DataAnalysisTab(QSplitter):
         self.used_dtau = None
         self.not_used_dtau = None
         
+        self.marked_datapoint = None
+
         self.fitted_params_dialog = None
 
     def add_temp_controls(self): 
@@ -289,16 +308,18 @@ class DataAnalysisTab(QSplitter):
         and adds it to the options layout."""
 
         self.temp_horizontal_layout = QHBoxLayout()
-        self.temp_line = [QLabel('Temperature range in K: ('), QDoubleSpinBox(), QLabel(','),
-                          QDoubleSpinBox(), QLabel(')')]
+        self.temp_line = [QLabel('Temperature range in K: '), QDoubleSpinBox(), QLabel('to'),
+                          QDoubleSpinBox()]
         
         self.temp_line[1].setRange(0,1000)
-        self.temp_line[1].setSingleStep(0.1)
+        self.temp_line[1].setSingleStep(0.5)
         self.temp_line[3].setRange(0,1000)
-        self.temp_line[3].setSingleStep(0.1)
+        self.temp_line[3].setSingleStep(0.5)
 
         self.temp_line[1].editingFinished.connect(self.set_new_temp_ranges)
         self.temp_line[3].editingFinished.connect(self.set_new_temp_ranges)
+
+        #Adds all four widgets from the self.temp_lines
         for w in self.temp_line:
             self.temp_horizontal_layout.addWidget(w)
 
@@ -308,84 +329,103 @@ class DataAnalysisTab(QSplitter):
 
 
 
+    def delete_item(self):
+        """ Used by the add_outliers_controls function.
+        Asks if you want to delete the chosen data point? If yes, it deletes the data point (i.e. the corresponding
+        row in the dataframe). It then updates the indicies in the dataframe (left most "column"), such that no index is missing.
+        It updates the plot accordingly (such that deleted data point is not plotted anymore) """
+        item = self.datapoints_wgt.currentItem()
+        row_index = self.datapoints_wgt.row(item)
+        confirmation = QMessageBox.question(self.datapoints_wgt, "Delete Item", "Are you sure you want to delete this data point?",
+                                        QMessageBox.Yes | QMessageBox.No)
+        if confirmation == QMessageBox.Yes:
+            self.datapoints_wgt.takeItem(self.datapoints_wgt.row(item))
+            self.parent.data_treat.fit_result.drop(row_index, inplace = True)
+    
+            #Updates the indices of the dataframe (now that a row has been deleted)
+            for i in range(row_index, self.parent.data_treat.fit_result.index.max()): 
+                self.parent.data_treat.fit_result.index.values[i] = i
+    
+            #Updates the plot
+            self.update_plotting()
+    
+    def save_item(self):
+        """ Used by the add_outliers_controls function.
+        Saves the selected data point in self.marked_datapoints"""
+        item = self.datapoints_wgt.currentItem()
+        row_index = self.datapoints_wgt.row(item)
+        self.marked_datapoint = self.parent.data_treat.fit_result.values[row_index]
+        #print("self.marked_datapoint = ", self.marked_datapoint)
+        self.update_plotting()
+
+
 
     def add_outliers_controls(self): 
         """ Adds controls for the data plotting where one can pick which datapoints
         and fits to be visualized. """
-        
-        
-        def delete_item():
-            item = self.datapoints_wgt.currentItem()
-            row_index = self.datapoints_wgt.row(item)
-            confirmation = QMessageBox.question(self.datapoints_wgt, "Delete Item", "Are you sure you want to delete this item?",
-                                             QMessageBox.Yes | QMessageBox.No)
-            if confirmation == QMessageBox.Yes:
-                self.datapoints_wgt.takeItem(self.datapoints_wgt.row(item))
-                self.parent.data_treat.fit_result.drop(row_index, inplace = True)
-                
-                #Updates the indicies of the dataframe
-                for i in range(row_index, self.parent.data_treat.fit_result.index.max()): 
-                    self.parent.data_treat.fit_result.index.values[i] = i
-                
-                #Updates the table tab showing relaxation times.
-                self.update_plotting()
+            
 
-
-
+    
         make_line(self, "Right click on a data point to delete it", self.options_layout)
-        
-        #List of relazation times datapoints
+    
+        #List of relaxation time datapoints
         self.datapoints_wgt = QListWidget()
         self.options_layout.addWidget(self.datapoints_wgt)
     
+        self.datapoints_wgt.itemChanged.connect(self.save_item)
+
+       
         # Create the context menu
         self.datapoints_wgt.setContextMenuPolicy(Qt.CustomContextMenu)
         self.datapoints_wgt.customContextMenuRequested.connect(lambda pos: self.show_context_menu(pos))
         self.context_menu = QMenu(self)
         self.delete_action = QAction("Delete", self)
-        self.delete_action.triggered.connect(delete_item)
+        self.delete_action.triggered.connect(self.delete_item)
         self.context_menu.addAction(self.delete_action)
-
-    def show_context_menu(self, pos):
-        self.context_menu.exec_(self.datapoints_wgt.mapToGlobal(pos))
     
+    def show_context_menu(self, pos):
+        item = self.datapoints_wgt.itemAt(pos)
+        if item is not None:
+            self.datapoints_wgt.setCurrentItem(item)
+    
+            # Create the context menu
+            self.context_menu = QMenu(self)
+            self.delete_action = QAction("Delete", self)
+            self.delete_action.triggered.connect(self.delete_item)
+            self.context_menu.addAction(self.delete_action)
 
-
+    
+            self.context_menu.exec_(self.datapoints_wgt.mapToGlobal(pos))
+    
     def update_datapoints_table(self):
-        
+        """ Clears the widget containing all the data points. 
+        Adds all the data points according to tge current the dataframe of relaxation times """
+
         self.datapoints_wgt.clear()
         df = self.parent.data_treat.fit_result
         
         for i in range(len(df)): 
-            row = df.loc[i]
-
-            T = row['Temp']
-            tau = row['Tau']
+            datapoint = df.loc[i]
+            T = datapoint['Temp']
+            tau = datapoint['Tau']
 
             item = QListWidgetItem()
             item.setText('T = {:<6.2f} K, tau = {:<.5f} ms'.format(round(T,2),tau*10**3)) #Text for Fitted Parameters box
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable) #Makes the item checkable
+            item.setCheckState(Qt.Unchecked) #Unchecks item
+
             self.datapoints_wgt.addItem(item)
         
         
-    def open_datapoints_dialog(self): 
-        w = OutlierDialog(data=self.parent.data_treat.fit_result)
-        finished_value = w.exec_()
-        if not finished_value:
-            pass
-        else:
-            pass
 
-    
     def add_simulations_list(self): 
-        """ Makes a QListWidget with all simulations and adds it to the options layout """
+        """ Makes a QListWidget with all simulations and adds it to the options layout 
+        Inspiration (Emil): https://stackoverflow.com/questions/41353653/how-do-i-get-the-checked-items-in-a-qlistview """
 
         self.list_of_simulations = QListWidget()
         self.list_of_simulations.setDragDropMode(self.list_of_simulations.InternalMove)
-        
         self.list_of_simulations.doubleClicked.connect(self.edit_simulation_from_list)
-        """https://stackoverflow.com/questions/41353653/how-do-i-get-the-checked-items-in-a-qlistview"""
         self.list_of_simulations.itemChanged.connect(self.redraw_simulation_lines)
-        
         self.options_layout.addWidget(self.list_of_simulations)
 
 
@@ -406,7 +446,7 @@ class DataAnalysisTab(QSplitter):
 
         self.plot_wdgt = PlottingWindow()
         self.plot_wdgt.ax.set_xlabel('1/T ($K^{-1}$)')
-        self.plot_wdgt.ax.set_ylabel(r'$\ln{\tau}$ ($\ln{s}$)')
+        self.plot_wdgt.ax.set_ylabel(r'$\ln{\tau}$ ($\ln{s}$)') #Maybe this should be ln(τ/s)
         self.addWidget(self.plot_wdgt)
 
 
@@ -425,10 +465,12 @@ class DataAnalysisTab(QSplitter):
         self.used_dtau = None
         self.not_used_dtau = None
         
+        self.marked_datapoint = None
+        
         self.used_indices = None
 
 
-    def set_new_t_tau(self):
+    def read_and_sort_t_tau(self):
         """
         Uses the array D to set new values for T, tau, and alpha
         Assumes that the first column is temperatures, second column is tau-values
@@ -440,34 +482,18 @@ class DataAnalysisTab(QSplitter):
 
         T = D[:,0]
         tau = D[:,1]
+        dtau = D[:,2]
         
         sort_indices = T.argsort()
+
+        #Sorts the data according to the temperature (lowest T is the first data point)
         self.data_T = T[sort_indices]
         self.data_tau = tau[sort_indices]
-        self.data_dtau = None
+        self.data_dtau = dtau[sort_indices]
 
-
-        if D.shape[1]==3 or D.shape[1] == 8: 
-            # Three columns in the array loaded or 8 columns loaded from file
-            # Assume the third columns is error
-            dtau = D[:,2]
-            dtau = dtau[sort_indices]
-            
-        elif D.shape[1]==4:
-            # Four columns in the array loaded, assume the third is alpha
-            # and that the fourth is the fitting error on tau
-            alpha = D[:,2]
-            tau_fit_err = D[:,3]
-            dtau = tau_err_RC(tau, tau_fit_err, alpha)
-            dtau = dtau[sort_indices]
-
-        else:
-            dtau = None
-            
-        self.data_dtau = dtau
 
     def read_indices_for_used_temps(self):
-        """Read the values for the chosen temperature range, and uses their indicies to 
+        """Reads the values for the chosen temperature range, and uses their indicies to 
         update self.used_T, self.used_tau, self.not_used_T and self.not_used_tau  """
         
         min_t = self.temp_line[1].value()
@@ -479,12 +505,12 @@ class DataAnalysisTab(QSplitter):
             self.used_T = self.data_T[self.used_indices]
             self.used_tau = self.data_tau[self.used_indices]
             
-            self.not_used_T = np.delete(self.data_T, self.used_indices)
-            self.not_used_tau = np.delete(self.data_tau, self.used_indices)
+            self.not_used_T = np.delete(self.data_T, self.used_indices) #Deletes used indicies from data_T to save in not used T
+            self.not_used_tau = np.delete(self.data_tau, self.used_indices) #Deletes used indicies from data_T to save in not used T
             
-            if self.data_dtau is not None:
-                self.used_dtau = self.data_dtau[self.used_indices]
-                self.not_used_dtau = np.delete(self.data_dtau, self.used_indices)
+            
+            self.used_dtau = self.data_dtau[self.used_indices]
+            self.not_used_dtau = np.delete(self.data_dtau, self.used_indices)
             
         except (AttributeError, TypeError):
             MagMessage("Error", 'No data have been selected yet!').exec_() 
@@ -492,40 +518,39 @@ class DataAnalysisTab(QSplitter):
     def plot_t_tau_on_axes(self):
         """ Plots 1/T vs. τ in the plotting window. Also adds errorbars if errors on τ are present """
 
-        if self.plotted_data_pointers is not None:
-            for line in self.plotted_data_pointers:
-                line.remove()
         self.plotted_data_pointers = []
         
-        if self.data_dtau is None:
-            used, = self.plot_wdgt.ax.plot(1/self.used_T, np.log(self.used_tau), 'bo', zorder=0.1)
-            not_used, = self.plot_wdgt.ax.plot(1/self.not_used_T, np.log(self.not_used_tau), 'ro', zorder=0.1)
-            self.plotted_data_pointers.append(used)
-            self.plotted_data_pointers.append(not_used)
-        else:
 
-            err_used_point, caplines1, barlinecols1 = self.plot_wdgt.ax.errorbar(1/self.used_T,
-                                                                                np.log(self.used_tau),
-                                                                                yerr=self.used_dtau,
-                                                                                fmt='bo',
-                                                                                ecolor='b',
+
+        #Data points with T within the range, are plotted in blue, the others are plotted in black
+        err_used_point, caplines1, barlinecols1 = self.plot_wdgt.ax.errorbar(1/self.used_T,
+                                                                            np.log(self.used_tau),
+                                                                            yerr=self.used_dtau,
+                                                                            fmt='bo',
+                                                                            ecolor='b',
+                                                                            label='Data',
+                                                                            zorder=0.1)
+        err_not_used_point, caplines2, barlinecols2 = self.plot_wdgt.ax.errorbar(1/self.not_used_T,
+                                                                                np.log(self.not_used_tau),
+                                                                                yerr=self.not_used_dtau,
+                                                                                fmt='ko',
+                                                                                ecolor='k',
                                                                                 label='Data',
                                                                                 zorder=0.1)
-            err_not_used_point, caplines2, barlinecols2 = self.plot_wdgt.ax.errorbar(1/self.not_used_T,
-                                                                                    np.log(self.not_used_tau),
-                                                                                    yerr=self.not_used_dtau,
-                                                                                    fmt='ro',
-                                                                                    ecolor='r',
-                                                                                    label='Data',
-                                                                                    zorder=0.1)
 
                 
+        if self.marked_datapoint is not None: 
+            T, tau = self.marked_datapoint[0:2]
+            self.plot_wdgt.ax.plot(1/T, np.log(tau), 'ro', markersize=5)[0]
+            print("Marked data point =", self.marked_datapoint)
+            #self.plotted_data_pointers.append(self.plot_wdgt.ax.plot(1/T, np.log(tau), 'ro', markersize=10)[0])
 
-            self.plotted_data_pointers.append(err_used_point)
-            self.plotted_data_pointers.append(err_not_used_point)
-            for e in [caplines1, caplines2, barlinecols1, barlinecols2]:
-                for line in e:
-                    self.plotted_data_pointers.append(line)
+
+        self.plotted_data_pointers.append(err_used_point)
+        self.plotted_data_pointers.append(err_not_used_point)
+        for e in [caplines1, caplines2, barlinecols1, barlinecols2]:
+            for line in e:
+                self.plotted_data_pointers.append(line)
         
 
         self.plot_wdgt.canvas.draw()
@@ -564,7 +589,7 @@ class DataAnalysisTab(QSplitter):
             self.plot_wdgt.clear_canvas()
             self.plot_wdgt.ax.set_xlabel('1/T ($K^{-1}$)')
             self.plot_wdgt.ax.set_ylabel(r'$\ln{\tau}$ ($\ln{s}$)')
-            self.set_new_t_tau()
+            self.read_and_sort_t_tau()
             self.read_indices_for_used_temps()
             self.plot_t_tau_on_axes()
             self.redraw_simulation_lines()
@@ -573,6 +598,9 @@ class DataAnalysisTab(QSplitter):
 
             self.parent.tau_table.update_table()
             self.update_datapoints_table()
+            #I am not sure this one should be here.
+            self.marked_datapoint = None 
+
 
 
     def load_t_tau_data(self):
@@ -605,22 +633,11 @@ class DataAnalysisTab(QSplitter):
             elif error_type == 'OSError':
                 pass
         else:
-            self.clear_fits() 
-             #Clearing data in plotting wdgt 
-            
-            self.parent.data_treat.fit_result = pd.DataFrame(D, columns=column_names)
 
+            self.clear_fits() 
+            self.parent.data_treat.fit_result = pd.DataFrame(D, columns=column_names)
             self.update_plotting()
-            #self.set_new_t_tau()
-            #self.read_indices_for_used_temps()
-            #self.plot_t_tau_on_axes()
-            #self.add_T_axis()         
-            #self.update_T_axis()
-            
-            #self.parent.tau_table.update_table()
-            #self.update_datapoints_table()
-            
-            #self.update_fit_combo()
+
 
 
 
@@ -642,6 +659,7 @@ class DataAnalysisTab(QSplitter):
         """ Sets a new temperature range to fit in, when the spin boxes are changed"""
 
         self.read_indices_for_used_temps()
+        #Changes the color of the data points within the range
         if self.data_T is not None:
             self.plot_t_tau_on_axes()
         

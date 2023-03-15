@@ -1078,7 +1078,7 @@ class DataTreatmentTab(QSplitter):
             self.parent.data_ana.update_T_axis() 
 
             self.parent.data_ana.update_datapoints_table()
-        except TypeError:
+        except AttributeError:
             MagMessage("Fitted data does not exist", "Fitted data does not yet exist in the Data Treatment tab").exec_() 
         else: 
             MagMessage("Succes", "Your fit of tau was succesfully copied to the Data Analysis tab").exec_()
