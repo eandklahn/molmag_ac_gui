@@ -67,11 +67,6 @@ class DataAnalysisTab(QSplitter):
         # Adding a button to run a fit
         make_btn(self, "Run fit!", self.make_the_fit, self.options_layout)
 
-         #Adding view fitted parameters button 
-        make_headline(self, "View information about fits", self.options_layout)        
-        self.add_fit_parameters_view()     
-          
-
         # Adding a list to hold information about simulations
         make_headline(self, "Plot/simulate fit", self.options_layout)
         self.add_simulations_list()
@@ -81,6 +76,14 @@ class DataAnalysisTab(QSplitter):
         make_btn(self, "New", self.edit_simulation_from_list, self.sim_btn_layout)
         make_btn(self, "Delete", self.delete_sim, self.sim_btn_layout)
         self.options_layout.addLayout(self.sim_btn_layout)
+
+
+        #Adding view fitted parameters button 
+        #make_headline(self, "View information about fits", self.options_layout)        
+        #self.add_fit_parameters_view()     
+          
+
+
 
         #Adding a refresh plotting btn
         make_btn(self, "Refresh plotting", self.update_plotting, self.options_layout)
@@ -121,7 +124,7 @@ class DataAnalysisTab(QSplitter):
         self.fit_history.clear() 
 
         #Now that the fit_history is empty, the fit combobox should be updated (emptied)
-        self.update_fit_combo() 
+        #self.update_fit_combo() 
 
         #Sets all checkboxes to false
         self.orbach_cb.setChecked(False)
@@ -133,8 +136,8 @@ class DataAnalysisTab(QSplitter):
         
         # I should find out what these below does - are they important?
         self.fit_stat_txt = ""
-        self.fit_summary.setText("")
-        self.fit_title.setText("")
+        #self.fit_summary.setText("")
+        #self.fit_title.setText("")
 
     def add_fit_parameters_view(self): 
         """ Adds fit parameters view, where the user can view information about the
@@ -339,7 +342,7 @@ class DataAnalysisTab(QSplitter):
 
             self.parent.data_treat.fit_result = df
             self.checked_datapoints = None
-            self.update_datapoints_table() 
+            self.update_datapoints_wgt() 
             self.update_plotting() 
         else: 
             MagMessage("Error", "No datapoints to delete").exec_() 
@@ -376,7 +379,7 @@ class DataAnalysisTab(QSplitter):
         make_btn(self, "Delete checked items", self.delete_items, self.options_layout)
     
     
-    def update_datapoints_table(self):
+    def update_datapoints_wgt(self):
         """ Clears the widget containing all the data points. 
         Adds all the data points according to tge current the dataframe of relaxation times """
 
@@ -497,7 +500,7 @@ class DataAnalysisTab(QSplitter):
     def plot_t_tau_on_axes(self):
         """ Plots 1/T vs. τ in the plotting window. Also adds errorbars if errors on τ are present """
 
-        self.plot_wdgt.clear_canvas()
+        #self.plot_wdgt.clear_canvas()
         self.plotted_data_pointers = []
         
 
@@ -574,11 +577,13 @@ class DataAnalysisTab(QSplitter):
             self.read_and_sort_t_tau()
             self.read_indices_for_used_temps()
             self.plot_t_tau_on_axes()
-            self.redraw_simulation_lines()
             self.add_T_axis()         
             self.update_T_axis()
             self.parent.tau_table.update_table()
-            self.update_datapoints_table()
+            self.update_datapoints_wgt()
+            self.redraw_simulation_lines()
+
+
 
 
 
@@ -647,32 +652,30 @@ class DataAnalysisTab(QSplitter):
     def make_the_fit(self):
         """ Makes the fit of 1/T vs. τ"""
 
+        #These are used for making a Magmessage pop-up after fitting.
         window_title = 'Fit aborted'
         msg_text = ''
-        msg_details = ''
             
         try:
-            # This will raise TypeError and IndexError first
-            # to warn that no data was loaded
-            fitwith = self.read_fit_type_cbs()
-            assert fitwith != ''
-            guess = getParameterGuesses(self.used_T, self.used_tau, fitwith)
             
             Tmin = self.temp_line[1].value()
             Tmax = self.temp_line[3].value()
             assert Tmin != Tmax
             assert Tmin < Tmax 
             
+            #Reads the checked fit types and checks if any has been checked.
+            fittypes = self.read_fit_type_cbs()
+            assert fittypes != ''
+
+            #Makes initial guesses of the parameters and opens the dialog, where user input can be used as guesses
+            guess = getParameterGuesses(self.used_T, self.used_tau, fittypes)
             guess_dialog = GuessDialog(self,
                                        guess,
-                                       fitwith)
+                                       fittypes)
             accepted = guess_dialog.exec_()
             if not accepted: raise NoGuessExistsError
             
-            # If both fit and temperature setting are good,
-            # and the GuessDialog was accepted, get the
-            # guess and perform fitting
-            
+
             params = guess_dialog.current_guess
             minimize_res = fit_relaxation(self.used_T, self.used_tau, params)
 
@@ -684,10 +687,10 @@ class DataAnalysisTab(QSplitter):
             - Can't fit only one data point "
         except RuntimeError:
             msg_text = 'This fit cannot be made within the set temperatures'
-        except ValueError as e:
+        except ValueError:
             msg_text = 'No file has been loaded or there might be some other problem. \nTry to choose another temperature setting or change the fit type, \nif you have already loaded a file.'
             #This error trigers sometimes when a bad T-range and fit functions are chosen, i am not sure why.
-        except TypeError as e:
+        except TypeError:
             msg_text = 'No data has been selected'
         except NoGuessExistsError:
             msg_text = 'Made no guess for initial parameters'
@@ -696,30 +699,26 @@ class DataAnalysisTab(QSplitter):
             window_title = 'Fit successful!'
             msg_text = 'Congratulations'
             
-            self.add_to_history(minimize_res, fitwith, Tmin, Tmax)
-            self.update_fit_combo() 
+            self.add_to_history(minimize_res, fittypes, Tmin, Tmax)
+            #self.update_fit_combo() 
         finally:
             msg = MagMessage(window_title, msg_text)
             msg.setIcon(QMessageBox.Information)
             msg.exec_()  
       
     
-    def add_to_history(self, p_fit, perform_this_fit, Tmin, Tmax):
+    def add_to_history(self, res, fittype, Tmin, Tmax):
         """ Adds a fit to the top of the fit history"""
 
         time = datetime.datetime.now()
         time = time.strftime("%d.%m %H:%M:%S")
-
-        if len(self.fit_history)>9:
-            self.fit_history.pop()
-        self.fit_history.insert(0, (perform_this_fit, p_fit, time, Tmin, Tmax))
+        self.fit_history.insert(0, (fittype, res, time, Tmin, Tmax))
 
 
 
 
     def redraw_simulation_lines(self):
         """ Redraw simulation lines """
-        
 
         for idx in range(self.list_of_simulations.count()):
             item = self.list_of_simulations.item(idx)
@@ -733,13 +732,52 @@ class DataAnalysisTab(QSplitter):
         self.plot_wdgt.canvas.draw()
         
 
+    def add_fit_to_list_of_simulations(self, params, T_vals): 
+        """Adds a simulation to the list_of_simulations"""
+
+        sim_item = QListWidgetItem()
+        sim_item.setFlags( sim_item.flags() | Qt.ItemIsUserCheckable )
+        sim_item.setCheckState(Qt.Checked)
+            
+        self.list_of_simulations.addItem(sim_item)
+        color = self.simulation_colors.pop()
+        label = names.get_first_name()
+        
+        line = add_partial_model(self.plot_wdgt.fig,
+                                 T_vals[0],
+                                 T_vals[1],
+                                 params,
+                                 c=color,
+                                 label=label)
+        
+        list_item_data = {'params': params,
+                          'T_vals': T_vals,
+                          'line': line,
+                          'color': color}
+        
+        new_item_text = self.represent_simulation(T_vals, params)
+        
+        sim_item.setData(32, list_item_data)
+        sim_item.setText(new_item_text)
+        sim_item.setBackground(QColor(to_hex(color)))
 
 
+    def load_new_item(self): 
+        """ If new is chosen for the simulation list, the following values are set """
+        
+        params = default_parameters()
+        T_vals = [1,3]
+        line = False
+        label = None
+        color = None
+        if len(self.simulation_colors)<1:
+            self.statusBar.showMessage("ERROR: can't make any more simulations")
+            return
 
+        return params, T_vals, line, color, label 
 
     def edit_simulation_from_list(self):
         """ Edit simulations/fits from the list"""
-
         action = self.get_action() 
 
         if action == 'Edit':
@@ -747,12 +785,17 @@ class DataAnalysisTab(QSplitter):
 
         elif action == 'New':
             params, T_vals, line, color, label = self.load_new_item() 
+
+
+        params, T_vals, line, _, _ = self.set_default_values() 
         
         self.sim_dialog = SimulationDialog(parent=self,
                                       fit_history=self.fit_history,
                                       params = params,
                                       min_max_T=T_vals)
         finished_value = self.sim_dialog.exec_()
+
+        #This contains a True or False for each fitting procedure that is used
         functions = [bool(self.sim_dialog.params[p].value)
                      for p in self.sim_dialog.params if 'use' in p]
 
@@ -762,40 +805,18 @@ class DataAnalysisTab(QSplitter):
         except AssertionError:
             pass
         else:
-                    params = self.sim_dialog.params
+            params = self.sim_dialog.params
         T_vals = self.sim_dialog.min_max_T
-        if line:
+
+        if line: #I dont get this
             self.plot_wdgt.ax.lines.remove(line)
-                
-        else:
-            # In this case, there was no old line and therefore also no sim_item
-            """https://stackoverflow.com/questions/55145390/pyqt5-qlistwidget-with-checkboxes-and-drag-and-drop"""
-            sim_item = QListWidgetItem()
-            sim_item.setFlags( sim_item.flags() | Qt.ItemIsUserCheckable )
-            sim_item.setCheckState(Qt.Checked)
-                
-            self.list_of_simulations.addItem(sim_item)
-            color = self.simulation_colors.pop()
-            label = names.get_first_name()
-            
-            line = add_partial_model(self.plot_wdgt.fig,
-                                     T_vals[0],
-                                     T_vals[1],
-                                     params,
-                                     c=color,
-                                     label=label)
-            
-            list_item_data = {'params': params,
-                              'T_vals': T_vals,
-                              'line': line,
-                              'color': color}
-            
-            new_item_text = self.represent_simulation(T_vals, params)
-            
-            sim_item.setData(32, list_item_data)
-            sim_item.setText(new_item_text)
-            sim_item.setBackground(QColor(to_hex(color)))
-            
+        
+        else: 
+        
+
+            self.add_fit_to_list_of_simulations(params, T_vals) 
+
+
             self.redraw_simulation_lines()
 
 
@@ -838,17 +859,15 @@ class DataAnalysisTab(QSplitter):
             return sim_item, params, T_vals, line, color, label 
 
 
-    def load_new_item(self): 
-        """ If new is chosen for the simulation list, the following values are set """
+    def set_default_values(self): 
+        """ If new is chosen for the simulation list, and no fit is chosen in the 
+        fit_history combobox, these will be the default values. """
         
         params = default_parameters()
         T_vals = [1,3]
         line = False
         label = None
         color = None
-        if len(self.simulation_colors)<1:
-            self.statusBar.showMessage("ERROR: can't make any more simulations")
-            return
 
         return params, T_vals, line, color, label 
     
