@@ -51,6 +51,10 @@ class DataAnalysisTab(QSplitter):
         make_btn(self, "Import current fit from Data Treatment", self.copy_data_treat_fit, self.options_layout)
         make_btn(self, 'Load fitting file generated in Data Treatment', self.load_t_tau_data, self.options_layout)
 
+        #Add options to remove outliers
+        make_headline(self, "Remove outliers from plotting/fitting", self.options_layout) 
+        self.add_outliers_controls() 
+        
         # Adding fit controls with checkboxes
         make_headline(self, "Fitting options", self.options_layout)
         make_line(self, "Choose fit types to include: ", self.options_layout)
@@ -62,10 +66,6 @@ class DataAnalysisTab(QSplitter):
 
         # Adding a button to run a fit
         make_btn(self, "Run fit!", self.make_the_fit, self.options_layout)
-
-        #Add options to remove outliers
-        make_headline(self, "Remove outliers from plotting/fitting", self.options_layout) 
-        self.add_outliers_controls()
 
          #Adding view fitted parameters button 
         make_headline(self, "View information about fits", self.options_layout)        
@@ -299,7 +299,7 @@ class DataAnalysisTab(QSplitter):
         self.used_dtau = None
         self.not_used_dtau = None
         
-        self.marked_datapoint = None
+        self.checked_datapoints = None
 
         self.fitted_params_dialog = None
 
@@ -326,76 +326,55 @@ class DataAnalysisTab(QSplitter):
         self.temp_horizontal_layout.setAlignment(Qt.AlignCenter)
         self.options_layout.addLayout(self.temp_horizontal_layout)
 
-
-
-
-    def delete_item(self):
-        """ Used by the add_outliers_controls function.
-        Asks if you want to delete the chosen data point? If yes, it deletes the data point (i.e. the corresponding
-        row in the dataframe). It then updates the indicies in the dataframe (left most "column"), such that no index is missing.
-        It updates the plot accordingly (such that deleted data point is not plotted anymore) """
-        item = self.datapoints_wgt.currentItem()
-        row_index = self.datapoints_wgt.row(item)
-        confirmation = QMessageBox.question(self.datapoints_wgt, "Delete Item", "Are you sure you want to delete this data point?",
-                                        QMessageBox.Yes | QMessageBox.No)
-        if confirmation == QMessageBox.Yes:
-            self.datapoints_wgt.takeItem(self.datapoints_wgt.row(item))
-            self.parent.data_treat.fit_result.drop(row_index, inplace = True)
     
-            #Updates the indices of the dataframe (now that a row has been deleted)
-            for i in range(row_index, self.parent.data_treat.fit_result.index.max()): 
-                self.parent.data_treat.fit_result.index.values[i] = i
-    
-            #Updates the plot
-            self.update_plotting()
-    
-    def save_item(self):
+
+    def delete_items(self):
+        df = self.parent.data_treat.fit_result
+        if self.checked_datapoints is not None and self.checked_datapoints != []: 
+            for data_point in self.checked_datapoints: 
+                row_index = df[df.eq(data_point).all(1)].index[0]
+                self.datapoints_wgt.takeItem(row_index)
+                df = df.drop(row_index)
+                df = df.reset_index(drop=True)
+
+            self.parent.data_treat.fit_result = df
+            self.checked_datapoints = None
+            self.update_datapoints_table() 
+            self.update_plotting() 
+        else: 
+            MagMessage("Error", "No datapoints to delete").exec_() 
+        
+
+    def save_items(self):
         """ Used by the add_outliers_controls function.
         Saves the selected data point in self.marked_datapoints"""
-        item = self.datapoints_wgt.currentItem()
-        row_index = self.datapoints_wgt.row(item)
-        self.marked_datapoint = self.parent.data_treat.fit_result.values[row_index]
-        #print("self.marked_datapoint = ", self.marked_datapoint)
-        self.update_plotting()
 
+        self.checked_datapoints = []
+        for i in range(self.datapoints_wgt.count()):
+            item = self.datapoints_wgt.item(i)
+            if item.checkState() == Qt.Checked: 
+                row_index =  self.datapoints_wgt.row(item)
+                self.checked_datapoints.append(self.parent.data_treat.fit_result.values[row_index])
+
+        self.plot_t_tau_on_axes()
+
+        
 
 
     def add_outliers_controls(self): 
         """ Adds controls for the data plotting where one can pick which datapoints
         and fits to be visualized. """
-            
+        
+        make_line(self, "Deletion of data points will also remove them from the datatable tab.", self.options_layout)
 
-    
-        make_line(self, "Right click on a data point to delete it", self.options_layout)
-    
-        #List of relaxation time datapoints
+        #Creates a QlistWidget showing all datapoints
         self.datapoints_wgt = QListWidget()
         self.options_layout.addWidget(self.datapoints_wgt)
-    
-        self.datapoints_wgt.itemChanged.connect(self.save_item)
+        self.datapoints_wgt.itemChanged.connect(self.save_items)
 
-       
-        # Create the context menu
-        self.datapoints_wgt.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.datapoints_wgt.customContextMenuRequested.connect(lambda pos: self.show_context_menu(pos))
-        self.context_menu = QMenu(self)
-        self.delete_action = QAction("Delete", self)
-        self.delete_action.triggered.connect(self.delete_item)
-        self.context_menu.addAction(self.delete_action)
+        #Makes a button where all selected items can be deleted
+        make_btn(self, "Delete checked items", self.delete_items, self.options_layout)
     
-    def show_context_menu(self, pos):
-        item = self.datapoints_wgt.itemAt(pos)
-        if item is not None:
-            self.datapoints_wgt.setCurrentItem(item)
-    
-            # Create the context menu
-            self.context_menu = QMenu(self)
-            self.delete_action = QAction("Delete", self)
-            self.delete_action.triggered.connect(self.delete_item)
-            self.context_menu.addAction(self.delete_action)
-
-    
-            self.context_menu.exec_(self.datapoints_wgt.mapToGlobal(pos))
     
     def update_datapoints_table(self):
         """ Clears the widget containing all the data points. 
@@ -411,7 +390,7 @@ class DataAnalysisTab(QSplitter):
 
             item = QListWidgetItem()
             item.setText('T = {:<6.2f} K, tau = {:<.5f} ms'.format(round(T,2),tau*10**3)) #Text for Fitted Parameters box
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable) #Makes the item checkable
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable ) #Makes the item checkable
             item.setCheckState(Qt.Unchecked) #Unchecks item
 
             self.datapoints_wgt.addItem(item)
@@ -518,6 +497,7 @@ class DataAnalysisTab(QSplitter):
     def plot_t_tau_on_axes(self):
         """ Plots 1/T vs. τ in the plotting window. Also adds errorbars if errors on τ are present """
 
+        self.plot_wdgt.clear_canvas()
         self.plotted_data_pointers = []
         
 
@@ -539,11 +519,11 @@ class DataAnalysisTab(QSplitter):
                                                                                 zorder=0.1)
 
                 
-        if self.marked_datapoint is not None: 
-            T, tau = self.marked_datapoint[0:2]
-            self.plot_wdgt.ax.plot(1/T, np.log(tau), 'ro', markersize=5)[0]
-            print("Marked data point =", self.marked_datapoint)
-            #self.plotted_data_pointers.append(self.plot_wdgt.ax.plot(1/T, np.log(tau), 'ro', markersize=10)[0])
+        if self.checked_datapoints is not None and self.checked_datapoints != []: 
+            for datapoint in self.checked_datapoints: 
+
+                T, tau, dtau = datapoint[0:3]
+                self.plot_wdgt.ax.errorbar(1/T, np.log(tau), yerr = dtau, fmt = 'ro', ecolor = 'r', zorder = 0.1)
 
 
         self.plotted_data_pointers.append(err_used_point)
@@ -551,8 +531,10 @@ class DataAnalysisTab(QSplitter):
         for e in [caplines1, caplines2, barlinecols1, barlinecols2]:
             for line in e:
                 self.plotted_data_pointers.append(line)
-        
-
+        self.add_T_axis()
+        self.update_T_axis()
+        self.plot_wdgt.ax.set_xlabel('1/T ($K^{-1}$)')
+        self.plot_wdgt.ax.set_ylabel(r'$\ln{\tau}$ ($\ln{s}$)')
         self.plot_wdgt.canvas.draw()
 
     def add_T_axis(self): 
@@ -595,11 +577,9 @@ class DataAnalysisTab(QSplitter):
             self.redraw_simulation_lines()
             self.add_T_axis()         
             self.update_T_axis()
-
             self.parent.tau_table.update_table()
             self.update_datapoints_table()
-            #I am not sure this one should be here.
-            self.marked_datapoint = None 
+
 
 
 
