@@ -73,7 +73,7 @@ class DataAnalysisTab(QSplitter):
 
         # Adding buttons to control simulation list
         self.sim_btn_layout = QHBoxLayout()
-        make_btn(self, "New", self.edit_simulation_from_list, self.sim_btn_layout)
+        make_btn(self, "New", self.add_sim, self.sim_btn_layout)
         make_btn(self, "Delete", self.delete_sim, self.sim_btn_layout)
         self.options_layout.addLayout(self.sim_btn_layout)
 
@@ -350,7 +350,7 @@ class DataAnalysisTab(QSplitter):
 
     def save_items(self):
         """ Used by the add_outliers_controls function.
-        Saves the selected data point in self.marked_datapoints"""
+        Saves the selected data points in self.checked_datapoints"""
 
         self.checked_datapoints = []
         for i in range(self.datapoints_wgt.count()):
@@ -359,9 +359,13 @@ class DataAnalysisTab(QSplitter):
                 row_index =  self.datapoints_wgt.row(item)
                 self.checked_datapoints.append(self.parent.data_treat.fit_result.values[row_index])
 
-        self.plot_t_tau_on_axes()
+        self.update_datapoint_colors() 
+        #self.plot_t_tau_on_axes()
 
         
+    def update_datapoint_colors(self): 
+        self.plot_t_tau_on_axes() 
+        self.plot_wdgt.canvas.draw()
 
 
     def add_outliers_controls(self): 
@@ -376,7 +380,7 @@ class DataAnalysisTab(QSplitter):
         self.datapoints_wgt.itemChanged.connect(self.save_items)
 
         #Makes a button where all selected items can be deleted
-        make_btn(self, "Delete checked items", self.delete_items, self.options_layout)
+        make_btn(self, "Delete checked data points", self.delete_items, self.options_layout)
     
     
     def update_datapoints_wgt(self):
@@ -406,7 +410,7 @@ class DataAnalysisTab(QSplitter):
 
         self.list_of_simulations = QListWidget()
         self.list_of_simulations.setDragDropMode(self.list_of_simulations.InternalMove)
-        self.list_of_simulations.doubleClicked.connect(self.edit_simulation_from_list)
+        self.list_of_simulations.doubleClicked.connect(self.edit_simulation)
         self.list_of_simulations.itemChanged.connect(self.redraw_simulation_lines)
         self.options_layout.addWidget(self.list_of_simulations)
 
@@ -428,7 +432,7 @@ class DataAnalysisTab(QSplitter):
 
         self.plot_wdgt = PlottingWindow()
         self.plot_wdgt.ax.set_xlabel('1/T ($K^{-1}$)')
-        self.plot_wdgt.ax.set_ylabel(r'$\ln{\tau}$ ($\ln{s}$)') #Maybe this should be ln(τ/s)
+        self.plot_wdgt.ax.set_ylabel(r'$\ln{\tau}/s$') #Maybe this should be ln(τ/s)
         self.addWidget(self.plot_wdgt)
 
 
@@ -447,7 +451,7 @@ class DataAnalysisTab(QSplitter):
         self.used_dtau = None
         self.not_used_dtau = None
         
-        self.marked_datapoint = None
+        self.checked_datapoints = None
         
         self.used_indices = None
 
@@ -503,7 +507,7 @@ class DataAnalysisTab(QSplitter):
         #self.plot_wdgt.clear_canvas()
         self.plotted_data_pointers = []
         
-
+    
 
         #Data points with T within the range, are plotted in blue, the others are plotted in black
         err_used_point, caplines1, barlinecols1 = self.plot_wdgt.ax.errorbar(1/self.used_T,
@@ -522,23 +526,19 @@ class DataAnalysisTab(QSplitter):
                                                                                 zorder=0.1)
 
                 
-        if self.checked_datapoints is not None and self.checked_datapoints != []: 
-            for datapoint in self.checked_datapoints: 
+        #if self.checked_datapoints is not None and self.checked_datapoints != []: 
+        #    for datapoint in self.checked_datapoints: 
 
-                T, tau, dtau = datapoint[0:3]
-                self.plot_wdgt.ax.errorbar(1/T, np.log(tau), yerr = dtau, fmt = 'ro', ecolor = 'r', zorder = 0.1)
+        #        T, tau, dtau = datapoint[0:3]
+        #        self.plot_wdgt.ax.errorbar(1/T, np.log(tau), yerr = dtau, fmt = 'ro', ecolor = 'r', zorder = 0.1)
 
 
-        self.plotted_data_pointers.append(err_used_point)
-        self.plotted_data_pointers.append(err_not_used_point)
-        for e in [caplines1, caplines2, barlinecols1, barlinecols2]:
-            for line in e:
-                self.plotted_data_pointers.append(line)
-        self.add_T_axis()
-        self.update_T_axis()
-        self.plot_wdgt.ax.set_xlabel('1/T ($K^{-1}$)')
-        self.plot_wdgt.ax.set_ylabel(r'$\ln{\tau}$ ($\ln{s}$)')
-        self.plot_wdgt.canvas.draw()
+        #self.plotted_data_pointers.append(err_used_point)
+        #self.plotted_data_pointers.append(err_not_used_point)
+        #for e in [caplines1, caplines2, barlinecols1, barlinecols2]:
+        #    for line in e:
+        #        self.plotted_data_pointers.append(line)
+
 
     def add_T_axis(self): 
         """ Adds Temperature as a second x-axis on top of the 1/T vs. ln(τ) plot """
@@ -569,19 +569,6 @@ class DataAnalysisTab(QSplitter):
         self.plot_wdgt.canvas.draw() 
 
 
-    def update_plotting(self): 
-            
-            self.plot_wdgt.clear_canvas()
-            self.plot_wdgt.ax.set_xlabel('1/T ($K^{-1}$)')
-            self.plot_wdgt.ax.set_ylabel(r'$\ln{\tau}$ ($\ln{s}$)')
-            self.read_and_sort_t_tau()
-            self.read_indices_for_used_temps()
-            self.plot_t_tau_on_axes()
-            self.add_T_axis()         
-            self.update_T_axis()
-            self.parent.tau_table.update_table()
-            self.update_datapoints_wgt()
-            self.redraw_simulation_lines()
 
 
 
@@ -621,7 +608,11 @@ class DataAnalysisTab(QSplitter):
 
             self.clear_fits() 
             self.parent.data_treat.fit_result = pd.DataFrame(D, columns=column_names)
-            self.update_plotting()
+            self.read_and_sort_t_tau()
+            self.read_indices_for_used_temps()
+            self.plot_t_tau_on_axes()
+
+            #self.update_plotting()
 
 
 
@@ -646,7 +637,7 @@ class DataAnalysisTab(QSplitter):
         self.read_indices_for_used_temps()
         #Changes the color of the data points within the range
         if self.data_T is not None:
-            self.plot_t_tau_on_axes()
+            self.update_datapoint_colors() 
         
 
     def make_the_fit(self):
@@ -678,6 +669,8 @@ class DataAnalysisTab(QSplitter):
 
             params = guess_dialog.current_guess
             minimize_res = fit_relaxation(self.used_T, self.used_tau, params)
+            
+
 
         except (AssertionError, IndexError):
             msg_text = "Bad temperature or fit settings \nPossible errors: \n \
@@ -700,6 +693,9 @@ class DataAnalysisTab(QSplitter):
             msg_text = 'Congratulations'
             
             self.add_to_history(minimize_res, fittypes, Tmin, Tmax)
+            
+
+
             #self.update_fit_combo() 
         finally:
             msg = MagMessage(window_title, msg_text)
@@ -723,14 +719,41 @@ class DataAnalysisTab(QSplitter):
         for idx in range(self.list_of_simulations.count()):
             item = self.list_of_simulations.item(idx)
             data = item.data(32)
-            
+            print("item = ", item)
+            print("Is the item checked? ", item.checkState())
             if item.checkState() == Qt.Checked:
-                data['line']._visible = True
+                print("line id:", id(data['line']))
+                data['line'].set_visible(True)
+                print("Yes the item is checked", data['line']._visible)
             elif item.checkState() == Qt.Unchecked:
-                data['line']._visible = False
+                data['line'].set_visible(False)
+                print("No the item is not checked")
 
         self.plot_wdgt.canvas.draw()
+
+    def get_item_txt(self, T_vals, params):
+        """ The string displayed to show information on each fit """
         
+        fs = [p for p in params if 'use' in p]
+        used = [bool(params[p].value) for p in fs]     
+
+        functions_text = ""
+        if used[0]: 
+            functions_text += "Quantum Tunneling, "
+        if used[1]: 
+            functions_text += "Raman, "
+        if used[2]: 
+            functions_text += "Orbach, "
+        
+        functions_text = functions_text[:-2]
+        functions_text += "."
+
+        text = ['Using QT: {}, Raman: {}, Orbach: {}\n'.format(*used),
+                'to plot between {} K and {} K\n'.format(*T_vals)]
+
+        text = ['Processes used for fitting: {}\n'.format(functions_text),
+                'to plot between {} K and {} K\n'.format(*T_vals)]
+        return ''.join(text)
 
     def add_fit_to_list_of_simulations(self, params, T_vals): 
         """Adds a simulation to the list_of_simulations"""
@@ -744,7 +767,7 @@ class DataAnalysisTab(QSplitter):
         label = names.get_first_name()
         
         line = add_partial_model(self.plot_wdgt.fig,
-                                 T_vals[0],
+                                 T_vals[0], 
                                  T_vals[1],
                                  params,
                                  c=color,
@@ -755,12 +778,12 @@ class DataAnalysisTab(QSplitter):
                           'line': line,
                           'color': color}
         
-        new_item_text = self.represent_simulation(T_vals, params)
+        new_item_text = self.get_item_txt(T_vals, params)
         
         sim_item.setData(32, list_item_data)
         sim_item.setText(new_item_text)
         sim_item.setBackground(QColor(to_hex(color)))
-
+        print("Add to list, is it visible?", line._visible)
 
     def load_new_item(self): 
         """ If new is chosen for the simulation list, the following values are set """
@@ -770,72 +793,27 @@ class DataAnalysisTab(QSplitter):
         line = False
         label = None
         color = None
-        if len(self.simulation_colors)<1:
-            self.statusBar.showMessage("ERROR: can't make any more simulations")
-            return
 
         return params, T_vals, line, color, label 
 
-    def edit_simulation_from_list(self):
-        """ Edit simulations/fits from the list"""
-        action = self.get_action() 
 
-        if action == 'Edit':
-            sim_item, params, T_vals, line, color, label  = self.load_chosen_item() 
+    def add_sim(self):
 
-        elif action == 'New':
-            params, T_vals, line, color, label = self.load_new_item() 
-
-
-        params, T_vals, line, _, _ = self.set_default_values() 
+        params, T_vals, line, _, _ = self.load_new_item() 
         
         self.sim_dialog = SimulationDialog(parent=self,
                                       fit_history=self.fit_history,
                                       params = params,
                                       min_max_T=T_vals)
-        finished_value = self.sim_dialog.exec_()
+        self.sim_dialog.exec_()
 
-        #This contains a True or False for each fitting procedure that is used
-        functions = [bool(self.sim_dialog.params[p].value)
-                     for p in self.sim_dialog.params if 'use' in p]
+        self.add_fit_to_list_of_simulations(params, T_vals) 
 
-        try:
-            assert finished_value
-            assert(any(functions))
-        except AssertionError:
-            pass
-        else:
-            params = self.sim_dialog.params
-        T_vals = self.sim_dialog.min_max_T
-
-        if line: #I dont get this
-            self.plot_wdgt.ax.lines.remove(line)
-        
-        else: 
-        
-
-            self.add_fit_to_list_of_simulations(params, T_vals) 
-
-
-            self.redraw_simulation_lines()
+    def edit_simulation(self): 
+        return 
 
 
 
-
-    def get_action(self): 
-        """ Get the action (edit or new) depending on the sender chosen. 
-        Used for edit_simulations_from_list"""
-        try:
-            sender = self.sender().text()
-        except AttributeError:
-            # Sent here because of double-click on QListWidget
-            action = 'Edit'
-        else:
-            if sender == 'Edit':
-                action = 'Edit'
-            elif sender in ('New', '&New'):
-                action = 'New'
-        return action
 
     def load_chosen_item(self): 
         """ Loads the parameters, T_values, line, color and label of the chosen 
@@ -876,27 +854,61 @@ class DataAnalysisTab(QSplitter):
 
         try:
             sim_item = self.list_of_simulations.selectedItems()[0]
-        except IndexError:
-            pass
+        except ValueError as e: 
+            print("Value error in delete sim occoured")
+            print(e)
+        except IndexError: 
+            MagMessage("Error", "No simulation has been selected").exec_() 
+            return 
         else:
             line_pointer = sim_item.data(32)['line']
             line_color = line_pointer._color
             
-            self.plot_wdgt.ax.lines.remove(line_pointer)
-            self.plot_wdgt.canvas.draw()
-            
+            try: 
+                self.plot_wdgt.ax.lines.remove(line_pointer)
+                self.plot_wdgt.canvas.draw()
+            except ValueError as e: 
+                print(e)
+                print("ERROR: probably due to invisible lines cant be deleted.")
+            #Deletes the item from the lsit of simulations
             item_row = self.list_of_simulations.row(sim_item)
             sim_item = self.list_of_simulations.takeItem(item_row)
             
+            #Adds the color back to the list of simulation colors
             self.simulation_colors.append(line_color)
             
             del sim_item
 
-    def represent_simulation(self, T_vals, params):
-        """ The string displayed to show information on each fit """
+            self.redraw_simulation_lines()
+            self.plot_wdgt.canvas.draw() 
+
+
+
+
+    def update_plotting(self): 
+            
+            #self.plot_wdgt.clear_canvas()
+
+            #self.plot_wdgt.ax.set_xlabel('1/T ($K^{-1}$)')
+            #self.plot_wdgt.ax.set_ylabel(r'$\ln{\tau}/s$')
         
-        fs = [p for p in params if 'use' in p]
-        used = [bool(params[p].value) for p in fs]
-        text = ['Using QT: {}, Raman: {}, Orbach: {}\n'.format(*used),
-                'to plot between {} K and {} K\n'.format(*T_vals)]
-        return ''.join(text)
+            #self.read_and_sort_t_tau()
+
+
+            #self.read_indices_for_used_temps()
+            #self.plot_t_tau_on_axes()
+
+            self.redraw_simulation_lines()
+
+
+            
+
+
+
+            #self.parent.tau_table.update_table()
+            #self.update_datapoints_wgt()
+
+            #self.add_T_axis()         
+            #self.update_T_axis()
+
+            self.plot_wdgt.canvas.draw()

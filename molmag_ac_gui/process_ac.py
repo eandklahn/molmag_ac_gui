@@ -113,17 +113,21 @@ def diamag_correction(H, H0, Mp, Mpp, m_sample, M_sample, Xd_sample, constant_te
     # Recalculate sample mass into g
     m_sample *= 10**-3
     # Calculate the molar amount of the sample
+    Htot = H + H0
+    print("Htot = ", Htot)
+
     n_sample = m_sample/M_sample
     
     sum_of_constants = sum(constant_terms)
     
     sum_of_pairwise = sum([tup[0]*tup[1] for tup in paired_terms])
     
-    Mp_molar = (Mp - (sum_of_constants + sum_of_pairwise)*H - Xd_sample*H*n_sample)/n_sample
+    
+    Mp_molar = (Mp - (sum_of_constants + sum_of_pairwise)*Htot - Xd_sample*Htot*n_sample)/n_sample
     Mpp_molar = Mpp/n_sample
     
-    Xp_molar = Mp_molar/H
-    Xpp_molar = Mpp_molar/H
+    Xp_molar = Mp_molar/Htot
+    Xpp_molar = Mpp_molar/Htot
 
     return Mp_molar, Mpp_molar, Xp_molar, Xpp_molar
 
@@ -416,7 +420,7 @@ def readPFITinOrder(p_fit, plotType='O'):
     
 
 
-def add_partial_model(fig, Tmin, Tmax, params, N_points=100, *args, **kwargs):
+def add_partial_model(fig, Tmin, Tmax, params, N_points=1000, *args, **kwargs):
     """
     Reimplementation of addPartialModel that supports the use of
     lmfit.Parameters for setting the function to plot.
@@ -424,6 +428,7 @@ def add_partial_model(fig, Tmin, Tmax, params, N_points=100, *args, **kwargs):
 
     ax = fig.get_axes()[0]
     T = np.linspace(Tmin, Tmax, N_points)
+    #Calculates tau based on the parameters
     tau = relaxation_dataset(params, T)
 
     line, = ax.plot(1/T, np.log(tau), *args, **kwargs)
