@@ -459,10 +459,7 @@ class DataAnalysisTab(QSplitter):
     def read_and_sort_t_tau(self):
         """
         Uses the array D to set new values for T, tau, and alpha
-        Assumes that the first column is temperatures, second column is tau-values
-        If three columns in D: assume the third is dtau
-        If four columns in D: assume third is alpha, fourth is tau_fit_error
-            dtau will then be calculated from these values
+
         """
         D = self.parent.data_treat.fit_result.values
 
@@ -507,7 +504,7 @@ class DataAnalysisTab(QSplitter):
         #self.plot_wdgt.clear_canvas()
         self.plotted_data_pointers = []
         
-    
+        print("dtau = ", self.used_dtau)
 
         #Data points with T within the range, are plotted in blue, the others are plotted in black
         err_used_point, caplines1, barlinecols1 = self.plot_wdgt.ax.errorbar(1/self.used_T,
@@ -525,7 +522,7 @@ class DataAnalysisTab(QSplitter):
                                                                                 label='Data',
                                                                                 zorder=0.1)
 
-                
+        
         #if self.checked_datapoints is not None and self.checked_datapoints != []: 
         #    for datapoint in self.checked_datapoints: 
 
