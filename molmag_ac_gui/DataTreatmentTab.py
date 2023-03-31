@@ -303,11 +303,12 @@ class DataTreatmentTab(QSplitter):
         """ If Xp is in the loaded data, and Mp is not: Mp will be calculated and added to the
         dataframe. If Mp is in the loaded data and Xp is not, Xp will be calculated and added 
         to the dataframe. """
-
+        Htot = self.raw_df['Magnetic Field (Oe)'] + self.raw_df['AC Amplitude (Oe)']
+        
         if ('Xp (emu/Oe)' in self.raw_df.columns and not ('Mp (emu)' in self.raw_df.columns)):
             # Susceptibility exists in the data frame, but magnetisation does not
-            Mp = self.raw_df['Xp (emu/Oe)']*self.raw_df['Magnetic Field (Oe)']
-            Mpp = self.raw_df['Xpp (emu/Oe)']*self.raw_df['Magnetic Field (Oe)']
+            Mp = self.raw_df['Xp (emu/Oe)']*Htot
+            Mpp = self.raw_df['Xpp (emu/Oe)']*Htot
             Xp_idx = self.raw_df.columns.get_loc('Xp (emu/Oe)')
             self.raw_df.insert(Xp_idx, column='Mp (emu)', value=Mp)
             self.raw_df.insert(Xp_idx+1, column='Mpp (emu)', value=Mpp)
@@ -315,8 +316,8 @@ class DataTreatmentTab(QSplitter):
         elif (not 'Xp (emu/Oe)' in self.raw_df.columns and ('Mp (emu)' in self.raw_df.columns)):
             # Magnetisation exists in the data frame, but susceptibility does not
 
-            Xp = self.raw_df['Mp (emu)']/self.raw_df['Magnetic Field (Oe)']
-            Xpp = self.raw_df['Mpp (emu)']/self.raw_df['Magnetic Field (Oe)']
+            Xp = self.raw_df['Mp (emu)']/Htot
+            Xpp = self.raw_df['Mpp (emu)']/Htot
             Mp_idx = self.raw_df.columns.get_loc('Mp (emu)')
             self.raw_df.insert(Mp_idx+2, column='Xp (emu/Oe)', value=Xp)
             self.raw_df.insert(Mp_idx+3, column='Xpp (emu/Oe)', value=Xpp)
@@ -1111,12 +1112,13 @@ class DataTreatmentTab(QSplitter):
             except (ValueError, AssertionError, AttributeError):
                 MagMessage('Error', 'Something wrong in "Sample information"\n').exec_()
             else: 
+                H0 = self.raw_df['AC Amplitude (Oe)']
                 H = self.raw_df['Magnetic Field (Oe)']
                 M = self.raw_df["Moment (emu)"]
                 
                 # Get molar, corrected values from function in process_ac
 
-                M_molar, X_molar = diamag_correction_dc(H, M, m_sample, M_sample)
+                M_molar, X_molar = diamag_correction_dc(H, H0, M, m_sample, M_sample)
 
                 self.insert_molar_values_dc(M_molar, X_molar)
 

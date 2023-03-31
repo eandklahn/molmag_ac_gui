@@ -111,6 +111,8 @@ def diamag_correction(H, H0, Mp, Mpp, m_sample, M_sample, Xd_sample, constant_te
     # NEW (documentation in docs with eklahn@chem.au.dk)
     # ---------------------------
     # Recalculate sample mass into g
+    Htot = H + H0
+    
     m_sample *= 10**-3
     # Calculate the molar amount of the sample
     n_sample = m_sample/M_sample
@@ -119,16 +121,16 @@ def diamag_correction(H, H0, Mp, Mpp, m_sample, M_sample, Xd_sample, constant_te
     
     sum_of_pairwise = sum([tup[0]*tup[1] for tup in paired_terms])
     
-    Mp_molar = (Mp - (sum_of_constants + sum_of_pairwise)*H - Xd_sample*H*n_sample)/n_sample
+    Mp_molar = (Mp - (sum_of_constants + sum_of_pairwise)*Htot - Xd_sample*Htot*n_sample)/n_sample
     Mpp_molar = Mpp/n_sample
     
-    Xp_molar = Mp_molar/H
-    Xpp_molar = Mpp_molar/H
+    Xp_molar = Mp_molar/Htot
+    Xpp_molar = Mpp_molar/Htot
 
     return Mp_molar, Mpp_molar, Xp_molar, Xpp_molar
 
 
-def diamag_correction_dc(H, M, m_sample, M_sample):
+def diamag_correction_dc(H, H0, M, m_sample, M_sample):
     """
     This should be fixed. 
     Calculates a diamagnetic correction of the data in Mp and Mpp and calculates
@@ -145,11 +147,12 @@ def diamag_correction_dc(H, M, m_sample, M_sample):
     M_molar: molar moment (unit: emu/mol)
     X_molar: molar in-phase susceptibility (unit: emu/(Oe*mol)). I am unsure if this should included 
     """
+    Htot = H + H0
     Xd_sample = 0 #THIS SHOULD BE CHANGED / RECONSIDERED 
     m_sample *= 10**-3
     n_sample = m_sample/M_sample
     M_molar = M/n_sample
-    X_molar = M_molar/H - Xd_sample
+    X_molar = M_molar/Htot - Xd_sample
 
     return M_molar, X_molar
 
