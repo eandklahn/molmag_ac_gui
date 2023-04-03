@@ -26,6 +26,8 @@ class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
 
         self.line_edit = make_line(self,"When a file is loaded in the \"Data Treatment\" tab, a table of the loaded data will be shown here", self.layout )
         make_line(self,"To load a new file, go to the \"Data Tretment\" tab and click \"(1) Load datafile\" ", self.layout )
+        make_line(self,"The molar versions of Mp, Mpp, Xp and Xpp (if calculted) are corrected for diamagnetism, while the non-molar quanties are not", self.layout )
+
         self.tableWidget = QTableWidget() 
         self.layout.addWidget(self.tableWidget)
 

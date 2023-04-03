@@ -118,7 +118,6 @@ def diamag_correction(H, H0, Mp, Mpp, m_sample, M_sample, Xd_sample, constant_te
     n_sample = m_sample/M_sample
     
     sum_of_constants = sum(constant_terms)
-    
     sum_of_pairwise = sum([tup[0]*tup[1] for tup in paired_terms])
     
     Mp_molar = (Mp - (sum_of_constants + sum_of_pairwise)*Htot - Xd_sample*Htot*n_sample)/n_sample
@@ -419,7 +418,7 @@ def readPFITinOrder(p_fit, plotType='O'):
     
 
 
-def add_partial_model(fig, Tmin, Tmax, params, N_points=100, *args, **kwargs):
+def add_partial_model(fig, Tmin, Tmax, params, N_points=1000, *args, **kwargs):
     """
     Reimplementation of addPartialModel that supports the use of
     lmfit.Parameters for setting the function to plot.
@@ -427,6 +426,7 @@ def add_partial_model(fig, Tmin, Tmax, params, N_points=100, *args, **kwargs):
 
     ax = fig.get_axes()[0]
     T = np.linspace(Tmin, Tmax, N_points)
+    #Calculates tau based on the parameters
     tau = relaxation_dataset(params, T)
 
     line, = ax.plot(1/T, np.log(tau), *args, **kwargs)

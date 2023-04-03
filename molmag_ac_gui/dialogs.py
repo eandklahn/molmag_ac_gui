@@ -220,7 +220,7 @@ class GuessDialog(QDialog):
     def get_values_from_fit(self):
         
         idx = self.choose_fit_combo.currentIndex()
-        name, res, time, Tmin, Tmax = self.fit_history[idx]
+        _, res, _, _, _ = self.fit_history[idx]
         potential_guess = res.params
         for p in potential_guess:
             current_param = self.current_guess[p]
@@ -232,7 +232,7 @@ class GuessDialog(QDialog):
     def update_fit_combo(self):
 
         for fit in self.fit_history:
-            name, res, time, Tmin, Tmax = fit
+            name, res, time, _, _ = fit
             params = res.params
             repr = f'{time}: {name}'
             L = [p for p in params if not ('use' in p or params[p].vary==False)]

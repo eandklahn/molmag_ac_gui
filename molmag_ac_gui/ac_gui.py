@@ -173,7 +173,7 @@ class ACGui(QMainWindow):
 
         self.menu_bar = self.menuBar()
         self.add_file_menu() 
-        self.add_simulation_menu() 
+        #self.add_simulation_menu() 
         self.add_help_menu()
         
 
