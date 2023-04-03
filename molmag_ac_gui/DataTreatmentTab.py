@@ -6,12 +6,11 @@ from multiprocessing import Pool
 import numpy as np
 import pandas as pd
 import matplotlib as mpl
-from matplotlib import cm
 from matplotlib.colors import to_hex
 import matplotlib.ticker as mticker
 from PyQt5.QtWidgets import (QFileDialog, QFormLayout, QListWidgetItem, QWidget, 
                              QVBoxLayout, QHBoxLayout, QComboBox, QStackedWidget, 
-                             QListWidget, QSplitter, QLabel, QMessageBox)
+                             QListWidget, QSplitter, QMessageBox)
 from PyQt5.QtGui import QColor
 from torch import multiply
 
@@ -906,7 +905,7 @@ class DataTreatmentTab(QSplitter):
             pass 
         else:
             df_to_save = self.fit_result.copy()
-            df_to_save = df_to_save.reindex(columns=['Temp', 'Tau', 'dTau', 'Alpha','ChiS', 'ChiT', 'Residual', 'Tau_Err'])
+            df_to_save = df_to_save.reindex(columns=['Temp', 'Tau', 'dTau', 'Alpha','ChiS', 'ChiT', 'Residual', 'Fitting error on τ'])
             df_to_save.sort_values('Temp', inplace=True)    
             
             name, ext = os.path.splitext(filename)
@@ -1070,16 +1069,12 @@ class DataTreatmentTab(QSplitter):
         """ Copies the fit of tau obtained after fitting χ' and χ'' 
         to the data analysis tab. """
         try:
+            self.parent.data_ana.update_datapoints_wgt() 
+            self.parent.data_ana.update_plotting()
 
-            self.parent.data_ana.set_new_t_tau()
-            self.parent.data_ana.read_indices_for_used_temps()
-            self.parent.data_ana.plot_t_tau_on_axes()
-            self.parent.data_ana.add_T_axis() 
-            self.parent.data_ana.plot_wdgt.reset_axes()
-            self.parent.data_ana.update_T_axis() 
-
-            self.parent.data_ana.update_datapoints_table()
         except AttributeError:
+            MagMessage("Fitted data does not exist", "Fitted data does not yet exist in the Data Treatment tab").exec_() 
+        except TypeError: 
             MagMessage("Fitted data does not exist", "Fitted data does not yet exist in the Data Treatment tab").exec_() 
         else: 
             MagMessage("Succes", "Your fit of tau was succesfully copied to the Data Analysis tab").exec_()
@@ -1113,11 +1108,12 @@ class DataTreatmentTab(QSplitter):
                 MagMessage('Error', 'Something wrong in "Sample information"\n').exec_()
             else: 
                 H = self.raw_df['Magnetic Field (Oe)']
+                H0 = self.raw_df['AC Amplitude (Oe)']
                 M = self.raw_df["Moment (emu)"]
                 
                 # Get molar, corrected values from function in process_ac
 
-                M_molar, X_molar = diamag_correction_dc(H, M, m_sample, M_sample)
+                M_molar, X_molar = diamag_correction_dc(H, H0, M, m_sample, M_sample)
 
                 self.insert_molar_values_dc(M_molar, X_molar)
 

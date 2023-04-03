@@ -15,18 +15,16 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (QDoubleSpinBox, QFileDialog, QListWidgetItem, 
                              QMessageBox, QWidget, QVBoxLayout, 
-                             QLabel, QHBoxLayout, QAction, QMenu,
-                             QListWidget, QSplitter, QComboBox, QTextEdit,
-                             QAbstractItemView)
-from scipy.optimize.minpack import curve_fit
-import scipy.constants as sc
+                             QLabel, QHBoxLayout,
+                             QListWidget, QSplitter, QComboBox, QTextEdit, QDialog)
+
 
 #local imports
 from .exceptions import NoGuessExistsError
-from .process_ac import (getParameterGuesses, tau_err_RC, fit_relaxation,
+from .process_ac import (getParameterGuesses, fit_relaxation,
                          default_parameters, add_partial_model)
 from .dialogs import (GuessDialog, MagMessage, 
-                      PlottingWindow, SimulationDialog, FitResultPlotStatus)
+                      PlottingWindow, SimulationDialog)
 from .layout import make_checkbox, make_headline, make_btn, make_line, headline_font
 from lmfit import fit_report
 
@@ -48,8 +46,8 @@ class DataAnalysisTab(QSplitter):
         
         # Adding data loading options
         make_headline(self, "Data loading options", self.options_layout)
-        make_btn(self, "Import current fit from Data Treatment", self.copy_data_treat_fit, self.options_layout)
-        make_btn(self, 'Load fitting file generated in Data Treatment', self.load_t_tau_data, self.options_layout)
+
+        self.add_data_load_options() 
 
         #Add options to remove outliers
         make_headline(self, "Remove outliers from plotting/fitting", self.options_layout) 
@@ -57,11 +55,9 @@ class DataAnalysisTab(QSplitter):
         
         # Adding fit controls with checkboxes
         make_headline(self, "Fitting options", self.options_layout)
-        make_line(self, "Choose fit types to include: ", self.options_layout)
         self.add_fit_type_checkboxes()
 
         # Adding temperature controls
-        make_line(self, "Choose temperature range to fit in: ", self.options_layout)
         self.add_temp_controls() 
 
         # Adding a button to run a fit
@@ -79,14 +75,9 @@ class DataAnalysisTab(QSplitter):
 
 
         #Adding view fitted parameters button 
-        #make_headline(self, "View information about fits", self.options_layout)        
-        #self.add_fit_parameters_view()     
+        make_headline(self, "View information about fits", self.options_layout)        
+        self.add_fit_parameters_view()     
           
-
-
-
-        #Adding a refresh plotting btn
-        make_btn(self, "Refresh plotting", self.update_plotting, self.options_layout)
 
         #Setting the layout of the options widget
         self.options_wdgt.setLayout(self.options_layout)
@@ -100,6 +91,14 @@ class DataAnalysisTab(QSplitter):
         self.setSizes([1,1200])
         self.show() 
 
+
+    def add_data_load_options(self): 
+        data_load_layout = QHBoxLayout() 
+        make_btn(self, "Import current fit (Data Treatment)", self.copy_data_treat_fit, data_load_layout)
+        make_btn(self, 'Load fit from file', self.load_t_tau_data, data_load_layout)
+        self.options_layout.addLayout(data_load_layout)
+
+
     def copy_data_treat_fit(self): 
         """ Copies the fit of tau from the data treatment tab into the data analysis tab. 
         First it clears all previos fits and lists. Then it makes sure the data is not DC data, if not it imports the fit 
@@ -112,6 +111,7 @@ class DataAnalysisTab(QSplitter):
                 return
         except:
             pass
+        
 
         self.parent.data_treat.copy_fit_to_analysis() 
 
@@ -124,7 +124,7 @@ class DataAnalysisTab(QSplitter):
         self.fit_history.clear() 
 
         #Now that the fit_history is empty, the fit combobox should be updated (emptied)
-        #self.update_fit_combo() 
+        self.update_fit_combo() 
 
         #Sets all checkboxes to false
         self.orbach_cb.setChecked(False)
@@ -311,8 +311,9 @@ class DataAnalysisTab(QSplitter):
         and adds it to the options layout."""
 
         self.temp_horizontal_layout = QHBoxLayout()
-        self.temp_line = [QLabel('Temperature range in K: '), QDoubleSpinBox(), QLabel('to'),
-                          QDoubleSpinBox()]
+
+        self.temp_line = [QLabel('Temperature range: '), QDoubleSpinBox(), QLabel('K to'),
+                          QDoubleSpinBox(), QLabel('K')]
         
         self.temp_line[1].setRange(0,1000)
         self.temp_line[1].setSingleStep(0.5)
@@ -323,10 +324,9 @@ class DataAnalysisTab(QSplitter):
         self.temp_line[3].editingFinished.connect(self.set_new_temp_ranges)
 
         #Adds all four widgets from the self.temp_lines
-        for w in self.temp_line:
-            self.temp_horizontal_layout.addWidget(w)
+        for wgt in self.temp_line:
+            self.temp_horizontal_layout.addWidget(wgt)
 
-        self.temp_horizontal_layout.setAlignment(Qt.AlignCenter)
         self.options_layout.addLayout(self.temp_horizontal_layout)
 
     
@@ -359,9 +359,8 @@ class DataAnalysisTab(QSplitter):
                 row_index =  self.datapoints_wgt.row(item)
                 self.checked_datapoints.append(self.parent.data_treat.fit_result.values[row_index])
 
-        self.update_datapoint_colors() 
-        #self.plot_t_tau_on_axes()
-
+        self.update_plotting()
+        
         
     def update_datapoint_colors(self): 
         self.plot_t_tau_on_axes() 
@@ -411,7 +410,7 @@ class DataAnalysisTab(QSplitter):
         self.list_of_simulations = QListWidget()
         self.list_of_simulations.setDragDropMode(self.list_of_simulations.InternalMove)
         self.list_of_simulations.doubleClicked.connect(self.edit_simulation)
-        self.list_of_simulations.itemChanged.connect(self.redraw_simulation_lines)
+        self.list_of_simulations.itemChanged.connect(self.update_plotting)
         self.options_layout.addWidget(self.list_of_simulations)
 
 
@@ -419,11 +418,11 @@ class DataAnalysisTab(QSplitter):
         """Creates a QHBoxLayout with three checkboxes and adds these to the options layout"""
 
         self.fit_type_layout = QHBoxLayout() 
-        
+        make_line(self, "Fit types: ", self.fit_type_layout)
         self.orbach_cb = make_checkbox(self, self.read_fit_type_cbs, self.fit_type_layout, "Orbach") 
         self.raman_cb = make_checkbox(self, self.read_fit_type_cbs, self.fit_type_layout, "Raman") 
         self.qt_cb = make_checkbox(self, self.read_fit_type_cbs, self.fit_type_layout, "QT")
-        
+    
         self.options_layout.addLayout(self.fit_type_layout)
 
 
@@ -501,11 +500,9 @@ class DataAnalysisTab(QSplitter):
     def plot_t_tau_on_axes(self):
         """ Plots 1/T vs. τ in the plotting window. Also adds errorbars if errors on τ are present """
 
-        #self.plot_wdgt.clear_canvas()
+        self.plot_wdgt.clear_canvas()
         self.plotted_data_pointers = []
         
-        print("dtau = ", self.used_dtau)
-
         #Data points with T within the range, are plotted in blue, the others are plotted in black
         err_used_point, caplines1, barlinecols1 = self.plot_wdgt.ax.errorbar(1/self.used_T,
                                                                             np.log(self.used_tau),
@@ -523,18 +520,18 @@ class DataAnalysisTab(QSplitter):
                                                                                 zorder=0.1)
 
         
-        #if self.checked_datapoints is not None and self.checked_datapoints != []: 
-        #    for datapoint in self.checked_datapoints: 
+        if self.checked_datapoints is not None and self.checked_datapoints != []: 
+            for datapoint in self.checked_datapoints: 
+                T, tau, dtau = datapoint[0:3]
+                self.plot_wdgt.ax.errorbar(1/T, np.log(tau), yerr = dtau, fmt = 'ro', ecolor = 'r', zorder = 0.1)
 
-        #        T, tau, dtau = datapoint[0:3]
-        #        self.plot_wdgt.ax.errorbar(1/T, np.log(tau), yerr = dtau, fmt = 'ro', ecolor = 'r', zorder = 0.1)
 
+        self.plotted_data_pointers.append(err_used_point)
+        self.plotted_data_pointers.append(err_not_used_point)
+        for e in [caplines1, caplines2, barlinecols1, barlinecols2]:
+            for line in e:
+                self.plotted_data_pointers.append(line)
 
-        #self.plotted_data_pointers.append(err_used_point)
-        #self.plotted_data_pointers.append(err_not_used_point)
-        #for e in [caplines1, caplines2, barlinecols1, barlinecols2]:
-        #    for line in e:
-        #        self.plotted_data_pointers.append(line)
 
 
     def add_T_axis(self): 
@@ -604,12 +601,9 @@ class DataAnalysisTab(QSplitter):
         else:
 
             self.clear_fits() 
-            self.parent.data_treat.fit_result = pd.DataFrame(D, columns=column_names)
-            self.read_and_sort_t_tau()
-            self.read_indices_for_used_temps()
-            self.plot_t_tau_on_axes()
-
-            #self.update_plotting()
+            self.parent.data_treat.fit_result = pd.DataFrame(D, columns=column_names)            
+            self.update_datapoints_wgt() 
+            self.update_plotting()
 
 
 
@@ -666,7 +660,6 @@ class DataAnalysisTab(QSplitter):
 
             params = guess_dialog.current_guess
             minimize_res = fit_relaxation(self.used_T, self.used_tau, params)
-            
 
 
         except (AssertionError, IndexError):
@@ -690,10 +683,8 @@ class DataAnalysisTab(QSplitter):
             msg_text = 'Congratulations'
             
             self.add_to_history(minimize_res, fittypes, Tmin, Tmax)
-            
-
-
-            #self.update_fit_combo() 
+        
+            self.update_fit_combo() 
         finally:
             msg = MagMessage(window_title, msg_text)
             msg.setIcon(QMessageBox.Information)
@@ -716,15 +707,16 @@ class DataAnalysisTab(QSplitter):
         for idx in range(self.list_of_simulations.count()):
             item = self.list_of_simulations.item(idx)
             data = item.data(32)
-            print("item = ", item)
-            print("Is the item checked? ", item.checkState())
             if item.checkState() == Qt.Checked:
-                print("line id:", id(data['line']))
                 data['line'].set_visible(True)
-                print("Yes the item is checked", data['line']._visible)
             elif item.checkState() == Qt.Unchecked:
                 data['line'].set_visible(False)
-                print("No the item is not checked")
+
+        for idx in range(self.list_of_simulations.count()):
+            item = self.list_of_simulations.item(idx)
+            data = item.data(32)
+            if data['line'].get_visible():
+                self.plot_wdgt.ax.plot(data['line'].get_xdata(), data['line'].get_ydata(), color = data['color'])
 
         self.plot_wdgt.canvas.draw()
 
@@ -745,11 +737,9 @@ class DataAnalysisTab(QSplitter):
         functions_text = functions_text[:-2]
         functions_text += "."
 
-        text = ['Using QT: {}, Raman: {}, Orbach: {}\n'.format(*used),
-                'to plot between {} K and {} K\n'.format(*T_vals)]
 
         text = ['Processes used for fitting: {}\n'.format(functions_text),
-                'to plot between {} K and {} K\n'.format(*T_vals)]
+                'Temperature range: {} K and {} K\n'.format(*T_vals)]
         return ''.join(text)
 
     def add_fit_to_list_of_simulations(self, params, T_vals): 
@@ -780,7 +770,6 @@ class DataAnalysisTab(QSplitter):
         sim_item.setData(32, list_item_data)
         sim_item.setText(new_item_text)
         sim_item.setBackground(QColor(to_hex(color)))
-        print("Add to list, is it visible?", line._visible)
 
     def load_new_item(self): 
         """ If new is chosen for the simulation list, the following values are set """
@@ -802,9 +791,11 @@ class DataAnalysisTab(QSplitter):
                                       fit_history=self.fit_history,
                                       params = params,
                                       min_max_T=T_vals)
-        self.sim_dialog.exec_()
 
-        self.add_fit_to_list_of_simulations(params, T_vals) 
+        if self.sim_dialog.exec_() == QDialog.Accepted:
+            self.add_fit_to_list_of_simulations(params, T_vals) 
+            self.update_fit_combo()
+
 
     def edit_simulation(self): 
         return 
@@ -876,36 +867,29 @@ class DataAnalysisTab(QSplitter):
             
             del sim_item
 
-            self.redraw_simulation_lines()
-            self.plot_wdgt.canvas.draw() 
+            self.update_plotting() 
+            self.update_datapoints_wgt()
+
 
 
 
 
     def update_plotting(self): 
             
-            #self.plot_wdgt.clear_canvas()
-
-            #self.plot_wdgt.ax.set_xlabel('1/T ($K^{-1}$)')
-            #self.plot_wdgt.ax.set_ylabel(r'$\ln{\tau}/s$')
-        
-            #self.read_and_sort_t_tau()
+            self.plot_wdgt.clear_canvas()
 
 
-            #self.read_indices_for_used_temps()
-            #self.plot_t_tau_on_axes()
+            self.read_and_sort_t_tau()
+            self.read_indices_for_used_temps()
 
+            self.plot_t_tau_on_axes()
             self.redraw_simulation_lines()
 
+            self.parent.tau_table.update_table()
 
-            
-
-
-
-            #self.parent.tau_table.update_table()
-            #self.update_datapoints_wgt()
-
-            #self.add_T_axis()         
-            #self.update_T_axis()
-
+            self.add_T_axis()         
+            self.update_T_axis()
+            self.plot_wdgt.ax.set_xlabel('1/T ($K^{-1}$)')
+            self.plot_wdgt.ax.set_ylabel(r'$\ln{\tau}/s$')
+        
             self.plot_wdgt.canvas.draw()
