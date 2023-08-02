@@ -4,10 +4,11 @@ import os
 #third-party packages
 from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QPushButton, 
                              QVBoxLayout, QWidget, QTableWidget,
-                             QTableWidgetItem, QMessageBox)
+                             QTableWidgetItem, QMessageBox, QApplication)
 
 from molmag_ac_gui.layout import make_btn, make_line 
 from .dialogs import MagMessage
+from PyQt5.QtCore import Qt
 
 class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx i stedet for self.widget.layout
 
@@ -54,6 +55,8 @@ class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
     def update_table(self, ask_question = True):
         """ Updates the table """
 
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+
         try: 
             df = self.parent.data_treat.raw_df
         except: 
@@ -91,6 +94,7 @@ class DataTableTab(QWidget): #First tab er Qwidget, så nu er det self.layout fx
         
         self.line_edit.setText("The data is loaded from the file located at: {}".format(self.parent.current_file))
 
+        QApplication.restoreOverrideCursor()
 
     def findnewpath(self): 
         #Finds path for datatable csv or excel file to be stored

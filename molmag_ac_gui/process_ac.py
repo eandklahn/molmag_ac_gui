@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 import scipy.constants as sc
+import warnings
+
 
 from lmfit import Parameters, minimize as lmfit_minimize
 
@@ -64,7 +66,8 @@ def tau_err_RC(tau, tau_fit_err, alpha, n_sigma=1):
     Calculates the error in tau from the alpha-values as
     defined by Reta and Chilton (RC) in https://doi.org/10.1039/C9CP04301B
     """
-    
+    warnings.filterwarnings("ignore", category=RuntimeWarning, module=__name__)
+
     dtau = []
     for idx in range(len(tau)):
         t = tau[idx]
@@ -246,7 +249,7 @@ def getParameterGuesses(T, tau, fitwith):
     Output
     guess: dictionary of guessed parameters for the relaxation functions
     """
-    
+    scale = 10**20
     kB = sc.Boltzmann
     
     # Obtaining points for Orbach parameter guessing
@@ -254,9 +257,9 @@ def getParameterGuesses(T, tau, fitwith):
     T2, tau2 = T[-2], tau[-2]
     
     # Calculating guesses for Orbach parameters
-    Ueff_guess = kB*np.log(tau2/tau1)/(1/T2-1/T1)
+    Ueff_by_kB_guess = np.log(tau2/tau1)/(1/T2-1/T1)
     
-    t0_guess = tau1*np.exp(-Ueff_guess/(kB*T1))
+    t0_scaled_guess = tau1*10**7*np.exp(-Ueff_by_kB_guess/T1)
     
     # Obtaining points for Raman parameter guessing
     l = len(T)
@@ -283,11 +286,11 @@ def getParameterGuesses(T, tau, fitwith):
     params.add(name='tQT', value=tQT_guess, vary='QT' in fitwith, min=0)
     params.add(name='Cr', value=Cr_guess, vary='R' in fitwith, min=0)
     params.add(name='n', value=n_guess, vary='R' in fitwith, min=0, max=20)
-    params.add(name='t0', value=t0_guess, vary='O' in fitwith, min=0)
-    params.add(name='Ueff', value=Ueff_guess, vary='O' in fitwith)
-    params.add(name='useQT', value=int('QT' in fitwith), vary=False)
-    params.add(name='useR', value=int('R' in fitwith), vary=False)
-    params.add(name='useO', value=int('O' in fitwith), vary=False)
+    params.add(name='t0_scaled', value=t0_scaled_guess, vary='O' in fitwith,  min = 10**-3, max = 10**6)
+    params.add(name='Ueff_by_kB', value=Ueff_by_kB_guess, vary='O' in fitwith, min = 10**-3, max = 1000)
+    params.add(name='useQT', value=int('QT' in fitwith), vary=False, min = 0, max = 1)
+    params.add(name='useR', value=int('R' in fitwith), vary=False, min = 0, max = 1)
+    params.add(name='useO', value=int('O' in fitwith), vary=False, min = 0, max = 1)
 
     return params
 
@@ -326,7 +329,7 @@ def _R(T, Cr, n):
 
     return tau
     
-def _O(T, t0, Ueff):
+def _O(T, t0_scaled, Ueff_by_kB):
     """
     Basic function for calculating relaxation time due to
     the Orbach relaxation mechanism
@@ -341,8 +344,8 @@ def _O(T, t0, Ueff):
     """
     
     kB = sc.Boltzmann
-    
-    tau = t0*np.exp(Ueff/(kB*T))
+
+    tau = t0_scaled*10**-7*np.exp(Ueff_by_kB/T)
     
     return tau
     
@@ -355,7 +358,7 @@ def getStartParams(guess, fitType='QTRO'):
     elif fitType=='R':
         p0 = [guess['Cr'], guess['n']]
     elif fitType=='O':
-        p0 = [guess['t0'], guess['Ueff']]
+        p0 = [guess['t0_scaled'], guess['Ueff_by_kB']]
     elif fitType=='QTR':
         p0 = getStartParams(guess, fitType='QT') + getStartParams(guess, fitType='R')
     elif fitType=='QTO':
@@ -363,7 +366,7 @@ def getStartParams(guess, fitType='QTRO'):
     elif fitType=='RO':
         p0 = getStartParams(guess, fitType='R') + getStartParams(guess, fitType='O')
     elif fitType=='QTRO':
-        p0 = [guess['tQT'], guess['Cr'], guess['n'], guess['t0'], guess['Ueff']]
+        p0 = [guess['tQT'], guess['Cr'], guess['n'], guess['t0_scaled'], guess['Ueff_by_kB']]
     else:
         print('fitType parameter did not correspond to any correct one')
         
@@ -379,15 +382,15 @@ def readPopt(popt, pcov, fitType='QTRO'):
     elif fitType=='R':
         p_fit = {'params': popt, 'sigmas': np.sqrt(np.diag(pcov)), 'quantities': ['Cr', 'n']}
     elif fitType=='O':
-        p_fit = {'params': popt, 'sigmas': np.sqrt(np.diag(pcov)), 'quantities': ['t0', 'Ueff']}
+        p_fit = {'params': popt, 'sigmas': np.sqrt(np.diag(pcov)), 'quantities': ['t0_scaled', 'Ueff_by_kB']}
     elif fitType=='QTR':
         p_fit = {'params': popt, 'sigmas': np.sqrt(np.diag(pcov)), 'quantities': ['tQT', 'Cr', 'n']}
     elif fitType=='QTO':
-        p_fit = {'params': popt, 'sigmas': np.sqrt(np.diag(pcov)), 'quantities': ['tQT', 't0', 'Ueff']}
+        p_fit = {'params': popt, 'sigmas': np.sqrt(np.diag(pcov)), 'quantities': ['tQT', 't0_scaled', 'Ueff_by_kB']}
     elif fitType=='RO':
-        p_fit = {'params': popt, 'sigmas': np.sqrt(np.diag(pcov)), 'quantities': ['Cr', 'n', 't0', 'Ueff']}
+        p_fit = {'params': popt, 'sigmas': np.sqrt(np.diag(pcov)), 'quantities': ['Cr', 'n', 't0_scaled', 'Ueff_by_kB']}
     elif fitType=='QTRO':
-        p_fit = {'params': popt, 'sigmas': np.sqrt(np.diag(pcov)), 'quantities': ['tQT', 'Cr', 'n', 't0', 'Ueff']}
+        p_fit = {'params': popt, 'sigmas': np.sqrt(np.diag(pcov)), 'quantities': ['tQT', 'Cr', 'n', 't0_scaled', 'Ueff_by_kB']}
     
     return p_fit
 
@@ -402,9 +405,9 @@ def readPFITinOrder(p_fit, plotType='O'):
         n = p_fit['params'][p_fit['quantities'].index('n')]
         p = [Cr, n]
     elif plotType=='O':
-        t0 = p_fit['params'][p_fit['quantities'].index('t0')]
-        Ueff = p_fit['params'][p_fit['quantities'].index('Ueff')]
-        p = [t0, Ueff]
+        t0_scaled = p_fit['params'][p_fit['quantities'].index('t0_scaled')]
+        Ueff_by_kB = p_fit['params'][p_fit['quantities'].index('Ueff_by_kB')]
+        p = [t0_scaled, Ueff_by_kB]
     elif plotType=='QTR':
         p = readPFITinOrder(p_fit, plotType='QT') + readPFITinOrder(p_fit, plotType='R')
     elif plotType=='QTO':
@@ -433,10 +436,10 @@ def add_partial_model(fig, Tmin, Tmax, params, N_points=1000, *args, **kwargs):
 
     return line
 
-def general_relaxation(T, tQT, Cr, n, t0, Ueff, useQT, useR, useO):
+def general_relaxation(T, tQT, Cr, n, t0_scaled, Ueff_by_kB, useQT, useR, useO):
 
     tauQT = _QT(T, tQT)
-    tauO = _O(T, t0, Ueff)
+    tauO = _O(T, t0_scaled, Ueff_by_kB)
     tauR = _R(T, Cr, n)
 
     rate = useQT*(1/tauQT)+useO*(1/tauO)+useR*(1/tauR) # We can add rates, but not relaxation times.
@@ -445,25 +448,26 @@ def general_relaxation(T, tQT, Cr, n, t0, Ueff, useQT, useR, useO):
     return tau
 
 def relaxation_dataset(params, T):
-    
     tQT = params['tQT']
     Cr = params['Cr']
     n = params['n']
-    t0 = params['t0']
-    Ueff = params['Ueff']
+    t0_scaled = params['t0_scaled']
+    Ueff_by_kB = params['Ueff_by_kB']
     useQT = params['useQT']
     useR = params['useR']
     useO = params['useO']
 
-    return general_relaxation(T, tQT, Cr, n, t0, Ueff, useQT, useR, useO)
+    return general_relaxation(T, tQT, Cr, n, t0_scaled, Ueff_by_kB, useQT, useR, useO)
 
 def fit_relaxation(T, tau_data, params):
 
     def objective(params, T, tau_data):
+        
+        residual = tau_data - relaxation_dataset(params, T)
+        return residual 
+    
 
-        return tau_data - relaxation_dataset(params, T)
-
-    out = lmfit_minimize(objective, params, args=(T, tau_data))
+    out = lmfit_minimize(objective, params, args=(T, tau_data), method = 'least_squares')
 
     return out
 
@@ -473,10 +477,10 @@ def default_parameters(fitwith='QTRO'):
     params.add(name='tQT', value=1e-4, vary='QT' in fitwith, min=0)
     params.add(name='Cr', value=1e-3, vary='R' in fitwith, min=0)
     params.add(name='n', value=4, vary='R' in fitwith, min=0, max=20)
-    params.add(name='t0', value=1e-7, vary='O' in fitwith, min=0)
-    params.add(name='Ueff', value=50*kB, vary='O' in fitwith)
-    params.add(name='useQT', value=int('QT' in fitwith), vary=False)
-    params.add(name='useR', value=int('R' in fitwith), vary=False)
-    params.add(name='useO', value=int('O' in fitwith), vary=False)
+    params.add(name='t0_scaled', value=1, vary='O' in fitwith, min=0.001, max = 10000)
+    params.add(name='Ueff_by_kB', value=50, vary='O' in fitwith, min = 10**-3, max = 1000)
+    params.add(name='useQT', value=int('QT' in fitwith), vary=False, min = 0, max = 1)
+    params.add(name='useR', value=int('R' in fitwith), vary=False, min = 0, max = 1)
+    params.add(name='useO', value=int('O' in fitwith), vary=False, min = 0, max = 1)
 
     return params

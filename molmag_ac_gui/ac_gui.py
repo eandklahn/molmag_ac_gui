@@ -7,8 +7,7 @@ import datetime
 
 #third-party packages
 from PyQt5.QtGui import QIcon, QFont
-from PyQt5.QtWidgets import (QMainWindow, QAction, QTabWidget, QStatusBar,
-                             QActionGroup)
+from PyQt5.QtWidgets import (QMainWindow, QAction, QTabWidget, QActionGroup)
 from matplotlib.colors import LinearSegmentedColormap, LogNorm
 
 #local imports
@@ -91,9 +90,6 @@ class ACGui(QMainWindow):
         self.all_the_tabs = QTabWidget() 
         self.setCentralWidget(self.all_the_tabs)
 
-        # Make a statusbar in the buttom of the window
-        self.statusBar = QStatusBar() 
-        self.setStatusBar(self.statusBar)
 
         # Make "Data treatment", "Table of raw data", "Table of fitted relaxation times" and "Data analysis" tabs
         self.widget_table = DataTableTab(self)

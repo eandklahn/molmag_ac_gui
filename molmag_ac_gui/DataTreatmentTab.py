@@ -10,9 +10,10 @@ from matplotlib.colors import to_hex
 import matplotlib.ticker as mticker
 from PyQt5.QtWidgets import (QFileDialog, QFormLayout, QListWidgetItem, QWidget, 
                              QVBoxLayout, QHBoxLayout, QComboBox, QStackedWidget, 
-                             QListWidget, QSplitter, QMessageBox)
+                             QListWidget, QSplitter, QMessageBox, QApplication)
 from PyQt5.QtGui import QColor
 from torch import multiply
+from PyQt5.QtCore import Qt
 
 from molmag_ac_gui.layout import make_btn, make_checkbox, make_headline, make_line, headline_font
 
@@ -90,6 +91,7 @@ class DataTreatmentTab(QSplitter):
         self.data_type = None
         self.T_legend = None
         self.DC_data_types = []
+        self.data_to_export = None
     
 
 
@@ -474,7 +476,7 @@ class DataTreatmentTab(QSplitter):
                 if len(self.XT_subsets) > 0:
                     self.DC_data_types.append("XT")
                 
-                  
+                print("Data types = ", self.DC_data_types)
             #Clearing all the plots
             self.clear_plots() 
 
@@ -488,14 +490,16 @@ class DataTreatmentTab(QSplitter):
             #Updates "Table of Data" tab with the loaded data
             self.parent.widget_table.update_table()
 
+        QApplication.restoreOverrideCursor()
 
     def try_load_raw_df(self): 
         """ Tries to load the raw dataframe """
                 
-        open_file_dialog = QFileDialog()        
-        filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
-        filename = filename_info[0]
-
+        #open_file_dialog = QFileDialog()        
+        #filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        #print("filename_info = ", filename_info[0])
+        filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/20180209DyII_1000.dat"
+        QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             # FileNotFoundError and UnicodeDecodeError will be raised here
             pre_header, potential_header, potential_df = read_ppms_file(filename)
@@ -523,6 +527,7 @@ class DataTreatmentTab(QSplitter):
             self.raw_df_header = potential_header
             self.pre_header = pre_header
             return True
+        
         return False
 
 
@@ -562,7 +567,7 @@ class DataTreatmentTab(QSplitter):
                         subsets.append((i,"HM"))
                         
             
-            old_time = current_time #Should be on the same indent as if
+            old_time = current_time 
         split_idx.append(self.raw_df.shape[0])
 
         # Makes subsets of the dataframes 
@@ -572,8 +577,13 @@ class DataTreatmentTab(QSplitter):
             if (split_idx[i], "XT") in subsets: 
                 self.XT_subsets.append(self.raw_df.iloc[split_idx[i]:split_idx[i+1]])
         
+
+
+
         self.set_HM_temps() 
         self.set_XT_Hs()
+
+
 
 
     def set_HM_temps(self): 
@@ -615,6 +625,8 @@ class DataTreatmentTab(QSplitter):
             pass
         
         else:
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+
             try:
                 m_sample = float(self.m_sample)
                 M_sample = float(self.M_sample)
@@ -651,8 +663,7 @@ class DataTreatmentTab(QSplitter):
                 self.fit_X_or_get_phi_btn.clicked.connect(self.fit_Xp_Xpp_standalone)
                 self.fit_X_or_get_phi_btn.setText("(3) Fit χ' and χ'' (AC)")
 
-                MagMessage('Diamagnetic correction',
-                               'Diamagnetic correction successful!').exec_()
+            QApplication.restoreOverrideCursor()
 
 
     def insert_molar_values(self, Mp_molar, Mpp_molar, Xp_molar, Xpp_molar): 
@@ -754,13 +765,13 @@ class DataTreatmentTab(QSplitter):
                                               self.fit_result['ChiT'].iloc[row],
                                               self.fit_result['Tau'].iloc[row],
                                               self.fit_result['Alpha'].iloc[row])
-                                                     
-                    self.fit_plot.ax.plot(x_data_for_plotting,
-                                                fcn_y(freq_for_plotting,
+                    y_data_for_plotting = fcn_y(freq_for_plotting,
                                                       self.fit_result['ChiS'].iloc[row],
                                                       self.fit_result['ChiT'].iloc[row],
                                                       self.fit_result['Tau'].iloc[row],
-                                                      self.fit_result['Alpha'].iloc[row]),
+                                                      self.fit_result['Alpha'].iloc[row])                                
+                    self.fit_plot.ax.plot(x_data_for_plotting,
+                                                y_data_for_plotting,
                                                 c=rgb)
                 else: #Corresponds to elif plot_type == 'Freq VS Xpp' or plot_type == 'Freq VS Xp':
                     freq_for_plotting = np.logspace(np.log10(min(x_data)), np.log10(max(x_data)), fit_resolution) #Logspace to equally distribute the points on a log-scale
@@ -822,6 +833,9 @@ class DataTreatmentTab(QSplitter):
         It also updates the raw_fit_list, plots the fitted data, plots the 3D data
         and updates the xy comboboxes with the new variables introduced in the dataframe """
         
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+
+
         if 'Fitted (AC)' not in [self.plot_type_combo.itemText(i) for i in range(self.plot_type_combo.count())]: 
             self.plot_type_combo.addItems(['Fitted (AC)', '3D plot (AC)'])
         if "Cole-Cole" not in [self.fit_combo.itemText(i) for i in range(self.fit_combo.count())]: 
@@ -839,7 +853,6 @@ class DataTreatmentTab(QSplitter):
             MagMessage('Error','Calculate diamagnetic correction first\nto make Xp_m and Xpp_m for the algorithm').exec_()
         
         else:
-            self.parent.statusBar.showMessage('Running fit...')
 
             self.get_fit_result() 
             self.update_raw_fit_list()
@@ -851,7 +864,6 @@ class DataTreatmentTab(QSplitter):
             #and enables the copy fit into data analysis and copy fit to file buttons. 
             set_idx = self.plot_type_combo.findText('Fitted')
             self.plot_type_combo.setCurrentIndex(set_idx)
-            self.parent.statusBar.showMessage("Fit of X' and X'' complete")
             self.save_fit_X_btn.setEnabled(True)
             self.copy_fit_btn.setEnabled(True)
             self.headline.setText("Fitted/3D plot: Hide/show raw data and fitted lines")
@@ -859,6 +871,8 @@ class DataTreatmentTab(QSplitter):
             self.plot_type_combo.setCurrentIndex(combo_idx)
 
             self.parent.tau_table.update_table()
+        
+        QApplication.restoreOverrideCursor()
 
     def get_fit_result(self): 
         """ Fits χ' and χ'' and returns the result of the fit. Fit result contains T, 
@@ -1070,15 +1084,20 @@ class DataTreatmentTab(QSplitter):
     def copy_fit_to_analysis(self):
         """ Copies the fit of tau obtained after fitting χ' and χ'' 
         to the data analysis tab. """
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+
         try:
             self.parent.data_ana.update_datapoints_wgt() 
             self.parent.data_ana.update_plotting()
 
         except AttributeError:
+            QApplication.restoreOverrideCursor() 
             MagMessage("Fitted data does not exist", "Fitted data does not yet exist in the Data Treatment tab").exec_() 
         except TypeError: 
+            QApplication.restoreOverrideCursor() 
             MagMessage("Fitted data does not exist", "Fitted data does not yet exist in the Data Treatment tab").exec_() 
         else: 
+            QApplication.restoreOverrideCursor() 
             MagMessage("Succes", "Your fit of tau was succesfully copied to the Data Analysis tab").exec_()
 
     def make_diamag_correction_calculation_dc(self):
@@ -1109,9 +1128,8 @@ class DataTreatmentTab(QSplitter):
             except (ValueError, AssertionError, AttributeError):
                 MagMessage('Error', 'Something wrong in "Sample information"\n').exec_()
             else: 
-                H0 = self.raw_df['AC Amplitude (Oe)']
                 H = self.raw_df['Magnetic Field (Oe)']
-                H0 = self.raw_df['AC Amplitude (Oe)']
+                H0  = self.raw_df.get('AC Amplitude (Oe)', pd.Series([0]*len(self.raw_df)))
                 M = self.raw_df["Moment (emu)"]
                 
                 # Get molar, corrected values from function in process_ac

@@ -15,7 +15,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (QDoubleSpinBox, QFileDialog, QListWidgetItem, 
                              QMessageBox, QWidget, QVBoxLayout, 
-                             QLabel, QHBoxLayout,
+                             QLabel, QHBoxLayout, QApplication,
                              QListWidget, QSplitter, QComboBox, QTextEdit, QDialog)
 
 
@@ -94,7 +94,7 @@ class DataAnalysisTab(QSplitter):
 
     def add_data_load_options(self): 
         data_load_layout = QHBoxLayout() 
-        make_btn(self, "Import current fit (Data Treatment)", self.copy_data_treat_fit, data_load_layout)
+        make_btn(self, "Import current fit", self.copy_data_treat_fit, data_load_layout)
         make_btn(self, 'Load fit from file', self.load_t_tau_data, data_load_layout)
         self.options_layout.addLayout(data_load_layout)
 
@@ -103,7 +103,6 @@ class DataAnalysisTab(QSplitter):
         """ Copies the fit of tau from the data treatment tab into the data analysis tab. 
         First it clears all previos fits and lists. Then it makes sure the data is not DC data, if not it imports the fit 
         from the Data treatment tab """
-        
         self.clear_fits() 
         try:
             if self.parent.data_treat.data_type == "DC": 
@@ -113,7 +112,8 @@ class DataAnalysisTab(QSplitter):
             pass
         
 
-        self.parent.data_treat.copy_fit_to_analysis() 
+        self.parent.data_treat.copy_fit_to_analysis()
+        
 
 
     def clear_fits(self): 
@@ -332,6 +332,7 @@ class DataAnalysisTab(QSplitter):
     
 
     def delete_items(self):
+        QApplication.setOverrideCursor(Qt.WaitCursor)
         df = self.parent.data_treat.fit_result
         if self.checked_datapoints is not None and self.checked_datapoints != []: 
             for data_point in self.checked_datapoints: 
@@ -344,8 +345,11 @@ class DataAnalysisTab(QSplitter):
             self.checked_datapoints = None
             self.update_datapoints_wgt() 
             self.update_plotting() 
+            QApplication.restoreOverrideCursor()
         else: 
+            QApplication.restoreOverrideCursor()
             MagMessage("Error", "No datapoints to delete").exec_() 
+        
         
 
     def save_items(self):
@@ -553,8 +557,13 @@ class DataAnalysisTab(QSplitter):
         labels = self.plot_wdgt.ax.get_xticks()
         T_tick_loc = np.array(labels[1:-1])
 
-        def tick_f(X): 
-            V = 1/X 
+        def tick_f(X):
+            V = []
+            for x in X:
+                if x != 0:
+                    V.append(1 / x)
+                else:
+                    V.append(0)  # Or any other appropriate value for handling division by zero
             return ["%.2f" % z for z in V]
 
         self.plot_wdgt.ax2.set_xlim(self.plot_wdgt.ax.get_xlim())
@@ -633,7 +642,7 @@ class DataAnalysisTab(QSplitter):
 
     def make_the_fit(self):
         """ Makes the fit of 1/T vs. τ"""
-
+        
         #These are used for making a Magmessage pop-up after fitting.
         window_title = 'Fit aborted'
         msg_text = ''
@@ -659,8 +668,9 @@ class DataAnalysisTab(QSplitter):
             
 
             params = guess_dialog.current_guess
-            minimize_res = fit_relaxation(self.used_T, self.used_tau, params)
+            QApplication.setOverrideCursor(Qt.WaitCursor)
 
+            minimize_res = fit_relaxation(self.used_T, self.used_tau, params)
 
         except (AssertionError, IndexError):
             msg_text = "Bad temperature or fit settings \nPossible errors: \n \
@@ -670,8 +680,8 @@ class DataAnalysisTab(QSplitter):
             - Can't fit only one data point "
         except RuntimeError:
             msg_text = 'This fit cannot be made within the set temperatures'
-        except ValueError:
-            msg_text = 'No file has been loaded or there might be some other problem. \nTry to choose another temperature setting or change the fit type, \nif you have already loaded a file.'
+        #except ValueError:
+            #msg_text = 'No file has been loaded or there might be some other problem. \nTry to choose another temperature setting or change the fit type, \nif you have already loaded a file.'
             #This error trigers sometimes when a bad T-range and fit functions are chosen, i am not sure why.
         except TypeError:
             msg_text = 'No data has been selected'
@@ -686,10 +696,16 @@ class DataAnalysisTab(QSplitter):
         
             self.update_fit_combo() 
         finally:
+            QApplication.restoreOverrideCursor()
             msg = MagMessage(window_title, msg_text)
             msg.setIcon(QMessageBox.Information)
             msg.exec_()  
-      
+            if msg_text == 'Congratulations': 
+                reply = QMessageBox.question(self, "New simulation obtained!", "Do you want to add the simulation to the plot?",
+                                     QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Yes)
+                if reply == QMessageBox.Yes:
+                    self.add_sim()
+        
     
     def add_to_history(self, res, fittype, Tmin, Tmax):
         """ Adds a fit to the top of the fit history"""
@@ -857,7 +873,7 @@ class DataAnalysisTab(QSplitter):
                 self.plot_wdgt.canvas.draw()
             except ValueError as e: 
                 print(e)
-                print("ERROR: probably due to invisible lines cant be deleted.")
+                print("Error: probably due to invisible lines cant be deleted.")
             #Deletes the item from the lsit of simulations
             item_row = self.list_of_simulations.row(sim_item)
             sim_item = self.list_of_simulations.takeItem(item_row)

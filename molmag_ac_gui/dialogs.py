@@ -22,6 +22,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvas, NavigationToolbar2Q
 
 from .process_ac import default_parameters
 from .layout import make_headline, headline_font, make_btn
+import pandas as pd 
 
 #set constants
 kB = sc.Boltzmann
@@ -74,6 +75,7 @@ class PlottingWindow(QWidget):
             self.reset_axes_btn.clicked.connect(self.reset_axes)
             self.tool_lo.addWidget(self.reset_axes_btn)
         
+
         self.layout.addLayout(self.tool_lo)
         self.setLayout(self.layout)
     
@@ -121,6 +123,7 @@ class PlottingWindow(QWidget):
             self.ax.set_ylim(new_y[0]-0.05*(new_y[1]-new_y[0]),new_y[1]+0.05*(new_y[1]-new_y[0]))
             
             self.canvas.draw()
+
 
 class GuessDialog(QDialog):
 
@@ -733,8 +736,9 @@ class SampleInformation(QDialog):
 
     def load_sample_data(self):
 
-        filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
-        filename = filename_info[0]
+        #filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        #print("Filenameinfo[0] = ", filename_info[0])
+        filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/dbm_sample_data.dat"
         try:
             f = open(filename, 'r')
             d = f.readlines()
