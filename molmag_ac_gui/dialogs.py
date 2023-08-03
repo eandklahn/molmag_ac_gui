@@ -736,9 +736,10 @@ class SampleInformation(QDialog):
 
     def load_sample_data(self):
 
-        #filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        filename = filename_info[0]
         #print("Filenameinfo[0] = ", filename_info[0])
-        filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/dbm_sample_data.dat"
+        #filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/dbm_sample_data.dat"
         try:
             f = open(filename, 'r')
             d = f.readlines()

@@ -168,6 +168,13 @@ class DataAnalysisTab(QSplitter):
 
         name = QFileDialog.getSaveFileName(self, 'Save File')
         filename = name[0]
+
+        additional_notes = "Notes on the printed fit statistics:\n Parameters that are fixed, are not used in the fitting. \n \
+Their contributions to tau are basically multiplied by 0 (using the useQT, useR etc. parameters) \n \
+t0 has been scaled by a factor of 10^7, such that t0_scaled = t0*10^7.\n \
+Ueff is scaled by kB, such that Ueff_by_kB = Ueff/kB.\n \
+This is ensure more stable fitting by having similar magnitudes of parameters.\n\n"
+
         name, ext = os.path.splitext(filename)
         if ext == '':
             ext = '.txt'
@@ -175,6 +182,7 @@ class DataAnalysisTab(QSplitter):
         try: 
             self.set_fit_stat_txt(all_significant_digits=True) 
             with open(filename + ext, "w") as f:
+                f.write(additional_notes)
                 f.write(self.fit_stat_txt)
             MagMessage("Succes", "File succesfully written").exec_() 
        
@@ -186,6 +194,7 @@ class DataAnalysisTab(QSplitter):
             name, res, time, Tmin, Tmax = self.fit_history[fit_idx]
             self.fit_stat_txt = fit_report(res)
             with open(filename + ext, "w") as f:
+                f.write(additional_notes)
                 f.write(self.fit_stat_txt)
             MagMessage("Succes", "File succesfully written").exec_() 
 
@@ -680,9 +689,8 @@ class DataAnalysisTab(QSplitter):
             - Can't fit only one data point "
         except RuntimeError:
             msg_text = 'This fit cannot be made within the set temperatures'
-        #except ValueError:
-            #msg_text = 'No file has been loaded or there might be some other problem. \nTry to choose another temperature setting or change the fit type, \nif you have already loaded a file.'
-            #This error trigers sometimes when a bad T-range and fit functions are chosen, i am not sure why.
+        except ValueError:
+            msg_text = 'No file has been loaded or there might be some other problem. \nTry to choose another temperature setting or change the fit type, \nif you have already loaded a file.'
         except TypeError:
             msg_text = 'No data has been selected'
         except NoGuessExistsError:
@@ -868,12 +876,6 @@ class DataAnalysisTab(QSplitter):
             line_pointer = sim_item.data(32)['line']
             line_color = line_pointer._color
             
-            try: 
-                self.plot_wdgt.ax.lines.remove(line_pointer)
-                self.plot_wdgt.canvas.draw()
-            except ValueError as e: 
-                print(e)
-                print("Error: probably due to invisible lines cant be deleted.")
             #Deletes the item from the lsit of simulations
             item_row = self.list_of_simulations.row(sim_item)
             sim_item = self.list_of_simulations.takeItem(item_row)

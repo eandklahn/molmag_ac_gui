@@ -462,9 +462,8 @@ def relaxation_dataset(params, T):
 def fit_relaxation(T, tau_data, params):
 
     def objective(params, T, tau_data):
-        
-        residual = tau_data - relaxation_dataset(params, T)
-        return residual 
+        residual = np.log(tau_data) - np.log(relaxation_dataset(params, T))
+        return residual
     
 
     out = lmfit_minimize(objective, params, args=(T, tau_data), method = 'least_squares')

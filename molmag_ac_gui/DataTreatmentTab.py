@@ -495,10 +495,10 @@ class DataTreatmentTab(QSplitter):
     def try_load_raw_df(self): 
         """ Tries to load the raw dataframe """
                 
-        #open_file_dialog = QFileDialog()        
-        #filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
-        #print("filename_info = ", filename_info[0])
-        filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/20180209DyII_1000.dat"
+        open_file_dialog = QFileDialog()        
+        filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        filename = filename_info[0]
+        #filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/20180209DyII_1000.dat"
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             # FileNotFoundError and UnicodeDecodeError will be raised here
