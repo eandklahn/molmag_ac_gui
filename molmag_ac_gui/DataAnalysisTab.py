@@ -435,7 +435,7 @@ This is ensure more stable fitting by having similar magnitudes of parameters.\n
         self.orbach_cb = make_checkbox(self, self.read_fit_type_cbs, self.fit_type_layout, "Orbach") 
         self.raman_cb = make_checkbox(self, self.read_fit_type_cbs, self.fit_type_layout, "Raman") 
         self.qt_cb = make_checkbox(self, self.read_fit_type_cbs, self.fit_type_layout, "QT")
-    
+        self.direct_cb = make_checkbox(self, self.read_fit_type_cbs, self.fit_type_layout, "Direct")
         self.options_layout.addLayout(self.fit_type_layout)
 
 
@@ -591,7 +591,9 @@ This is ensure more stable fitting by having similar magnitudes of parameters.\n
         """Load 1/T vs. τ data from file generated in data treatment """
 
         filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        #print("filename = ", filename_info[0])
         filename = filename_info[0]
+        #filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/fakefit.dat"
           
         self.last_loaded_file = os.path.split(filename)[0]
         
@@ -633,9 +635,11 @@ This is ensure more stable fitting by having similar magnitudes of parameters.\n
         included in the fitting). Depends on what is chosen in the comboboxes """
     
         list_of_checked = []
+        if self.direct_cb.isChecked(): list_of_checked.append('D')
         if self.qt_cb.isChecked(): list_of_checked.append('QT')
         if self.raman_cb.isChecked(): list_of_checked.append('R')
         if self.orbach_cb.isChecked(): list_of_checked.append('O')
+
         fitToMake = ''.join(list_of_checked)
         
         return fitToMake

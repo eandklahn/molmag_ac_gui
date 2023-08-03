@@ -133,7 +133,6 @@ class GuessDialog(QDialog):
                  fitwith):
         
         super(GuessDialog, self).__init__()
-        
         self.setWindowTitle('Initial fit parameters')
         self.validator = QDoubleValidator()
         self.validator.setNotation(QDoubleValidator.ScientificNotation)
@@ -143,6 +142,7 @@ class GuessDialog(QDialog):
         self.fitwith = fitwith
         self.current_guess = guess
         self.param_names = [p for p in self.current_guess if not 'use' in p]
+
         self.valueedits = None
         
         self.initUI()
@@ -183,7 +183,7 @@ class GuessDialog(QDialog):
             layout.addWidget(lbl, 0, idx+1)
 
         self.valueedits = [None]
-        for row in range(1,6):
+        for row in range(1,7):
             self.valueedits.append([None])
             for col in range(1,4):
                 ledit = QLineEdit()
@@ -400,6 +400,10 @@ class SimulationDialog(QDialog):
             self.use_function_checkboxes['useQT'].setChecked(True)
         else: 
             self.use_function_checkboxes['useQT'].setChecked(False)
+        if "D" in name: 
+            self.use_function_checkboxes['useD'].setChecked(True)
+        else: 
+            self.use_function_checkboxes['useD'].setChecked(False)
 
     def read_param_values(self):
         
