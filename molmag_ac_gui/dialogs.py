@@ -48,17 +48,13 @@ class PlottingWindow(QWidget):
         self.canvas = FigureCanvas(self.fig)
         self.tools = NavigationToolbar(self.canvas, self)
         if make_ax == "cax":
-            self.grid = plt.GridSpec(20,1)
-            self.ax = self.fig.add_subplot(self.grid[:17,0])
-            self.cax = self.fig.add_subplot(self.grid[-1,0])
-            self.cax.set_yticklabels([])
+            self.grid = plt.GridSpec(2,1, height_ratios=[13,1])
+            self.ax = self.fig.add_subplot(self.grid[0])
+            self.cax = self.fig.add_subplot(self.grid[1])
         elif make_ax == "z": 
             self.grid = plt.GridSpec(2,1, height_ratios=[13,1])
             self.ax = self.fig.add_subplot(self.grid[0], projection = '3d')
             self.cax = self.fig.add_subplot(self.grid[1])
-            self.cax.set_yticklabels([])
-            self.cax.get_yaxis().labelpad = 15
-            self.cax.set_ylabel("Temperature (K)")
         else:
             self.ax = self.fig.add_subplot(111)
         
@@ -740,10 +736,10 @@ class SampleInformation(QDialog):
 
     def load_sample_data(self):
 
-        filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
-        filename = filename_info[0]
+        #filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        #filename = filename_info[0]
         #print("Filenameinfo[0] = ", filename_info[0])
-        #filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/dbm_sample_data.dat"
+        filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/dbm_sample_data.dat"
         try:
             f = open(filename, 'r')
             d = f.readlines()

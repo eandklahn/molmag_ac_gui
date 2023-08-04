@@ -119,7 +119,8 @@ class DataTreatmentTab(QSplitter):
         and connects these to the corresponding functions. """
 
         make_btn(self, "(1) Load datafile", self.load_data, self.layout)
-        make_btn(self, "(2) Make diamagnetic correction", self.update_sample_info_and_make_dia_correction, self.layout)
+        self.dia_corr_btn = make_btn(self, "(2) Make diamagnetic correction", self.update_sample_info_and_make_dia_correction, self.layout)
+        self.dia_corr_btn.setEnabled(False)
         self.fit_X_or_get_phi_btn = make_btn(self, "", self.fit_Xp_Xpp_standalone, self.layout)
         self.fit_X_or_get_phi_btn.setEnabled(False)
         #self.get_phi_files = make_btn(self, "(3) Git files for fitting in PHI (DC)", self.get_phi_files, self.layout)
@@ -440,6 +441,7 @@ class DataTreatmentTab(QSplitter):
         #self.fit_X_or_get_phi_btn.clicked.disconnect() 
         self.copy_fit_btn.setEnabled(False)
         self.save_fit_X_btn.setEnabled(False)
+        self.dia_corr_btn.setEnabled(False)
 
     def load_data(self):
         """ This function uses subfunctions to perform the following tasks:  
@@ -490,15 +492,17 @@ class DataTreatmentTab(QSplitter):
             #Updates "Table of Data" tab with the loaded data
             self.parent.widget_table.update_table()
 
+            self.dia_corr_btn.setEnabled(True)
+
         QApplication.restoreOverrideCursor()
 
     def try_load_raw_df(self): 
         """ Tries to load the raw dataframe """
                 
-        open_file_dialog = QFileDialog()        
-        filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
-        filename = filename_info[0]
-        #filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/20180209DyII_1000.dat"
+        #open_file_dialog = QFileDialog()        
+        #filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        #filename = filename_info[0]
+        filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/20180209DyII_1000.dat"
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             # FileNotFoundError and UnicodeDecodeError will be raised here
@@ -662,6 +666,8 @@ class DataTreatmentTab(QSplitter):
                 self.fit_X_or_get_phi_btn.clicked.disconnect()
                 self.fit_X_or_get_phi_btn.clicked.connect(self.fit_Xp_Xpp_standalone)
                 self.fit_X_or_get_phi_btn.setText("(3) Fit χ' and χ'' (AC)")
+                QApplication.restoreOverrideCursor()
+                MagMessage("Succes", "Diamagnetic correction successfully completed").exec_()
 
             QApplication.restoreOverrideCursor()
 
@@ -791,10 +797,12 @@ class DataTreatmentTab(QSplitter):
         self.fit_plot.fig.colorbar(
             mpl.cm.ScalarMappable(norm=norm,
                                   cmap=self.parent.temperature_cmap),
-                                        orientation='horizontal',
-            cax=self.fit_plot.cax)
-        
+                                  orientation='horizontal',
+            cax=self.fit_plot.cax, label='Temperature (K)')
+       
+
         self.fit_plot.canvas.draw()
+
 
         combo_txt = self.plot_type_combo.currentText()
         if combo_txt == "Raw data" or combo_txt == "": 
@@ -870,7 +878,7 @@ class DataTreatmentTab(QSplitter):
             combo_idx = self.plot_type_combo.findText('Fitted (AC)')
             self.plot_type_combo.setCurrentIndex(combo_idx)
 
-            self.parent.tau_table.update_table()
+            self.parent.tau_table.update_table(self.fit_result)
         
         QApplication.restoreOverrideCursor()
 
@@ -1001,7 +1009,7 @@ class DataTreatmentTab(QSplitter):
             mpl.cm.ScalarMappable(norm=norm,
                                   cmap=self.parent.temperature_cmap),
                                         orientation='horizontal',
-            cax=self.threeD_plot.cax)
+            cax=self.threeD_plot.cax, label='Temperature (K)')
 
     def switch_view(self):
         """ Switches the view of the stackingwidget according to what is chosen 
@@ -1084,9 +1092,11 @@ class DataTreatmentTab(QSplitter):
     def copy_fit_to_analysis(self):
         """ Copies the fit of tau obtained after fitting χ' and χ'' 
         to the data analysis tab. """
+        self.parent.data_ana.clear_fits() 
         QApplication.setOverrideCursor(Qt.WaitCursor)
 
         try:
+            self.parent.data_ana.tau_df = self.fit_result
             self.parent.data_ana.update_datapoints_wgt() 
             self.parent.data_ana.update_plotting()
 

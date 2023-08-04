@@ -255,9 +255,10 @@ def getParameterGuesses(T, tau, fitwith):
     T2, tau2 = T[-2], tau[-2]
     
     # Calculating guesses for Orbach parameters
-    Ueff_by_kB_guess = np.log(tau2/tau1)/(1/T2-1/T1)
+    Ueff_guess = np.log(tau2/tau1)/(1/T2-1/T1)
     
-    t0_scaled_guess = tau1*10**7*np.exp(-Ueff_by_kB_guess/T1)
+    t0_guess = tau1*np.exp(-Ueff_guess/T1)
+    A_guess = np.log10(t0_guess)
     
     # Obtaining points for Raman parameter guessing
     l = len(T)
@@ -273,24 +274,27 @@ def getParameterGuesses(T, tau, fitwith):
     n_guess = (np.log(tau1) - np.log(tau2))/(np.log(T2) - np.log(T1))
     
     Cr_guess = (tau1**(-1))*(T1**(-n_guess))
+    R_guess = np.log10(Cr_guess)
     
     # Extracting guess for QT parameter
     tQT_guess = tau[0]
+    Q_guess = np.log10(tQT_guess)
 
-    #Calculating guess for Cd parameter (MAKE SURE THAT PICKING A POINT IN THE MIDDLE IS APPROPRIATE)
+    #Calculating guess for Cd parameter
     Cd_guess = (tau1**(-1))*(T1**(-1))
+    D_guess = np.log10(Cd_guess)
     
 
     if fitwith == 'all':
         fitwith = 'DQTRO'
 
     params = Parameters()
-    params.add(name='Cd', value=Cd_guess, vary='D' in fitwith, min=10**-10, max = 10**10)
-    params.add(name='tQT', value=tQT_guess, vary='QT' in fitwith, min=0.001, max = 100)
-    params.add(name='Cr', value=Cr_guess, vary='R' in fitwith, min=10**-8, max = 10)
+    params.add(name='D', value=D_guess, vary='D' in fitwith, min=-100, max = 100)
+    params.add(name='Q', value=Q_guess, vary='QT' in fitwith, min=-100, max = 100)
+    params.add(name='R', value=R_guess, vary='R' in fitwith, min=-100, max = 100)
     params.add(name='n', value=n_guess, vary='R' in fitwith, min=0, max=20)
-    params.add(name='t0_scaled', value=t0_scaled_guess, vary='O' in fitwith, min = 10**-5, max = 100)
-    params.add(name='Ueff_by_kB', value=Ueff_by_kB_guess, vary='O' in fitwith, min = 0.01, max = 10000)
+    params.add(name='A', value=A_guess, vary='O' in fitwith, min=-100, max = 100)
+    params.add(name='Ueff', value=Ueff_guess, vary='O' in fitwith, min = 0.01, max = 10000)
     params.add(name='useD', value=int('D' in fitwith), vary=False, min = 0, max = 1)
     params.add(name='useQT', value=int('QT' in fitwith), vary=False, min = 0, max = 1)
     params.add(name='useR', value=int('R' in fitwith), vary=False, min = 0, max = 1)
@@ -298,7 +302,7 @@ def getParameterGuesses(T, tau, fitwith):
     
     return params
 
-def _QT(T, tQT):
+def _QT(T, Q):
     """
     Basic function for calculating relaxation time due to
     quantum tunneling
@@ -311,11 +315,11 @@ def _QT(T, tQT):
     tau: relaxation time due to quantum tunneling
     """
 
-    tau = tQT
+    rate = 10**(-Q)
     
-    return tau
+    return rate
 
-def _R(T, Cr, n):
+def _R(T, R, n):
     """
     Basic function for calculating relaxation time due to
     the Raman mechanism. For canonical definition, see fx.
@@ -329,11 +333,11 @@ def _R(T, Cr, n):
     Output
     tau: relaxation time due to the Raman mechanism
     """
-    tau = (Cr**(-1))*(T**(-n))
+    rate = 10**(R)*T**(n)
 
-    return tau
+    return rate
     
-def _O(T, t0_scaled, Ueff_by_kB):
+def _O(T, A, Ueff):
     """
     Basic function for calculating relaxation time due to
     the Orbach relaxation mechanism
@@ -341,23 +345,23 @@ def _O(T, t0_scaled, Ueff_by_kB):
     Input
     T: temperature for the calculation
     t0: characteristic time for quantum tunneling
-    t0_scaled = t0*10^7 
-    Ueff: effective energy barrier to thermal relaxation
-    Ueff_by_kB: Ueff/kB
+    Ueff: effective energy barrier to thermal relaxation in K (i.e. Ueff(J)/kB(J/K))
     
     Output
     tau: relaxation time due to the Orbach mechanism
     """
 
-    tau = t0_scaled*10**-7*np.exp(Ueff_by_kB/T)
+    rate = 10**(-A)*np.exp(-Ueff/T)
     
-    return tau
+    return rate
     
-def _D(T, Cd):
+def _D(T, D):
 
-    tau =  (Cd**(-1))*(T**(-1))
 
-    return tau 
+    rate =  (10**D)*T
+
+    return rate 
+
 
 
 def add_partial_model(fig, Tmin, Tmax, params, N_points=1000, *args, **kwargs):
@@ -375,36 +379,37 @@ def add_partial_model(fig, Tmin, Tmax, params, N_points=1000, *args, **kwargs):
 
     return line
 
-def general_relaxation(T, Cd, tQT, Cr, n, t0_scaled, Ueff_by_kB, useD, useQT, useR, useO):
+def general_relaxation(T, D, Q, R, n, A, Ueff, useD, useQT, useR, useO):
 
-    tauD = _D(T, Cd)
-    tauQT = _QT(T, tQT)
-    tauO = _O(T, t0_scaled, Ueff_by_kB)
-    tauR = _R(T, Cr, n)
+    rateD = _D(T, D)
+    rateQT = _QT(T, Q)
+    rateO = _O(T, A, Ueff)
+    rateR = _R(T, R, n)
     
 
-    rate = useQT*(1/tauQT)+useO*(1/tauO)+useR*(1/tauR)+useD*(1/tauD) # We can add rates, but not relaxation times.
+    rate = useQT*rateQT+useO*rateO+useR*rateR+useD*rateD # We can add rates, but not relaxation times.
     tau = 1/rate 
 
     return tau
 
 def relaxation_dataset(params, T):
-    Cd = params['Cd']
-    tQT = params['tQT']
-    Cr = params['Cr']
+    D = params['D']
+    Q = params['Q']
+    R = params['R']
     n = params['n']
-    t0_scaled = params['t0_scaled']
-    Ueff_by_kB = params['Ueff_by_kB']
+    A = params['A']
+    Ueff = params['Ueff']
     useD = params['useD']
     useQT = params['useQT']
     useR = params['useR']
     useO = params['useO']
 
-    return general_relaxation(T, Cd, tQT, Cr, n, t0_scaled, Ueff_by_kB, useD, useQT, useR, useO)
+    return general_relaxation(T, D, Q, R, n, A, Ueff, useD, useQT, useR, useO)
 
 def fit_relaxation(T, tau_data, params):
 
     def objective(params, T, tau_data):
+
         residual = np.log(tau_data) - np.log(relaxation_dataset(params, T))
         return residual
     
@@ -415,12 +420,12 @@ def fit_relaxation(T, tau_data, params):
 def default_parameters(fitwith='DQTRO'):
 
     params = Parameters()
-    params.add(name='Cd', value=1e-3, vary='D' in fitwith, min=10**-10, max = 10**10)
-    params.add(name='tQT', value=1e-4, vary='QT' in fitwith, min=0.001, max = 100)
-    params.add(name='Cr', value=1e-3, vary='R' in fitwith, min=10**-8, max = 10)
+    params.add(name='D', value=1, vary='D' in fitwith, min=-100, max = 100)
+    params.add(name='Q', value=1, vary='QT' in fitwith, min=-100, max = 100)
+    params.add(name='R', value=1, vary='R' in fitwith, min=-100, max = 100)
     params.add(name='n', value=4, vary='R' in fitwith, min=0, max=20)
-    params.add(name='t0_scaled', value=1, vary='O' in fitwith, min = 10**-5, max = 100)
-    params.add(name='Ueff_by_kB', value=50, vary='O' in fitwith, min = 0.01, max = 10000)
+    params.add(name='A', value=1, vary='O' in fitwith, min=-100, max = 100)
+    params.add(name='Ueff', value=50, vary='O' in fitwith, min = 0.01, max = 10000)
     params.add(name='useD', value=int('D' in fitwith), vary=False, min = 0, max = 1)
     params.add(name='useQT', value=int('QT' in fitwith), vary=False, min = 0, max = 1)
     params.add(name='useR', value=int('R' in fitwith), vary=False, min = 0, max = 1)

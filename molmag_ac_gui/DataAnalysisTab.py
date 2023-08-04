@@ -115,7 +115,6 @@ class DataAnalysisTab(QSplitter):
         self.parent.data_treat.copy_fit_to_analysis()
         
 
-
     def clear_fits(self): 
         """ Clears all fits, unchecks checkboxes, lists etc."""
 
@@ -170,10 +169,7 @@ class DataAnalysisTab(QSplitter):
         filename = name[0]
 
         additional_notes = "Notes on the printed fit statistics:\n Parameters that are fixed, are not used in the fitting. \n \
-Their contributions to tau are basically multiplied by 0 (using the useQT, useR etc. parameters) \n \
-t0 has been scaled by a factor of 10^7, such that t0_scaled = t0*10^7.\n \
-Ueff is scaled by kB, such that Ueff_by_kB = Ueff/kB.\n \
-This is ensure more stable fitting by having similar magnitudes of parameters.\n\n"
+Their contributions to tau are basically multiplied by 0 (using the useQT, useR etc. parameters) \n"
 
         name, ext = os.path.splitext(filename)
         if ext == '':
@@ -268,6 +264,8 @@ This is ensure more stable fitting by having similar magnitudes of parameters.\n
         """ Shows and sets the fit statistics text in the parameter view"""
 
         if self.fit_history == []: 
+            self.fit_summary.setText("")
+            self.fit_title.setText("")
             return 
         
         fit_idx = self.choose_fit_combo.currentIndex()
@@ -315,6 +313,8 @@ This is ensure more stable fitting by having similar magnitudes of parameters.\n
 
         self.fitted_params_dialog = None
 
+        self.tau_df = None
+
     def add_temp_controls(self): 
         """Makes a QHBoxLayout with a two spinboxes where the temperature range is chosen 
         and adds it to the options layout."""
@@ -342,7 +342,7 @@ This is ensure more stable fitting by having similar magnitudes of parameters.\n
 
     def delete_items(self):
         QApplication.setOverrideCursor(Qt.WaitCursor)
-        df = self.parent.data_treat.fit_result
+        df = self.tau_df
         if self.checked_datapoints is not None and self.checked_datapoints != []: 
             for data_point in self.checked_datapoints: 
                 row_index = df[df.eq(data_point).all(1)].index[0]
@@ -350,14 +350,15 @@ This is ensure more stable fitting by having similar magnitudes of parameters.\n
                 df = df.drop(row_index)
                 df = df.reset_index(drop=True)
 
-            self.parent.data_treat.fit_result = df
+            self.tau_df = df
             self.checked_datapoints = None
             self.update_datapoints_wgt() 
             self.update_plotting() 
             QApplication.restoreOverrideCursor()
         else: 
-            QApplication.restoreOverrideCursor()
             MagMessage("Error", "No datapoints to delete").exec_() 
+        QApplication.restoreOverrideCursor()
+
         
         
 
@@ -370,7 +371,7 @@ This is ensure more stable fitting by having similar magnitudes of parameters.\n
             item = self.datapoints_wgt.item(i)
             if item.checkState() == Qt.Checked: 
                 row_index =  self.datapoints_wgt.row(item)
-                self.checked_datapoints.append(self.parent.data_treat.fit_result.values[row_index])
+                self.checked_datapoints.append(self.tau_df.values[row_index])
 
         self.update_plotting()
         
@@ -400,7 +401,7 @@ This is ensure more stable fitting by having similar magnitudes of parameters.\n
         Adds all the data points according to tge current the dataframe of relaxation times """
 
         self.datapoints_wgt.clear()
-        df = self.parent.data_treat.fit_result
+        df = self.tau_df
         
         for i in range(len(df)): 
             datapoint = df.loc[i]
@@ -473,7 +474,7 @@ This is ensure more stable fitting by having similar magnitudes of parameters.\n
         Uses the array D to set new values for T, tau, and alpha
 
         """
-        D = self.parent.data_treat.fit_result.values
+        D = self.tau_df.values
 
         T = D[:,0]
         tau = D[:,1]
@@ -590,10 +591,10 @@ This is ensure more stable fitting by having similar magnitudes of parameters.\n
     def load_t_tau_data(self):
         """Load 1/T vs. τ data from file generated in data treatment """
 
-        filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        #filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
         #print("filename = ", filename_info[0])
-        filename = filename_info[0]
-        #filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/fakefit.dat"
+        #filename = filename_info[0]
+        filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/fakefit.dat"
           
         self.last_loaded_file = os.path.split(filename)[0]
         
@@ -621,7 +622,7 @@ This is ensure more stable fitting by having similar magnitudes of parameters.\n
         else:
 
             self.clear_fits() 
-            self.parent.data_treat.fit_result = pd.DataFrame(D, columns=column_names)            
+            self.tau_df = pd.DataFrame(D, columns=column_names)            
             self.update_datapoints_wgt() 
             self.update_plotting()
 
@@ -756,10 +757,12 @@ This is ensure more stable fitting by having similar magnitudes of parameters.\n
 
         functions_text = ""
         if used[0]: 
-            functions_text += "Quantum Tunneling, "
+            functions_text += "Direct, "
         if used[1]: 
-            functions_text += "Raman, "
+            functions_text += "Quantum Tunneling, "
         if used[2]: 
+            functions_text += "Raman, "
+        if used[3]: 
             functions_text += "Orbach, "
         
         functions_text = functions_text[:-2]
@@ -907,7 +910,7 @@ This is ensure more stable fitting by having similar magnitudes of parameters.\n
             self.plot_t_tau_on_axes()
             self.redraw_simulation_lines()
 
-            self.parent.tau_table.update_table()
+            self.parent.tau_table.update_table(self.tau_df)
 
             self.add_T_axis()         
             self.update_T_axis()

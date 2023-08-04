@@ -44,13 +44,8 @@ class DataTableRelaxTab(QWidget): #First tab er Qwidget, så nu er det self.layo
 
         self.update_table()
 
-    def update_table(self):
+    def update_table(self, df):
         """ Updates the table """
-        
-        try: 
-            df = self.parent.data_treat.fit_result
-        except: 
-            return
         
         self.tableWidget.setRowCount(len(df))
         self.tableWidget.setColumnCount(len(df.columns))
