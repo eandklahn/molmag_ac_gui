@@ -8,7 +8,7 @@ from re import X
 import numpy as np 
 import scipy.constants as sc
 
-from PyQt5.QtGui import QFont, QDoubleValidator
+from PyQt5.QtGui import QFont, QDoubleValidator, QIcon
 from PyQt5.QtWidgets import (QInputDialog, QWidget, QPushButton, QLabel, QComboBox, 
                              QDoubleSpinBox, QFormLayout, QCheckBox, QVBoxLayout, QMessageBox,
                              QHBoxLayout, QFileDialog, QDialog, QLineEdit,
@@ -32,7 +32,7 @@ class MagMessage(QMessageBox):
     def __init__(self, title, message):
 
         super(MagMessage, self).__init__()
-
+        self.setWindowIcon(QIcon("Magnet_icon2.png"))
         self.setWindowTitle(title)
         self.setText(message)
 
@@ -41,7 +41,8 @@ class PlottingWindow(QWidget):
     def __init__(self, make_ax = False):
     
         super(PlottingWindow, self).__init__()
-        
+        self.setWindowIcon(QIcon("Magnet_icon2.png"))
+
         self.layout = QVBoxLayout()
         
         self.fig = Figure()
@@ -132,6 +133,7 @@ class GuessDialog(QDialog):
         self.setWindowTitle('Initial fit parameters')
         self.validator = QDoubleValidator()
         self.validator.setNotation(QDoubleValidator.ScientificNotation)
+        self.setWindowIcon(QIcon("Magnet_icon2.png"))
         
         self.parent = parent
         self.fit_history = parent.fit_history
@@ -256,7 +258,8 @@ class SimulationDialog(QDialog):
         super(SimulationDialog, self).__init__()
 
         self.setWindowTitle('Add/edit simulation')
-        
+        self.setWindowIcon(QIcon("Magnet_icon2.png")) 
+
         self.parent = parent
         self.fit_history = fit_history
         self.params = params
@@ -449,6 +452,7 @@ class AboutDialog(QDialog):
         self.layout = QVBoxLayout()
         
         self.setWindowTitle('About')
+        self.setWindowIcon(QIcon("Magnet_icon2.png"))
         
         self.author_lbl = QLabel('Written by: {}'.format(info['author']))
         self.layout.addWidget(self.author_lbl)
@@ -478,7 +482,8 @@ class ParamDialog(QDialog):
         self.fit_history = fit_history
         
         self.setWindowTitle('Fitted parameters')
-        
+        self.setWindowIcon(QIcon("Magnet_icon2.png"))
+
         self.initUI()
         self.update_fit_combo()
         
@@ -521,16 +526,18 @@ class FitResultPlotStatus(QDialog):
     def __init__(self, list_input=None):
     
         super(FitResultPlotStatus, self).__init__()
-        
+
+
         self.layout = QVBoxLayout()
         self.setWindowTitle("Temperature subsets to be shown")
         self.checkbox_layout = QGridLayout() 
         #self.checkbox_layout.setColumnStretch(1, 4)
+        self.setWindowIcon(QIcon("Magnet_icon2.png"))
 
         
         self.checkbox_layout.addWidget(QLabel("Temperature"), 0, 0, alignment=Qt.AlignHCenter)
         self.checkbox_layout.addWidget(QLabel("Raw data points"), 0, 1, alignment=Qt.AlignHCenter)
-        self.checkbox_layout.addWidget(QLabel("Fitted line"), 0, 2, alignment=Qt.AlignHCenter)
+        self.checkbox_layout.addWidget(QLabel("Fit/Line"), 0, 2, alignment=Qt.AlignHCenter)
 
 
 
@@ -564,7 +571,6 @@ class FitResultPlotStatus(QDialog):
             
             raw_checked.setChecked(item_raw_bool)
             fit_checked.setChecked(item_fit_bool)
-                    
                     
             self.checkbox_layout.addWidget(temp, idx+1,0, alignment=Qt.AlignHCenter)
             self.checkbox_layout.addWidget(raw_checked, idx+1,1, alignment=Qt.AlignHCenter)
@@ -606,11 +612,11 @@ class FitResultPlotStatus(QDialog):
         self.judge_btn_lo.addWidget(self.states_accept_btn)
         
         self.layout.addLayout(self.judge_btn_lo)
-        #self.resize(315,500)
         self.layout.addStretch()
         self.setLayout(self.layout)
-        #self.adjustSize() 
-        #self.show()
+
+        #Removes question mark
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)  
         
     def check_all_function(self):
     
@@ -636,7 +642,8 @@ class SampleInformation(QDialog):
         self.parent = parent 
         self.layout = QVBoxLayout()
         self.tab  = tab 
-        self.setWindowTitle("Input sample information (used for diamagnetic correction)")
+        self.setWindowTitle("Input sample information")
+        self.setWindowIcon(QIcon("Magnet_icon2.png"))
 
         #Hides Help button
         self.setWindowFlag(Qt.WindowContextHelpButtonHint,False)  
@@ -669,21 +676,6 @@ class SampleInformation(QDialog):
         self.molar_mass_inp.setValidator(QDoubleValidator())
         self.molar_mass_lo.addWidget(self.molar_mass_inp)
 
-
-        ## Sample Xd edit
-        self.sample_xd_lo = QHBoxLayout()
-        self.sample_info_layout.addLayout(self.sample_xd_lo)
-        
-
-        self.sample_xd_lbl = QLabel(u"<a href={}>X\u1D05</a>".format(
-                                    self.parent.tooltips_dict['English']['Xd_link'])
-                                    +' (sample) [emu/(Oe*mol)]')
-        self.sample_xd_lbl.setOpenExternalLinks(True)
-        self.sample_xd_lo.addWidget(self.sample_xd_lbl)
-        
-        self.sample_xd_inp = QLineEdit()
-        self.sample_xd_inp.setValidator(QDoubleValidator())
-        self.sample_xd_lo.addWidget(self.sample_xd_inp)
         
         # Constant terms edit
         if self.tab.data_type == "AC": 
@@ -705,6 +697,23 @@ class SampleInformation(QDialog):
         
             self.var_amount_inp = QLineEdit()
             self.var_amount_layout.addWidget(self.var_amount_inp)
+
+            
+
+            ## Sample Xd edit
+            self.sample_xd_lo = QHBoxLayout()
+            self.sample_info_layout.addLayout(self.sample_xd_lo)
+        
+
+            self.sample_xd_lbl = QLabel(u"<a href={}>X\u1D05</a>".format(
+                                    self.parent.tooltips_dict['English']['Xd_link'])
+                                    +' (sample) [emu/(Oe*mol)]')
+            self.sample_xd_lbl.setOpenExternalLinks(True)
+            self.sample_xd_lo.addWidget(self.sample_xd_lbl)
+        
+            self.sample_xd_inp = QLineEdit()
+            self.sample_xd_inp.setValidator(QDoubleValidator())
+            self.sample_xd_lo.addWidget(self.sample_xd_inp)
         
         #Insert values to the QLineEdits if known: 
         self.insert_values() 
@@ -723,8 +732,12 @@ class SampleInformation(QDialog):
         self.load_sample_data_btn.clicked.connect(self.load_sample_data)
         self.sample_data_lo.addWidget(self.load_sample_data_btn)
         self.load_sample_data_btn.setFocusPolicy(Qt.NoFocus)
-        
-        self.done_sample_data_btn = QPushButton('Make diamagnetic correction')
+
+        if self.tab.data_type == "AC": 
+            self.done_sample_data_btn = QPushButton('Make diamagnetic correction')
+        else:  
+            self.done_sample_data_btn = QPushButton("Convert")
+
         self.done_sample_data_btn.clicked.connect(self.save_sample_data_for_diamag)
         self.sample_data_lo.addWidget(self.done_sample_data_btn)
         #Sets gui langugage for tooltips
@@ -736,10 +749,10 @@ class SampleInformation(QDialog):
 
     def load_sample_data(self):
 
-        #filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
-        #filename = filename_info[0]
+        filename_info = QFileDialog().getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        filename = filename_info[0]
         #print("Filenameinfo[0] = ", filename_info[0])
-        filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/dbm_sample_data.dat"
+        #filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/dbm_sample_data.dat"
         try:
             f = open(filename, 'r')
             d = f.readlines()
@@ -779,8 +792,9 @@ class SampleInformation(QDialog):
             
             self.sample_mass_inp.setText(m_sample)
             self.molar_mass_inp.setText(M_sample)
-            self.sample_xd_inp.setText(Xd_sample)
+            
             if self.tab.data_type == "AC": 
+                self.sample_xd_inp.setText(Xd_sample)
                 self.constant_terms_inp.setText(constant_terms)
                 self.var_amount_inp.setText(var_amount)
     
@@ -821,8 +835,9 @@ class SampleInformation(QDialog):
     def save_sample_data_for_diamag(self): 
         self.tab.m_sample = self.sample_mass_inp.text()
         self.tab.M_sample = self.molar_mass_inp.text()
-        self.tab.Xd_sample = self.sample_xd_inp.text()
+        
         if self.tab.data_type == "AC": 
+            self.tab.Xd_sample = self.sample_xd_inp.text()
             self.tab.constant_terms = self.constant_terms_inp.text()
             self.tab.var_am = self.var_amount_inp.text()
         self.accept()

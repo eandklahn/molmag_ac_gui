@@ -423,7 +423,7 @@ Their contributions to tau are basically multiplied by 0 (using the useQT, useR 
 
         self.list_of_simulations = QListWidget()
         self.list_of_simulations.setDragDropMode(self.list_of_simulations.InternalMove)
-        self.list_of_simulations.doubleClicked.connect(self.edit_simulation)
+        #self.list_of_simulations.doubleClicked.connect(self.edit_simulation)
         self.list_of_simulations.itemChanged.connect(self.update_plotting)
         self.options_layout.addWidget(self.list_of_simulations)
 
@@ -828,8 +828,8 @@ Their contributions to tau are basically multiplied by 0 (using the useQT, useR 
             self.update_fit_combo()
 
 
-    def edit_simulation(self): 
-        return 
+    #def edit_simulation(self): 
+    #    return 
 
 
 

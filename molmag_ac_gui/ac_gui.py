@@ -39,7 +39,8 @@ class ACGui(QMainWindow):
 
         # Setting up GUI: 
         self.setWindowTitle('Molmag AC GUI v{}'.format(__version__))
-        self.setWindowIcon(QIcon('double_well_potential_R6p_icon.ico'))
+        #self.setWindowIcon(QIcon('double_well_potential_R6p_icon.ico'))
+        self.setWindowIcon(QIcon("Magnet_icon2.png"))
         self.make_tab_wdgt() 
         self.make_menubar()        
         

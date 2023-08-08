@@ -7,11 +7,12 @@ import numpy as np
 import pandas as pd
 import matplotlib as mpl
 from matplotlib.colors import to_hex
+import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 from PyQt5.QtWidgets import (QFileDialog, QFormLayout, QListWidgetItem, QWidget, 
                              QVBoxLayout, QHBoxLayout, QComboBox, QStackedWidget, 
                              QListWidget, QSplitter, QMessageBox, QApplication)
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QIcon, QPixmap, QPainter
 from torch import multiply
 from PyQt5.QtCore import Qt
 
@@ -90,6 +91,7 @@ class DataTreatmentTab(QSplitter):
         self.fit_result = None
         self.data_type = None
         self.T_legend = None
+        self.H_legend = None
         self.DC_data_types = []
         self.data_to_export = None
     
@@ -109,7 +111,6 @@ class DataTreatmentTab(QSplitter):
         """ Adds a combobox to choose which fitted data plot you want to view. """
         
         self.fit_combo = QComboBox()
-        #self.fit_combo.addItems(['Cole-Cole', 'Freq VS Xp', 'Freq VS Xpp'])
         self.fit_combo.currentIndexChanged.connect(self.plot_from_itemlist)
         self.layout.addWidget(self.fit_combo)
         
@@ -119,7 +120,7 @@ class DataTreatmentTab(QSplitter):
         and connects these to the corresponding functions. """
 
         make_btn(self, "(1) Load datafile", self.load_data, self.layout)
-        self.dia_corr_btn = make_btn(self, "(2) Make diamagnetic correction", self.update_sample_info_and_make_dia_correction, self.layout)
+        self.dia_corr_btn = make_btn(self, "", self.update_sample_info_and_make_dia_correction, self.layout)
         self.dia_corr_btn.setEnabled(False)
         self.fit_X_or_get_phi_btn = make_btn(self, "", self.fit_Xp_Xpp_standalone, self.layout)
         self.fit_X_or_get_phi_btn.setEnabled(False)
@@ -147,12 +148,10 @@ class DataTreatmentTab(QSplitter):
                 self.save_phi_files() 
         else: #If file does not already exist
             self.save_phi_files() 
-
-
         #except AttributeError: #If raw_df is empty, it will be NoneType. This type has no attribute "to_csv" or "to_excel"
         #    MagMessage("Error", "Cannot export file. No data is loaded in the data treatment tab.").exec_() 
 
-    def get_df_to_save(self, subsets, x_name, y_name, HM_or_XT):
+    def get_df_to_save(self, subsets, x_name, y_name, MH_or_XT):
         if len(subsets) > 1: 
             df = pd.DataFrame(subsets[0][x_name])
             for subset in subsets[1:]: 
@@ -177,9 +176,9 @@ class DataTreatmentTab(QSplitter):
                 idx = df.shape[0] - moment_df.shape[0]
                 df_to_append = pd.DataFrame("#", index = np.arange(idx), columns = [y_name,])
                 moment_df = moment_df.append(df_to_append, ignore_index=True)
-                if HM_or_XT == "HM": 
+                if MH_or_XT == "MH": 
                     column_name = "M" + str(i)
-                if HM_or_XT == "XT": 
+                if MH_or_XT == "XT": 
                     column_name = "XT" + str(i)
                 df.insert(i, column = column_name, value = moment_df) 
                 i+=1
@@ -196,16 +195,16 @@ class DataTreatmentTab(QSplitter):
                 df.to_csv(r'{}.{}'.format(self.path_to_export + "_sus", "exp"), index = False, header = False, sep = " ")
                 MagMessage('The data is successfully exported', "The data is saved as an .exp file at: {}.exp".format(self.path_to_export + "_sus")).exec_()  
             except: 
-                MagMessage("Error", "Some error occured, you cannot save the H vs. M data").exec_() 
+                MagMessage("Error", "Some error occured, you cannot save the M vs. H data").exec_() 
 
-        if "HM" in self.DC_data_types: 
-            df = self.get_df_to_save(self.HM_subsets, "Magnetic Field (Oe)", "Moment_m (Na*muB)", "HM")
+        if "MH" in self.DC_data_types: 
+            df = self.get_df_to_save(self.MH_subsets, "Magnetic Field (Oe)", "Moment_m (Na*muB)", "MH")
 
             try: 
                 df.to_csv(r'{}.{}'.format(self.path_to_export + "_mag", "exp"), index = False, header = False, sep = " ")
                 MagMessage('The data is successfully exported', "The data is saved as an .exp file at: {}.exp".format(self.path_to_export + "_mag")).exec_()  
             except:
-                MagMessage("Error", "Some error occured, you cannot save the H vs. M data").exec_() 
+                MagMessage("Error", "Some error occured, you cannot save the M vs. H data").exec_() 
 
 
 
@@ -249,13 +248,13 @@ class DataTreatmentTab(QSplitter):
         self.raw_plot = PlottingWindow()
         self.fit_plot = PlottingWindow(make_ax="cax")
         self.threeD_plot = PlottingWindow(make_ax = "z") 
-        self.HM_plot = PlottingWindow() #make_ax="cax")
+        self.MH_plot = PlottingWindow() #make_ax="cax")
         self.XT_plot = PlottingWindow()
 
         self.sw.addWidget(self.raw_plot)
         self.sw.addWidget(self.fit_plot)
         self.sw.addWidget(self.threeD_plot)
-        self.sw.addWidget(self.HM_plot)
+        self.sw.addWidget(self.MH_plot)
         self.sw.addWidget(self.XT_plot)
 
         self.addWidget(self.sw)
@@ -277,18 +276,23 @@ class DataTreatmentTab(QSplitter):
         self.layout.addWidget(self.raw_fit_list)
         self.raw_fit_list.doubleClicked.connect(self.update_fitted_and_3D_plot)
 
-        make_headline(self, "H vs. M plotting options", self.layout)
+        make_headline(self, "Legends for DC data", self.layout)
         self.T_legend_lo = QHBoxLayout() 
-        make_line(self, "Add legend with temperatures to H vs. M plot", self.T_legend_lo)
+        make_line(self, "Add legend with temperatures to M vs. H plot", self.T_legend_lo)
         self.T_legend_cb = make_checkbox(self, self.add_T_legend, self.T_legend_lo)
 
+        self.H_legend_lo = QHBoxLayout() 
+        make_line(self, "Add legend with field strength to χT vs. T plot", self.H_legend_lo)
+        self.H_legend_cb = make_checkbox(self, self.add_H_legend, self.H_legend_lo)
+
         self.layout.addLayout(self.T_legend_lo)
+        self.layout.addLayout(self.H_legend_lo)
 
         
     """ Other functions"""
     
     def add_T_legend(self): 
-        """ Adds a temperature legend to the H vs. M plot"""
+        """ Adds a temperature legend to the M vs. H plot"""
         
         if self.T_legend_cb.isChecked(): 
             self.T_legend = True
@@ -296,7 +300,20 @@ class DataTreatmentTab(QSplitter):
             self.T_legend = False 
         if self.data_type == "DC": 
             try: 
-                self.plot_HM() 
+                self.plot_MH() 
+            except: 
+                pass 
+
+    def add_H_legend(self): 
+        """ Adds a temperature legend to the χT vs. T plot"""
+        
+        if self.H_legend_cb.isChecked(): 
+            self.H_legend = True
+        else: 
+            self.H_legend = False 
+        if self.data_type == "DC": 
+            try: 
+                self.plot_XT() 
             except: 
                 pass 
 
@@ -305,7 +322,10 @@ class DataTreatmentTab(QSplitter):
         """ If Xp is in the loaded data, and Mp is not: Mp will be calculated and added to the
         dataframe. If Mp is in the loaded data and Xp is not, Xp will be calculated and added 
         to the dataframe. """
-        Htot = self.raw_df['Magnetic Field (Oe)'] + self.raw_df['AC Amplitude (Oe)']
+        try: 
+            Htot = self.raw_df['Magnetic Field (Oe)'] + self.raw_df['AC Amplitude (Oe)']
+        except KeyError: 
+            Htot = self.raw_df['Magnetic Field (Oe)']
         
         if ('Xp (emu/Oe)' in self.raw_df.columns and not ('Mp (emu)' in self.raw_df.columns)):
             # Susceptibility exists in the data frame, but magnetisation does not
@@ -382,6 +402,14 @@ class DataTreatmentTab(QSplitter):
         self.Tmin = self.meas_temps.min()
         self.Tmax = self.meas_temps.max()
 
+        colors = [self.parent.temperature_cmap(i / self.num_meas_temps) for i in range(self.num_meas_temps)]
+
+        self.segment_color_mapping = {}
+        for i, T in enumerate(sorted(self.meas_temps)):
+            self.segment_color_mapping[T] = colors[i]
+
+
+
 
     def update_xy_combos(self):
         """ Updates the x and y comboboxes for raw data plotting such that they contain only the desired datatypes. 
@@ -397,7 +425,7 @@ class DataTreatmentTab(QSplitter):
             molarlabels = ["Mp_m (emu/mol)", "Mpp_m (emu/mol)", "Xp_m (emu/(Oe*mol))", "Xpp_m (emu/(Oe*mol))"]
         elif self.data_type == "DC": 
             chosenlabels = ["Time Stamp (sec)", "Temperature (K)", "Moment (emu)","Magnetic Field (Oe)"]
-            if self.DC_data_types == ["HM"]:
+            if self.DC_data_types == ["MH"]:
                 molarlabels = ["Moment_m (emu/mol)", "Moment_m (Na*muB)"]
             else: 
                 molarlabels = ["Moment_m (emu/mol)", "Moment_m (Na*muB)", "X_m (emu/(Oe*mol))", "XT_m (emu*K/(Oe*mol))", "XT_m (cm3*K/mol)"]
@@ -442,6 +470,8 @@ class DataTreatmentTab(QSplitter):
         self.copy_fit_btn.setEnabled(False)
         self.save_fit_X_btn.setEnabled(False)
         self.dia_corr_btn.setEnabled(False)
+        self.T_legend_cb.setChecked(False)
+        self.H_legend_cb.setChecked(False)
 
     def load_data(self):
         """ This function uses subfunctions to perform the following tasks:  
@@ -469,16 +499,15 @@ class DataTreatmentTab(QSplitter):
                 self.num_meas_freqs = len(set(self.raw_df['AC Frequency (Hz)']))
                 self.update_temp_subsets()
                 self.update_meas_temps()
-
+                
             if self.data_type == "DC": 
                 self.update_subsets() 
                 
-                if len(self.HM_subsets) > 0: 
-                    self.DC_data_types.append("HM")
+                if len(self.MH_subsets) > 0: 
+                    self.DC_data_types.append("MH")
                 if len(self.XT_subsets) > 0:
                     self.DC_data_types.append("XT")
                 
-                print("Data types = ", self.DC_data_types)
             #Clearing all the plots
             self.clear_plots() 
 
@@ -492,6 +521,10 @@ class DataTreatmentTab(QSplitter):
             #Updates "Table of Data" tab with the loaded data
             self.parent.widget_table.update_table()
 
+            if self.data_type == "AC": 
+                self.dia_corr_btn.setText("(2) Make diamagnetic correction")
+            elif self.data_type == "DC": 
+                self.dia_corr_btn.setText("(2) Convert to molar values")
             self.dia_corr_btn.setEnabled(True)
 
         QApplication.restoreOverrideCursor()
@@ -499,10 +532,10 @@ class DataTreatmentTab(QSplitter):
     def try_load_raw_df(self): 
         """ Tries to load the raw dataframe """
                 
-        #open_file_dialog = QFileDialog()        
-        #filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
-        #filename = filename_info[0]
-        filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/ac-data/ac-data/dy-dbm/20180209DyII_1000.dat"
+        open_file_dialog = QFileDialog()        
+        filename_info = open_file_dialog.getOpenFileName(self, 'Open file', self.parent.last_loaded_file)
+        filename = filename_info[0]
+        #filename = "C:/Users/au592011/OneDrive - Aarhus Universitet/Skrivebord/TestData_MAG/dc-data/DC_DyBrTHF_ODPM2blank_1.dat"
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             # FileNotFoundError and UnicodeDecodeError will be raised here
@@ -536,20 +569,55 @@ class DataTreatmentTab(QSplitter):
 
 
     def clear_plots(self): 
-        """ Clears all plots: raw fit, fitted, fitted cax, 3D, HM plot and XT plot """
+        """ Clears all plots: raw fit, fitted, fitted cax, 3D, MH plot and XT plot """
 
         self.raw_plot.clear_canvas()
         self.fit_plot.clear_canvas()
         self.fit_plot.cax.clear()
         self.threeD_plot.clear_canvas() 
-        self.HM_plot.clear_canvas()
+        self.MH_plot.clear_canvas()
         self.XT_plot.clear_canvas() 
     
-    def update_subsets(self): 
+    def find_segments(self, threshold=0.1):
+        M = self.raw_df['Magnetic Field (Oe)']
+        constant_segments = []
+        segment_start = None
+    
+        for i in range(1, len(M)):
+            if abs(M[i] - M[i-1]) > threshold:
+                if segment_start is not None:
+                    # Avoid empty segments where start > end
+                    if segment_start <= i - 1:
+                        constant_segments.append((segment_start, i-1))
+                segment_start = None
+            else:
+                if segment_start is None:
+                    segment_start = i-1
+    
+        # Add the last segment if it's constant
+        if segment_start is not None and segment_start <= len(M) - 1:
+            constant_segments.append((segment_start, len(M)-1))
+    
+        # Handle the case when there are no constant segments
+        if not constant_segments:
+            non_constant_segments = [(0, len(M) - 1)]
+        else:
+            non_constant_segments = [(0, constant_segments[0][0])]
+            for i in range(len(constant_segments) - 1):
+                non_constant_segments.append((constant_segments[i][1] + 1, constant_segments[i + 1][0]))
+            non_constant_segments.append((constant_segments[-1][1] + 1, len(M) - 1))
+    
+        return constant_segments, non_constant_segments
+
+
+
+
+
+    def update_subsets_old(self): 
         """ Updates the subsets of data for DC data. This function enables you to import a
         datafile that either contains only M VS H data, XT data or both.
         Splits the data based on when the time stamp jumps.
-        Assigns HM or XT to each dataset depending on whether the magnetic field is almost constant 
+        Assigns MH or XT to each dataset depending on whether the magnetic field is almost constant 
         (within 0.05 Oe) between measurement 1 and 5 or whether the temperature is almost constant
         (within 0.05 K) between measurement 1 and 5"""
 
@@ -557,18 +625,18 @@ class DataTreatmentTab(QSplitter):
         i = 0
         split_idx = []
         subsets = []
-        self.HM_subsets = []
+        self.MH_subsets = []
         self.XT_subsets = []
-        # Finds indicies to split data and asigns XT or HM to each subset
+        # Finds indicies to split data and asigns XT or MH to each subset
         for i in range(self.raw_df.shape[0]-5):  
             current_time = self.raw_df["Time Stamp (sec)"].values[i]
-            if current_time > old_time + 100: # If time stamp jumps by more than 100 seconds, the data set is split into a new subset.
+            if current_time > old_time + 500: # If time stamp jumps by more than 500 seconds, the data set is split into a new subset.
                 split_idx.append(i)
                 if isclose(self.raw_df["Magnetic Field (Oe)"].values[i], self.raw_df["Magnetic Field (Oe)"].values[i+5], rel_tol = 0.05): 
                     subsets.append((i,"XT"))
                 if isclose(self.raw_df["Temperature (K)"].values[i],self.raw_df["Temperature (K)"].values[i+5],rel_tol = 0.05): #Used to be rel_tol = 0.01 
-                    if self.raw_df["Temperature (K)"].values[i] < 250: #Assumption: You would never measure T vs. XT data above 250 K  
-                        subsets.append((i,"HM"))
+                    if self.raw_df["Temperature (K)"].values[i] < 250: #Assumption: You would never measure XT vs. T data above 250 K  
+                        subsets.append((i,"MH"))
                         
             
             old_time = current_time 
@@ -576,36 +644,64 @@ class DataTreatmentTab(QSplitter):
 
         # Makes subsets of the dataframes 
         for i in range(len(split_idx)): 
-            if (split_idx[i], "HM") in subsets: 
-                self.HM_subsets.append(self.raw_df.iloc[split_idx[i]:split_idx[i+1]])
+            if (split_idx[i], "MH") in subsets: 
+                self.MH_subsets.append(self.raw_df.iloc[split_idx[i]:split_idx[i+1]])
             if (split_idx[i], "XT") in subsets: 
                 self.XT_subsets.append(self.raw_df.iloc[split_idx[i]:split_idx[i+1]])
-        
 
 
-
-        self.set_HM_temps() 
+        self.set_MH_temps() 
         self.set_XT_Hs()
 
 
 
+    def update_subsets(self): 
+        """ Updates the subsets of data for DC data. This function enables you to import a
+        datafile that either contains only M VS H data, XT data or both.
+        Splits the data based on when the time stamp jumps.
+        Assigns MH or XT to each dataset depending on whether the magnetic field is almost constant 
+        (within 0.05 Oe) between measurement 1 and 5 or whether the temperature is almost constant
+        (within 0.05 K) between measurement 1 and 5"""
 
-    def set_HM_temps(self): 
-        """ Adds each HM subset temperature to the list of measured temperatures
-         and finds min and max temperature of all HM subsets"""
 
-        if self.HM_subsets != []: 
+        self.MH_subsets = []
+        self.XT_subsets = []
+
+        constant_segments, non_constant_segments = self.find_segments()
+
+        for segment in constant_segments: 
+            if np.abs(segment[1]-segment[0]) > 5:
+                self.XT_subsets.append(self.raw_df.iloc[segment[0]:segment[1]])
+        for segment in non_constant_segments: 
+            if np.abs(segment[1]-segment[0]) > 5:
+                self.MH_subsets.append(self.raw_df.iloc[segment[0]:segment[1]])
+
+
+        self.set_MH_temps() 
+        self.set_XT_Hs()
+
+
+
+    def set_MH_temps(self): 
+        """ Adds each MH subset temperature to the list of measured temperatures
+         and finds min and max temperature of all MH subsets"""
+
+        if self.MH_subsets != []: 
             meas_temps = []
-            for sub in self.HM_subsets:
+            for sub in self.MH_subsets:
                 meas_temps.append(sub['Temperature (K)'].mean())
             self.meas_temps = np.array(meas_temps)
             self.num_meas_temps = len(self.meas_temps)
             self.Tmin = self.meas_temps.min()
             self.Tmax = self.meas_temps.max()
+            colors = [self.parent.temperature_cmap(i / self.num_meas_temps) for i in range(self.num_meas_temps)]
+
+            self.segment_color_mapping = {}
+            for i, T in enumerate(sorted(self.meas_temps)):
+                self.segment_color_mapping[T] = colors[i]
     
     def set_XT_Hs(self): 
-        """ Adds each HM subset temperature to the list of measured temperatures
-         and finds min and max temperature of all HM subsets"""
+        """ """
 
         if self.XT_subsets != []: 
             meas_Hs = []
@@ -698,6 +794,31 @@ class DataTreatmentTab(QSplitter):
             
             self.parent.widget_table.update_table()
 
+   
+    def create_circle_icon(obj, icon_size, border_color, border_width = 2.5, fill_color=None):
+        """ Generates a QPixmap of a certain size and color. These are used to show the symbols of a given 
+        item in the QListWidget where one can choose which temperatures to be shown in the plotting. """
+        pixmap = QPixmap(icon_size, icon_size)
+        pixmap.fill(Qt.transparent)  # Fill with a transparent background
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)  # Optional: Enable antialiasing for smoother edges
+        
+        # Draw a circle with the specified border color and optional fill color
+        pen = painter.pen()
+        pen.setColor(border_color)
+        pen.setWidth(border_width)
+        painter.setPen(pen)
+        
+        if fill_color:
+            painter.setBrush(fill_color)
+        # Drawing the circle. The corner of the object is half the border width (to not cut it off), and then the width and height
+        painter.drawEllipse(border_width / 2.0, border_width / 2.0, icon_size - border_width, icon_size - border_width)
+        
+        # End painting
+        painter.end()
+        
+        return QIcon(pixmap)
+
 
     def update_raw_fit_list(self):   
         """ Updates the raw_fit_list in the ListWidget, where it can be chosen which fits and raw 
@@ -712,19 +833,13 @@ class DataTreatmentTab(QSplitter):
                              'raw': True,
                              'fit': True}
             newitem.setData(32, plotting_dict)
-            if self.Tmin == self.Tmax: 
-                t_float = 0.5 
-            else: 
-                t_float = (T-self.Tmin)/(self.Tmax-self.Tmin) #Makes t_float scaled by temperature from 0 to 1 for colormap
-
-            newitem.setBackground(QColor(to_hex(self.parent.temperature_cmap(t_float))))
-            self.raw_fit_list.addItem(newitem)
-
+            newitem.setIcon(self.create_circle_icon(10, QColor(to_hex(self.segment_color_mapping[T]))))
+            self.raw_fit_list.addItem(newitem)          
 
 
     def plot_from_itemlist(self):
         """ Plots the fitted plot depending on what is chosen in the fitted combobox 
-        (either Freq vs. χ', Freq. vs. χ'' or Cole-Cole) """
+        (either χ' vs freq., χ'' vs. freq. or Cole-Cole) """
         
         if self.data_type == "DC": 
             return
@@ -740,9 +855,7 @@ class DataTreatmentTab(QSplitter):
         for row in range(self.num_meas_temps):
         
             T = self.meas_temps[row]
-            rgb = self.parent.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))
-
-            #Sets x-data to χ' if plot-type is Cole Cole,
+            rgb = self.segment_color_mapping[T]
             if plot_type == 'Cole-Cole':
                 x_data = Xp_(self.temp_subsets[row]['AC Frequency (Hz)'],
                              self.fit_result['ChiS'].iloc[row],
@@ -779,7 +892,7 @@ class DataTreatmentTab(QSplitter):
                     self.fit_plot.ax.plot(x_data_for_plotting,
                                                 y_data_for_plotting,
                                                 c=rgb)
-                else: #Corresponds to elif plot_type == 'Freq VS Xpp' or plot_type == 'Freq VS Xp':
+                else: #Corresponds to elif plot_type == 'Xpp vs. freq' or plot_type == 'Xp VS freq':
                     freq_for_plotting = np.logspace(np.log10(min(x_data)), np.log10(max(x_data)), fit_resolution) #Logspace to equally distribute the points on a log-scale
                     self.fit_plot.ax.plot(freq_for_plotting,
                                                 fcn_y(freq_for_plotting,
@@ -816,12 +929,12 @@ class DataTreatmentTab(QSplitter):
 
         plot_type = self.fit_combo.currentText()
 
-        if plot_type == 'Freq VS Xp':
+        if plot_type == 'Xp vs freq':
             x_name = 'AC Frequency (Hz)'
             y_name = 'Xp_m (emu/(Oe*mol))'
             fcn_y = Xp_
             x_scale = 'log'
-        elif plot_type == 'Freq VS Xpp':
+        elif plot_type == 'Xpp vs freq':
             x_name = 'AC Frequency (Hz)'
             y_name = 'Xpp_m (emu/(Oe*mol))'
             fcn_y = Xpp_
@@ -847,7 +960,7 @@ class DataTreatmentTab(QSplitter):
         if 'Fitted (AC)' not in [self.plot_type_combo.itemText(i) for i in range(self.plot_type_combo.count())]: 
             self.plot_type_combo.addItems(['Fitted (AC)', '3D plot (AC)'])
         if "Cole-Cole" not in [self.fit_combo.itemText(i) for i in range(self.fit_combo.count())]: 
-            self.fit_combo.addItems(['Cole-Cole', 'Freq VS Xp', 'Freq VS Xpp'])
+            self.fit_combo.addItems(['Cole-Cole', 'Xp vs freq', 'Xpp vs freq'])
 
         try:
             # Check to see if there has been loaded a data frame
@@ -874,7 +987,7 @@ class DataTreatmentTab(QSplitter):
             self.plot_type_combo.setCurrentIndex(set_idx)
             self.save_fit_X_btn.setEnabled(True)
             self.copy_fit_btn.setEnabled(True)
-            self.headline.setText("Fitted/3D plot: Hide/show raw data and fitted lines")
+            self.headline.setText("Fitted/3D plot: Hide/show raw data and lines")
             combo_idx = self.plot_type_combo.findText('Fitted (AC)')
             self.plot_type_combo.setCurrentIndex(combo_idx)
 
@@ -979,8 +1092,8 @@ class DataTreatmentTab(QSplitter):
 
         for row in range(self.num_meas_temps):      
             T = self.meas_temps[row]
-            rgb = self.parent.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))           
-
+            rgb = self.segment_color_mapping[T]      
+            #rgb = self.MH_colors[row]
             item = self.raw_fit_list.item(row)
             itemdict = item.data(32)
             if itemdict['raw']:
@@ -1080,13 +1193,13 @@ class DataTreatmentTab(QSplitter):
             self.plot_from_itemlist()
             self.plot3D() 
         elif self.data_type == "DC": 
-            if "HM" in self.DC_data_types: 
-                self.plot_HM() 
+            if "MH" in self.DC_data_types: 
+                self.plot_MH() 
             if "XT" in self.DC_data_types: 
                 self.plot_XT()
         self.fit_plot.canvas.draw()
         self.threeD_plot.canvas.draw()
-        self.HM_plot.canvas.draw() 
+        self.MH_plot.canvas.draw() 
 
 
     def copy_fit_to_analysis(self):
@@ -1120,20 +1233,11 @@ class DataTreatmentTab(QSplitter):
             pass
 
         else:
-            if "H VS M" not in [self.plot_type_combo.itemText(i) for i in range(self.plot_type_combo.count())]: 
-                self.plot_type_combo.addItems(["H VS M", "T VS XT"])
+            if "M vs H" not in [self.plot_type_combo.itemText(i) for i in range(self.plot_type_combo.count())]: 
+                self.plot_type_combo.addItems(["M vs H", "χT vs T"])
             try:
                 m_sample = float(self.m_sample)
                 M_sample = float(self.M_sample)
-                Xd_sample = float(self.Xd_sample)
-                #constant_terms = [float(x) for x in self.constant_terms.split(',')]
-                #var_am = [float(x) for x in self.var_am.split(',')]
-
-                #assert len(var_am)%2==0
-                #paired_terms = [(var_am[n], var_am[n+1]) for n in range(0,len(var_am),2)]
-
-                if Xd_sample == 0:
-                    Xd_sample = -6e-7*M_sample
                 
             except (ValueError, AssertionError, AttributeError):
                 MagMessage('Error', 'Something wrong in "Sample information"\n').exec_()
@@ -1151,7 +1255,7 @@ class DataTreatmentTab(QSplitter):
                 self.update_subsets()
                 self.update_xy_combos()
                 self.update_raw_fit_list()
-                self.plot_XT_HM() 
+                self.plot_XT_MH() 
 
                 self.fit_X_or_get_phi_btn.setText("(3) Get files for fitting in PHI")
                 self.fit_X_or_get_phi_btn.clicked.disconnect() 
@@ -1160,21 +1264,22 @@ class DataTreatmentTab(QSplitter):
                 MagMessage('Diamagnetic correction',
                             'Diamagnetic correction successful!').exec_()
 
-    def plot_XT_HM(self): 
-        """Plotting either XT or HM data or both. Also sets the combo_idx to either one of them
+    def plot_XT_MH(self): 
+        """Plotting either XT or MH data or both. Also sets the combo_idx to either one of them
         depending on your data. Also set the headline for the listwidget. """
         
-        if "HM" in self.DC_data_types: 
-            self.plot_HM() 
-            combo_idx = self.plot_type_combo.findText('H VS M')
-        else: 
-            combo_idx = self.plot_type_combo.findText('T VS XT')    
+        combo_idx  = 0
+
         if "XT" in self.DC_data_types: 
+            combo_idx = self.plot_type_combo.findText('χT vs T')
             self.plot_XT()
-          
+        if "MH" in self.DC_data_types: 
+            self.plot_MH() 
+            combo_idx = self.plot_type_combo.findText('M vs H')
+
         self.plot_type_combo.setCurrentIndex(combo_idx)
 
-        self.headline.setText("H VS M: Hide/show raw data and fitted lines") 
+        #self.headline.setText("M VS H: Hide/show raw data and fitted lines") 
 
     def insert_molar_values_dc(self, M_molar, X_molar): 
         """Insert the molar values of M and χ for DC data into the dataframe. """
@@ -1232,8 +1337,8 @@ class DataTreatmentTab(QSplitter):
             self.XT_plot.ax.set_xlabel(formatlabel(x_name))
             self.XT_plot.ax.set_ylabel(formatlabel(y_name))
 
-            #if self.XT_legend: 
-            #    self.XT_plot.ax.legend() 
+            if self.H_legend: 
+                self.XT_plot.ax.legend() 
             self.XT_plot.canvas.draw()    
 
         except KeyError: #If errors in sample information  
@@ -1243,20 +1348,20 @@ class DataTreatmentTab(QSplitter):
 
 
 
-    def plot_HM(self): 
-        """ Plots H vs. M data. Adds a colorbar if more than one temperature subset 
-        of H vs. M data is present. """
+    def plot_MH(self): 
+        """ Plots M vs. H data. Adds a colorbar if more than one temperature subset 
+        of M vs. H data is present. """
 
-        self.HM_plot.ax.clear()
+        self.MH_plot.ax.clear()
 
         try: 
             for row in range(self.num_meas_temps):
                 
                 T = self.meas_temps[row]
                 if self.Tmin == self.Tmax:  
-                    rgb = self.parent.temperature_cmap(0.5)
+                    rgb = self.segment_color_mapping[T]
                 else:
-                    rgb = self.parent.temperature_cmap((T-self.Tmin)/(self.Tmax-self.Tmin))
+                    rgb = self.segment_color_mapping[T]
     
                 x_name = "Magnetic Field (Oe)"
                 y_name = "Moment_m (Na*muB)"
@@ -1266,8 +1371,8 @@ class DataTreatmentTab(QSplitter):
                 item = self.raw_fit_list.item(row)
                 itemdict = item.data(32)
                 if itemdict['raw']:
-                    self.HM_plot.ax.plot(self.HM_subsets[row][x_name],
-                                        self.HM_subsets[row][y_name],
+                    self.MH_plot.ax.plot(self.MH_subsets[row][x_name],
+                                        self.MH_subsets[row][y_name],
                                         marker='o',
                                         color=rgb,
                                         mfc='none',
@@ -1275,8 +1380,8 @@ class DataTreatmentTab(QSplitter):
                                         linestyle = "none",
                                         label = T_label) 
                 if itemdict['fit']:       
-                    self.HM_plot.ax.plot(self.HM_subsets[row][x_name],
-                                        self.HM_subsets[row][y_name],
+                    self.MH_plot.ax.plot(self.MH_subsets[row][x_name],
+                                        self.MH_subsets[row][y_name],
                                         linestyle = '-',
                                         color=rgb,
                                         mfc='none',
@@ -1284,19 +1389,12 @@ class DataTreatmentTab(QSplitter):
                                         label = T_label) 
     
                 
-            self.HM_plot.ax.set_xlabel(formatlabel(x_name))
-            self.HM_plot.ax.set_ylabel(formatlabel(y_name))
+            self.MH_plot.ax.set_xlabel(formatlabel(x_name))
+            self.MH_plot.ax.set_ylabel(formatlabel(y_name))
 
-            #if len(self.HM_subsets) > 1: 
-            #    norm = mpl.colors.Normalize(vmin=self.Tmin, vmax=self.Tmax)
-            #    self.HM_plot.fig.colorbar(
-            #        mpl.cm.ScalarMappable(norm=norm,
-            #                              cmap=self.parent.temperature_cmap),
-            #                                    orientation='horizontal',
-            #        cax=self.HM_plot.cax)
             if self.T_legend: 
-                self.HM_plot.ax.legend() 
-            self.HM_plot.canvas.draw()    
+                self.MH_plot.ax.legend() 
+            self.MH_plot.canvas.draw()    
 
         except KeyError: #If errors in sample information  
             pass
